@@ -15,7 +15,9 @@ Approved at this gate:
 - **Create the repo.** Public `NewGraphEnvironment/stac_pointcloud_bc`, laid out like
   `stac_airphoto_bc` (uv, `pyproject.toml`, `stacs.toml`, `tests/`). Transfer #35 there
   and do all the work there.
-- **First increment = `dsm/*.laz` in the 11 laz-only mapsheet-years: 6,067 files.**
+- ~~First increment = `dsm/*.laz` (6,067 files)~~ **Changed after Phase 1 (user, 2026-10-07):
+  `dsm/*.laz` is an RGB copy of the point cloud, not a surface model. First increment =
+  `pointcloud/*.laz` in the 11 laz-only mapsheet-years: 9,650 files.** Original reasoning:
   These are the surface models whose absence leaves 1,211 DEM tiles reported as
   `no_raster_dsm` in stac_dem_bc's `data/dsm_pairing_report.md`. Each item records its
   product (`dsm` / `pointcloud`), so `pointcloud/*.laz` can join the same collection
@@ -42,11 +44,11 @@ Measured per group, `dsm/*.laz` (`pointcloud/*.laz` alongside, not in this incre
 - [x] Then `/planning-init <new N>` there: branch and PWF baseline with these phases
 
 ## Phase 1: Probes — the "open before building" questions, measured
-- [ ] **Remote header read cost.** On 5 `dsm/*.laz` and 5 `pointcloud/*.laz`, read the LAS header and VLRs with laspy over HTTP range requests (no point decompression). Record bytes transferred, wall time, point count, bounds, CRS (WKT/GeoTIFF VLR), point format and classification flags
-- [ ] **Decision rule, fixed now so the probe settles it without a stall:** if the header read is ≤ 64 KB and ≤ 2 s per file, items get their geometry and properties from the header (real bounds, point count, CRS). Otherwise they come from the filename (tile id → nominal footprint) and the cost goes in the issue
-- [ ] **Is `dsm/*.laz` a surface model?** Check classification and return info on 2 files. If they are not DSM points, stop and re-ask the increment question
-- [ ] **CanElevation overlap.** Query NRCan's CanElevation STAC for the 11 groups' bboxes and years; record any overlap. Overlap is recorded, not a blocker for the first increment
-- [ ] Write the results to `research/laz_header_read.md` (provenance header) and the issue body
+- [x] **Remote header read cost.** On 5 `dsm/*.laz` and 5 `pointcloud/*.laz`, read the LAS header and VLRs with laspy over HTTP range requests (no point decompression). Record bytes transferred, wall time, point count, bounds, CRS (WKT/GeoTIFF VLR), point format and classification flags
+- [x] **Decision rule, fixed now so the probe settles it without a stall:** if the header read is ≤ 64 KB and ≤ 2 s per file, items get their geometry and properties from the header (real bounds, point count, CRS). Otherwise they come from the filename (tile id → nominal footprint) and the cost goes in the issue
+- [x] **Is `dsm/*.laz` a surface model?** No: an RGB copy of the same-tile `pointcloud/*.laz`. Increment re-asked → `pointcloud/*.laz`. Check classification and return info on 2 files. If they are not DSM points, stop and re-ask the increment question
+- [x] **CanElevation overlap.** Unresolved: no point cloud collection in NRCan STAC, FTP listing 403. Follow-up issue. Query NRCan's CanElevation STAC for the 11 groups' bboxes and years; record any overlap. Overlap is recorded, not a blocker for the first increment
+- [x] Write the results to `research/laz_header_read.md` (provenance header) and the issue body
 
 ## Phase 2: Item creation — stactools-shaped
 - [ ] `src/` or `scripts/laz_item.py`: pure `item_create(href, header) -> pystac.Item`, with no bucket, host or CI in it
@@ -60,7 +62,7 @@ Measured per group, `dsm/*.laz` (`pointcloud/*.laz` alongside, not in this incre
 - [ ] Tests: fixtures cover both products, a missing CRS VLR, a filename with no date, and an `https:/` input that must raise. Each guard is shown to fail its test when removed
 
 ## Phase 3: Build, publish, register the first increment
-- [ ] Build 6,067 items with `ThreadPoolExecutor` (I/O-bound, as stac_dem_bc), logging to `logs/`; validate with pystac (`stacs` validate)
+- [ ] Build 9,650 items with `ThreadPoolExecutor` (I/O-bound, as stac_dem_bc), logging to `logs/`; validate with pystac (`stacs` validate)
 - [ ] Collection JSON: extent from the items, providers and keywords as in stac_dem_bc, STAC Version Extension
 - [ ] Sync to `s3://stac-pointcloud-bc/` with local credentials (CI publishing is a follow-up issue)
 - [ ] `stacs verify` then `stacs register --config stacs.toml --mode drift` from the tailnet machine; then verify again: id sets equal both ways, bodies digest-equal
@@ -68,8 +70,8 @@ Measured per group, `dsm/*.laz` (`pointcloud/*.laz` alongside, not in this incre
 
 ## Phase 4: Close-out
 - [ ] README (what is indexed, what is not yet), NEWS `v0.1.0` entry, follow-up issues:
-  - `pointcloud/*.laz` (175k)
-  - the remaining `dsm/*.laz` outside the 11 groups (324)
+  - the rest of `pointcloud/*.laz` (175,317 − 9,650)
+  - `dsm/*.laz` (6,391): RGB copies; index as a variant asset or not at all
   - CI monthly update with the rtj#362 role
   - elevation-item → point cloud link
 - [ ] stac_dem_bc: does `dsm_pairing_report.md` gain a pointer to the new collection for the 1,211 tiles? File it there, don't change it here
@@ -78,7 +80,7 @@ Measured per group, `dsm/*.laz` (`pointcloud/*.laz` alongside, not in this incre
 
 - [ ] `uv run pytest` green; each new guard turns its test red when removed
 - [ ] Probe numbers recorded with units in `research/laz_header_read.md`
-- [ ] After registration, `stacs verify` IN SYNC: 6,067 ids both ways, 0 changed bodies
+- [ ] After registration, `stacs verify` IN SYNC: 9,650 ids both ways, 0 changed bodies
 - [ ] An item served by the API has a `laz` href that resolves (HTTP 200 on HEAD)
 - [ ] `/code-check` clean on each commit
 - [ ] PWF checkboxes match landed work

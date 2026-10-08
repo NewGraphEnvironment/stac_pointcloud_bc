@@ -110,7 +110,19 @@ Relates to NewGraphEnvironment/stac_dem_bc#29, NewGraphEnvironment/stac_dem_bc#3
   can write to it.
 - The repo layout follows `stac_airphoto_bc`: uv, `stacs.toml`, `tests/test_stacs_config.py`.
 
+## Phase 1 probes (2026-10-07), full write-up in `research/laz_header_read.md`
+
+- Header read = one 64 KB range request, 0.11–0.22 s, 0 EVLRs (10 files). Rule passed:
+  items take their geometry from the header.
+- **`dsm/*.laz` is an RGB-colourised copy of the same-tile `pointcloud/*.laz`, not a
+  surface model.** Same bounds, point counts within the noise class, point format 3/7 vs 1.
+  So the 11 groups delivered no DSM. The user re-chose the increment: `pointcloud/*.laz`,
+  9,650 files.
+- CanElevation overlap is unresolved: NRCan STAC has no point cloud collection, and the
+  FTP listing returns 403.
+
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
+| The probe refused every file: `server does not advertise byte ranges` | The objectstore answers a Range GET with 206 but sends no `Accept-Ranges` on HEAD. Dropped that check; the 206 check on each read is the real guard |
