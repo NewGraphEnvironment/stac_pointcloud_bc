@@ -1,0 +1,28 @@
+# This catalogue, declared for stacs: `stacs verify|register|audit --config stacs.toml`.
+#
+# The collection id, bucket and asset key also live in scripts/laz_item.py, and
+# tests/test_stacs_config.py fails if the two disagree. Change the module, then this.
+#
+# No setting is a secret. The password stays on the host, named by password_env.
+
+[catalogue]
+api = "https://images.a11s.one"
+collection_id = "stac-pointcloud-bc"
+bucket_url = "https://stac-pointcloud-bc.s3.us-west-2.amazonaws.com"
+
+[assets]
+require = "laz"
+
+[transport]
+# The STAC host over the tailnet, as stac_dem_bc's stacs.toml documents (root only;
+# the DigitalOcean reserved IP 146.190.12.8 is the same machine).
+host = "root@geopro"
+db = "stac"
+env_file = "/opt/geoserv/.env"
+workdir = "/opt/geoserv/scripts"
+path_prepend = "/root/.local/bin"
+pg_host = "localhost"
+pg_port = 5432
+pg_user = "stac"
+password_env = "POSTGRES_PASSWORD"
+pypgstac = ["uv", "run", "pypgstac"]

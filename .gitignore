@@ -1,0 +1,15 @@
+# Built catalogue and run logs are regenerable; S3 holds the published copy.
+data/build/
+logs/*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+
+# Secrets
+.env
+*.tfvars

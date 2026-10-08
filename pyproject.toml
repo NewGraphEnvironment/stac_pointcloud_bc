@@ -1,0 +1,29 @@
+[project]
+name = "stac-pointcloud-bc"
+version = "0.1.0"
+description = "STAC items for LidarBC point clouds (.laz): listing, header read, item creation, validation."
+requires-python = ">=3.12"
+dependencies = [
+    "pystac>=1.12.0",
+    # Reads the LAS header and VLRs only; lazrs is the LAZ backend, needed to open a
+    # .laz at all even when no points are decompressed.
+    "laspy[lazrs]>=2.5",
+    "requests",
+    "pyproj",
+    "tqdm",
+    # Registration and verification on pgstac, from its git tag (stacs README,
+    # "Install"). The tag is also pinned by tests/test_stacs_config.py.
+    "stacs",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.uv.sources]
+stacs = { git = "https://github.com/NewGraphEnvironment/stacs", tag = "v0.1.1" }
+
+# Scripts-only repo, not an installable package; uv manages the environment.
+[tool.uv]
+package = false
