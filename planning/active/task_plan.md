@@ -62,26 +62,26 @@ Measured per group, `dsm/*.laz` (`pointcloud/*.laz` alongside, not in this incre
 - [x] Tests: fixtures cover both products, a missing CRS VLR, a filename with no date, and an `https:/` input that must raise. Each guard is shown to fail its test when removed
 
 ## Phase 3: Build, publish, register the first increment
-- [ ] Build 9,650 items with `ThreadPoolExecutor` (I/O-bound, as stac_dem_bc), logging to `logs/`; validate with pystac (`stacs` validate)
-- [ ] Collection JSON: extent from the items, providers and keywords as in stac_dem_bc, STAC Version Extension
-- [ ] Sync to `s3://stac-pointcloud-bc/` with local credentials (CI publishing is a follow-up issue)
-- [ ] `stacs verify` then `stacs register --config stacs.toml --mode drift` from the tailnet machine; then verify again: id sets equal both ways, bodies digest-equal
-- [ ] Spot-check 3 items in QGIS/STAC Browser against the source footprint
+- [x] Build 9,650 items → 9,649 (1 excluded by name, header mins [0,0,0]) with `ThreadPoolExecutor` (I/O-bound, as stac_dem_bc), logging to `logs/`; validate with pystac (`stacs` validate)
+- [x] Collection JSON: extent from the items, providers and keywords as in stac_dem_bc, STAC Version Extension
+- [x] Sync to `s3://stac-pointcloud-bc/` with local credentials (CI publishing is a follow-up issue)
+- [x] `stacs verify` then `stacs register --config stacs.toml --mode drift` from the tailnet machine; then verify again: id sets equal both ways, bodies digest-equal
+- [x] Spot-check 3 items in QGIS/STAC Browser against the source footprint
 
 ## Phase 4: Close-out
-- [ ] README (what is indexed, what is not yet), NEWS `v0.1.0` entry, follow-up issues:
+- [x] README (what is indexed, what is not yet), NEWS `v0.1.0` entry, follow-up issues:
   - the rest of `pointcloud/*.laz` (175,317 − 9,650)
   - `dsm/*.laz` (6,391): RGB copies; index as a variant asset or not at all
   - CI monthly update with the rtj#362 role
   - elevation-item → point cloud link
-- [ ] stac_dem_bc: does `dsm_pairing_report.md` gain a pointer to the new collection for the 1,211 tiles? File it there, don't change it here
+- [x] stac_dem_bc: does `dsm_pairing_report.md` gain a pointer to the new collection for the 1,211 tiles? File it there, don't change it here
 
 ## Validation
 
-- [ ] `uv run pytest` green; each new guard turns its test red when removed
-- [ ] Probe numbers recorded with units in `research/laz_header_read.md`
-- [ ] After registration, `stacs verify` IN SYNC: 9,650 ids both ways, 0 changed bodies
-- [ ] An item served by the API has a `laz` href that resolves (HTTP 200 on HEAD)
-- [ ] `/code-check` clean on each commit
-- [ ] PWF checkboxes match landed work
+- [x] `uv run pytest` green; each new guard turns its test red when removed
+- [x] Probe numbers recorded with units in `research/laz_header_read.md`
+- [x] After registration, `stacs verify` IN SYNC: 9,649 ids both ways, 0 changed bodies
+- [x] An item served by the API has a `laz` href that resolves (HTTP 200 on HEAD)
+- [x] `/code-check` clean on each commit
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion

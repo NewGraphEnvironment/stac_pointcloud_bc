@@ -52,9 +52,12 @@ read them as surface models "published as point cloud only". They are not:
   are format 6 and 12 are format 7 (RGB), so colour is not unique to `dsm/` (review read,
   2026-10-07).
 - 5,710 of the 6,067 `dsm/*.laz` in the 11 groups have a `pointcloud/` file with the
-  same tile id.
+  same tile id. The other 357 were not compared.
 
-So those 11 mapsheet-years delivered **no DSM**. The 1,211 DEM tiles stac_dem_bc reports
+**How far this was measured:** two tile pairs compared point for point and header for header,
+and a 5-file sample of returns and classes, all inside the 11 groups. The 324 `dsm/*.laz`
+outside them were not examined. Every file compared says the same thing, so as far as was
+measured those 11 mapsheet-years delivered **no DSM**. The 1,211 DEM tiles stac_dem_bc reports
 as `no_raster_dsm` lack a surface model, and indexing `dsm/*.laz` would not supply one.
 The first increment here is therefore `pointcloud/*.laz` (9,650 files in those groups).
 `dsm/*.laz` is a colourised variant, left to a follow-up.

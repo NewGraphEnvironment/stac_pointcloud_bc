@@ -29,9 +29,12 @@ item JSON to `s3://stac-pointcloud-bc` and registers it with
 
 - 181,708 `.laz`: 175,317 under `<block>/<sheet>/<year>/pointcloud/` and 6,391 under
   `.../dsm/`. Four have `copc` in the name; the rest are plain LAZ.
-- 11 mapsheet-years publish their surface model **only** as `dsm/*.laz` (6,067 files).
-  In stac_dem_bc they leave 1,211 DEM tiles reported as `no_raster_dsm`. Those files
-  are the first increment indexed here.
+- 11 mapsheet-years have a `dsm/` directory holding only `.laz` (6,067 files); in
+  stac_dem_bc they leave 1,211 DEM tiles reported as `no_raster_dsm`. **Those `.laz`
+  are not surface models.** In every sample compared, each was an RGB-colourised copy of
+  the same-tile `pointcloud/*.laz` (`research/laz_header_read.md`, which says how far
+  that was measured). The first increment indexed here is those groups'
+  `pointcloud/*.laz` (#1).
 - **Source URLs are `https://`.** `ngr::ngr_s3_keys_get()` returned `https:/` before ngr
   0.0.3 (ngr#38). Anything that reads a URL list refuses the one-slash form; never
   repair it silently (stac_dem_bc#51).
