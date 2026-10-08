@@ -84,4 +84,4 @@ Measured per group, `dsm/*.laz` (`pointcloud/*.laz` alongside, not in this incre
 - [x] An item served by the API has a `laz` href that resolves (HTTP 200 on HEAD)
 - [x] `/code-check` clean on each commit
 - [x] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] `/planning-archive` on completion
