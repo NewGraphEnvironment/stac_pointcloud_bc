@@ -51,15 +51,15 @@ Measured per group, `dsm/*.laz` (`pointcloud/*.laz` alongside, not in this incre
 - [x] Write the results to `research/laz_header_read.md` (provenance header) and the issue body
 
 ## Phase 2: Item creation — stactools-shaped
-- [ ] `src/` or `scripts/laz_item.py`: pure `item_create(href, header) -> pystac.Item`, with no bucket, host or CI in it
+- [x] `src/` or `scripts/laz_item.py`: pure `item_create(href, header) -> pystac.Item`, with no bucket, host or CI in it
   - `pointcloud` and `proj` extensions
   - id from the key path, as stac_dem_bc does (`082-082e-2018-dsm-<file>`)
   - `nge:product` = `dsm` / `pointcloud`
   - datetime from the filename date, as stac_dem_bc parses it
   - one asset, key `laz`, media type `application/vnd.laszip`, href = the objectstore URL (`https://`)
-- [ ] Listing: one bucket walk via `ngr` v0.0.3, or a Python walk; keep the `https://` scheme guard (stac_dem_bc#51) and a plausibility floor
-- [ ] `stacs.toml` `[assets] require = "laz"`
-- [ ] Tests: fixtures cover both products, a missing CRS VLR, a filename with no date, and an `https:/` input that must raise. Each guard is shown to fail its test when removed
+- [x] Listing: one bucket walk via `ngr` v0.0.3, or a Python walk; keep the `https://` scheme guard (stac_dem_bc#51) and a plausibility floor
+- [x] `stacs.toml` `[assets] require = "laz"`
+- [x] Tests: fixtures cover both products, a missing CRS VLR, a filename with no date, and an `https:/` input that must raise. Each guard is shown to fail its test when removed
 
 ## Phase 3: Build, publish, register the first increment
 - [ ] Build 9,650 items with `ThreadPoolExecutor` (I/O-bound, as stac_dem_bc), logging to `logs/`; validate with pystac (`stacs` validate)

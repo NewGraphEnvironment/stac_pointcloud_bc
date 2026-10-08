@@ -46,9 +46,11 @@ read them as surface models "published as point cloud only". They are not:
   identical class and return distribution over the first 100k. `082e084_4_1_4` matches
   the same way (58,432,776 vs 58,466,790): the `dsm/` copy drops class 7 (noise), which
   is why its z range is narrower (814–1134 m vs 517–1280 m).
-- **What differs is the point format.** `dsm/` files are format 3 (LAS 1.2) or 7 (LAS
-  1.4), which add RGB to format 1's
-  fields. `pointcloud/` files are format 1, with no colour.
+- **What differs is the point format.** In the tiles compared, the `dsm/` copy is format 3
+  (LAS 1.2) or 7 (LAS 1.4), which add RGB, where the `pointcloud/` file is format 1.
+  Across all 9,650 `pointcloud/` files in the increment, 6,363 are format 1, but 3,275
+  are format 6 and 12 are format 7 (RGB), so colour is not unique to `dsm/` (review read,
+  2026-10-07).
 - 5,710 of the 6,067 `dsm/*.laz` in the 11 groups have a `pointcloud/` file with the
   same tile id.
 
@@ -64,3 +66,32 @@ NRCan's datacube STAC (`datacube.services.geo.ca/stac/api`) has DEM/DSM collecti
 cloud FTP tree refuses directory listing (403), and the index file name tried 404s. So
 whether CanElevation republishes these LidarBC projects is still unknown, and is a
 follow-up issue rather than a blocker.
+
+## What a full read of the increment's headers found (review, 2026-10-07)
+
+All 9,650 `pointcloud/` headers read without error. Three things the item code now handles:
+
+- **One faulty header.** `092h/2016/.../bc_092h003_2_3_1_xyes_7_utm10_20160913.laz` has
+  `mins = [0, 0, 0]` and real maxs, so its box starts at the UTM origin. The build excludes it by
+  name (`EXCLUDE` in `scripts/catalogue_build.py`). `item_create` refuses a box with a side of
+  zero or over 5 km, or whose centre is not in the NTS sheet its key names (below), so a new
+  fault fails the build rather than publishing a footprint that reaches the equator.
+- **BoundCRS.** 1,678 files carry a compound CRS whose horizontal part is a `BOUNDCRS` (with a
+  TOWGS84 binding). Its EPSG code (2955) appears only once the binding is unwrapped. The 197 Esri-WKT
+  files in `082k` cannot be identified at all, so they publish `proj:wkt2` with no code.
+- **Filename dates are not reliably acquisition dates.** 266 `082k/2017` files are named
+  `_180827`, but GPS time (adjusted standard time) puts them in October 2017. 2,008 files in
+  `092g/092h/092j 2016` are named with a 2017 date equal to the header creation date, which is a
+  processing date. Trust is per delivery: `082k/2017` also has a `_171015` file whose year agrees
+  but whose GPS times do not fall on the 15th. So in any mapsheet-year where some filename date
+  disagrees with the directory year, no file's filename date is used. Every item there carries
+  the directory year as a range and keeps the token in `nge:filename_date`.
+- **GPS time is not a general oracle.** It settled `082k/2017`, but in `082g/2018` the first-chunk
+  GPS dates scatter across 2010–2018. Use it only where it is internally consistent.
+- **Footprints are checked against the map sheet named in the key.** All but the excluded file
+  have their centre in the NTS 1:250k sheet their key names. That catches a wrong-zone label,
+  which a BC-wide box would not. There is no lower bound on tile size: 104 files have a side
+  under 100 m, the smallest 1 x 1 m with 14 points, and they are real.
+
+The 15 ` (2).laz` files are not copies of their namesakes: they have different extents and point
+counts. Both are indexed.
