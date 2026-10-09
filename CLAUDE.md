@@ -35,6 +35,11 @@ item JSON to `s3://stac-pointcloud-bc` and registers it with
   the same-tile `pointcloud/*.laz` (`research/laz_header_read.md`, which says how far
   that was measured). The first increment indexed here is those groups'
   `pointcloud/*.laz` (#1).
+- **13,996 of the `pointcloud/*.laz` share a file name with a COPC in NRCan's CanElevation
+  series**, in four of its projects (measured 2026-10-09; `research/canelevation_overlap.md`,
+  #6). A name is not proof: the build pairs by name, checks each copy's header (point count,
+  horizontal CRS, box within 0.05 m), and only then adds it as the `copc` asset. The `laz`
+  asset stays the source of record.
 - **Source URLs are `https://`.** `ngr::ngr_s3_keys_get()` returned `https:/` before ngr
   0.0.3 (ngr#38). Anything that reads a URL list refuses the one-slash form; never
   repair it silently (stac_dem_bc#51).

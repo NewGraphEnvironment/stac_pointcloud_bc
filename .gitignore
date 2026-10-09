@@ -1,5 +1,6 @@
 # Built catalogue and run logs are regenerable; S3 holds the published copy.
 data/build/
+data/build-limit/
 logs/*.log
 
 # Python

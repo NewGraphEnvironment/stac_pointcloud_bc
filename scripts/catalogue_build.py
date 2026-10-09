@@ -3,7 +3,9 @@
 
 Lists `pointcloud/*.laz` in the 11 mapsheet-years whose `dsm/` holds no raster (#1),
 reads each file's LAS header over one range request, and writes item JSON and a
-collection.json to `data/build/`. Publishing (s3) and registering (stacs) are separate
+collection.json to `data/build/`. Where NRCan's CanElevation publishes a COPC under a
+file's name (#6), its header is read too (cached in `copc_headers.jsonl`), and if it passes
+laz_item.copc_asset_add's check the item carries it as a second asset. Publishing (s3) and registering (stacs) are separate
 steps, so a build can be inspected before anything leaves this machine.
 
 Headers are cached in `data/build/headers.jsonl`, so a re-run reads only what is missing.
@@ -15,10 +17,12 @@ Usage:
 """
 
 import argparse
+import collections
 import concurrent.futures
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 import urllib.parse
@@ -31,10 +35,13 @@ from tqdm import tqdm
 from laz_item import (
     ASSET_LAZ,
     COLLECTION_ID,
+    COPC_BOX_TOLERANCE_M,
     HEADER_VERSION,
     date_parse,
     key_parse,
     PATH_S3_STAC,
+    canelevation_keys_list,
+    copc_asset_add,
     header_read,
     item_create,
     keys_list,
@@ -56,6 +63,29 @@ INCREMENT = {
     "092/092h/2016": 1020, "092/092j/2016": 182,
 }
 
+# The CanElevation projects that publish COPC under LidarBC file names, with the .laz count
+# measured 2026-10-09 (research/canelevation_overlap.md, #6). Its other BC projects share
+# no file name with LidarBC (and no header, as far as the research could test), and are not
+# listed. A listing under 90% of its count is refused, as for INCREMENT, though not because
+# the bucket only grows: it has moved once already (FTP to S3). A smaller loss passes here
+# and is caught by COPC_PAIRS, for the groups it records.
+CANELEVATION_ROOT = "pointclouds_nuagespoints"
+CANELEVATION_PROJECTS = {
+    "BC/Vancouver_Island_Sunshine_Coast_2018": 7873,
+    "BC/Riverine_Floodplain_UTM10_2019": 3866,
+    "BC/Riverine_Floodplain_UTM11_2019": 682,
+    "BC/Lower_Mainland_2016": 1714,
+}
+
+# Items with a CanElevation copy per INCREMENT group, measured 2026-10-09 (#6). The listing
+# floors above cannot see a rename on either side, which pairs nothing while every count
+# passes. Pairing is a deterministic join, so there is no slack either way: a group pairing
+# other than this is refused (fewer would drop published `copc` assets without a word; more
+# would publish assets a later shrink back to this count could drop unseen), and so is a
+# group that pairs and is not named here. Record the new count when the change is real.
+COPC_PAIRS = {"082/082e/2019": 332, "082/082l/2019": 57, "092/092g/2016": 1155,
+              "092/092h/2016": 420}
+
 # Files whose header is known to be faulty, excluded by name with the reason. Anything
 # else item_create() refuses fails the build, so a new fault is seen rather than dropped.
 # Each entry records the fault as observed; if the header no longer shows it (the file
@@ -76,11 +106,19 @@ DESCRIPTION = (
     "LidarBC point clouds (LAZ) from British Columbia, one item per file as published on "
     "the province's objectstore. Each item's footprint, point count and CRS come from the "
     "file's LAS header. The `laz` asset is the file itself; nothing is copied. The raster "
-    "elevation products of the same deliveries are the stac-elevation-bc collection."
+    "elevation products of the same deliveries are the stac-elevation-bc collection. "
+    "Natural Resources Canada's CanElevation series publishes COPC under many LidarBC file "
+    "names, in four of its projects (Vancouver_Island_Sunshine_Coast_2018, "
+    "Riverine_Floodplain_UTM10_2019, Riverine_Floodplain_UTM11_2019, Lower_Mainland_2016). "
+    "Where an item's file name is one of them, the item also carries that COPC as its `copc` "
+    "asset, checked to have the same point count and horizontal CRS and a header box within "
+    f"{COPC_BOX_TOLERANCE_M:g} m; the `laz` asset stays the source of record."
 )
 PROVIDERS = [
     {"name": "Province of British Columbia", "roles": ["producer", "licensor", "host"],
      "url": "https://lidar.gov.bc.ca/"},
+    {"name": "Natural Resources Canada", "roles": ["host"],
+     "url": "https://open.canada.ca/data/en/dataset/7069387e-9986-4297-9f55-0288e9676947"},
     {"name": "New Graph Environment", "roles": ["processor"],
      "url": "https://www.newgraphenvironment.com"},
 ]
@@ -101,6 +139,65 @@ def listing() -> list[dict]:
         logger.info("%s: %d .laz (measured %d)", group, len(found), expected)
         objs.extend(found)
     return sorted(objs, key=lambda o: o["url"])
+
+
+def copc_listing() -> list[dict]:
+    """Every .laz in the CanElevation projects that republish LidarBC files
+    (`{"url", "etag", "size"}`), refusing a short project."""
+    s = requests.Session()
+    objs = []
+    for project, expected in CANELEVATION_PROJECTS.items():
+        found = [o for o in canelevation_keys_list(f"{CANELEVATION_ROOT}/{project}/", session=s)
+                 if o["url"].lower().endswith(".laz")]
+        if len(found) < 0.9 * expected:
+            raise RuntimeError(f"CanElevation {project}: {len(found)} .laz, under 90% of the "
+                               f"{expected} measured 2026-10-09 - refusing a truncated listing")
+        logger.info("CanElevation %s: %d .laz (measured %d)", project, len(found), expected)
+        objs.extend(found)
+    return objs
+
+
+def file_stem(url: str) -> str:
+    """A file's name with `.copc` and `.laz` stripped: what a LidarBC file and its
+    CanElevation copy share."""
+    return re.sub(r"(\.copc)?\.laz$", "", url.rsplit("/", 1)[-1].lower())
+
+
+def copc_pairs(urls: list[str], copc_objs: list[dict]) -> dict[str, dict]:
+    """LidarBC url -> the CanElevation object of the same name. A matched name held by two
+    files on either side raises: which one is the copy would be a guess. Names nothing in
+    `urls` matches are not this build's business."""
+    by_stem = collections.defaultdict(list)
+    for o in copc_objs:
+        by_stem[file_stem(o["url"])].append(o)
+    pairs, seen = {}, {}
+    for u in urls:
+        k = file_stem(u)
+        if k not in by_stem:
+            continue
+        if len(by_stem[k]) > 1:
+            raise RuntimeError(f"two CanElevation files named {k}: "
+                               f"{', '.join(o['url'] for o in by_stem[k])}")
+        if k in seen:
+            raise RuntimeError(f"two LidarBC files named {k}: {seen[k]}, {u}")
+        seen[k] = u
+        pairs[u] = by_stem[k][0]
+    return pairs
+
+
+def copc_pairs_check(pairs: dict[str, dict]) -> None:
+    """Refuse a group that paired other than COPC_PAIRS records, or paired at all without
+    a recorded count."""
+    n = collections.Counter("/".join(key_parse(u)["key"].split("/")[:3]) for u in pairs)
+    for g, expected in COPC_PAIRS.items():
+        if n[g] != expected:
+            raise RuntimeError(f"{g}: {n[g]} items paired with a CanElevation COPC, not the "
+                               f"{expected} recorded in COPC_PAIRS - a renamed, moved or new "
+                               f"file on either side; record the count if the change is real")
+    new = sorted(set(n) - set(COPC_PAIRS))
+    if new:
+        raise RuntimeError(f"groups pairing with CanElevation but not in COPC_PAIRS: "
+                           f"{', '.join(f'{g} ({n[g]})' for g in new)} - record their counts")
 
 
 def cache_tail_repair(path: str) -> None:
@@ -248,6 +345,8 @@ def main() -> int:
 
     os.makedirs(out, exist_ok=True)
     objs = listing()
+    # Listed before any header is read, so a short CanElevation listing fails fast.
+    copc_objs = copc_listing()
     if args.limit:
         objs = objs[: args.limit]
     urls = [o["url"] for o in objs]
@@ -270,9 +369,37 @@ def main() -> int:
     def group(u):
         p = key_parse(u)
         return f"{p['block']}/{p['sheet']}/{p['year']}"
+    kept = [u for u in urls if u not in excluded]
     items = [item_create(u, headers[u], collection_href,
                          trust_filename_date=group(u) not in untrusted)
-             for u in urls if u not in excluded]
+             for u in kept]
+
+    pairs = copc_pairs(kept, copc_objs)
+    if not args.limit:  # a limited build is a slice, and is never published
+        copc_pairs_check(pairs)
+    copc_headers, errors = headers_fetch(list(pairs.values()), f"{out}/copc_headers.jsonl",
+                                         args.workers)
+    if errors:
+        for u, e in sorted(errors.items()):
+            logger.error("COPC header read failed: %s: %s", u, e)
+        logger.error("%d of %d COPC headers failed - not building; re-run to retry them",
+                     len(errors), len(pairs))
+        return 1
+    mismatched = {}
+    for u, i in zip(kept, items):
+        if u in pairs:
+            try:
+                copc_asset_add(i, pairs[u]["url"], copc_headers[pairs[u]["url"]], headers[u])
+            except ValueError as e:  # all reported together, then the build refuses
+                mismatched[u] = str(e)
+    if mismatched:
+        for u, e in sorted(mismatched.items()):
+            logger.error("COPC is not a copy: %s", e)
+        logger.error("%d of %d CanElevation name matches are not copies - not building",
+                     len(mismatched), len(pairs))
+        return 1
+    for g, n in sorted(collections.Counter(group(u) for u in pairs).items()):
+        logger.info("%s: %d items with a CanElevation COPC copy", g, n)
     ids = [i.id for i in items]
     if len(set(ids)) != len(ids):
         raise RuntimeError("duplicate item ids in the increment")
@@ -304,8 +431,8 @@ def main() -> int:
     shutil.rmtree(old, ignore_errors=True)
 
     built_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    logger.info("built %d items (%d excluded) and collection.json in %s at %s",
-                len(items), len(excluded), out, built_at)
+    logger.info("built %d items (%d excluded, %d with a COPC copy) and collection.json in "
+                "%s at %s", len(items), len(excluded), len(pairs), out, built_at)
     return 0
 
 

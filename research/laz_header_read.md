@@ -62,13 +62,10 @@ as `no_raster_dsm` lack a surface model, and indexing `dsm/*.laz` would not supp
 The first increment here is therefore `pointcloud/*.laz` (9,650 files in those groups).
 `dsm/*.laz` is a colourised variant, left to a follow-up.
 
-## Unresolved: CanElevation overlap
+## CanElevation overlap
 
-NRCan's datacube STAC (`datacube.services.geo.ca/stac/api`) has DEM/DSM collections
-(`hrdem-lidar`, `cdsm`, ...) but no point cloud collection. The CanElevation point
-cloud FTP tree refuses directory listing (403), and the index file name tried 404s. So
-whether CanElevation republishes these LidarBC projects is still unknown, and is a
-follow-up issue rather than a blocker.
+Moved to [canelevation_overlap.md](canelevation_overlap.md). The FTP tree that refused
+listing here had moved to a listable S3 bucket, and #6 measured the overlap there.
 
 ## What a full read of the increment's headers found (review, 2026-10-07)
 

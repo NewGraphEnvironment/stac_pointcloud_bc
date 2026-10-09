@@ -31,6 +31,16 @@ from laz_item import (
 )
 from laz_remote import HttpRangeFile
 
+@pytest.fixture(autouse=True)
+def no_live_listing(monkeypatch):
+    """The build's listers reach real buckets. A test that does not replace them fails here
+    rather than passing on whatever the network returns (one did, 2026-10-09)."""
+    def refuse(*a, **k):
+        raise AssertionError("a test reached a live bucket listing")
+    monkeypatch.setattr(catalogue_build, "keys_list", refuse)
+    monkeypatch.setattr(catalogue_build, "canelevation_keys_list", refuse)
+
+
 PC = f"{PATH_S3}/092/092g/2016/pointcloud/bc_092g019_1_4_1_xyes_8_utm10_20170713.laz"
 FIXTURES = __import__("pathlib").Path(__file__).parent / "fixtures"
 # A real UTM 11 key in 082E (bc_082e053_4_4_2, 2019), for boxes in UTM 11 coordinates.
@@ -462,6 +472,7 @@ def test_the_build_refuses_when_any_header_failed(tmp_path, monkeypatch):
     objs = _objs("a", "b")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
     monkeypatch.setattr(catalogue_build, "header_read",
                         _counting_reader([], {objs[0]["url"]}))
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
@@ -533,6 +544,8 @@ def test_a_limited_build_never_writes_where_a_publish_reads(tmp_path, monkeypatc
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(catalogue_build, "OUT", "data/build")
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
     headers = {PC: _header(), PC11: _header(CRS.from_string("EPSG:2955+6647").to_wkt(), **UTM11_BOX)}
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
                         (lambda u, session=None: headers[u],))
@@ -554,6 +567,8 @@ def test_the_build_applies_delivery_distrust_to_every_file_in_it(tmp_path, monke
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(catalogue_build, "OUT", "data/build")
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__", (lambda u, session=None: h,))
     monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
     assert catalogue_build.main() == 0
@@ -561,3 +576,222 @@ def test_the_build_applies_delivery_distrust_to_every_file_in_it(tmp_path, monke
                            f"{url_to_item_id(objs[0]['url'])}.json").read_text())["properties"]
     assert "start_datetime" in agreeing and agreeing.get("datetime") is None
     assert agreeing["nge:filename_date"] == "171015"
+
+
+# =============================================================================
+# CanElevation's COPC copy (#6)
+# =============================================================================
+
+CE_HREF = f"{laz_item.CANELEVATION}/pointclouds_nuagespoints/BC/Lower_Mainland_2016/" \
+          "bc_092g019_1_4_1_xyes_8_utm10_20170713.copc.laz"
+
+
+def _copc_header(crs_wkt=CRS.from_string("EPSG:3157+5703").to_wkt(), **kw):
+    """The copy as header_read() returns it: LAS 1.4 format 6, the same points and box, its
+    CRS a compound of the same horizontal (as the real copies carry, 2026-10-09)."""
+    h = _header(crs_wkt, point_format=6, **kw)
+    h.update(las_version="1.4", file_size=93_000_000)
+    return h
+
+
+def _add(copc_header, laz_header=None):
+    laz_header = laz_header or _header()
+    return laz_item.copc_asset_add(item_create(PC, laz_header, COLL), CE_HREF, copc_header,
+                                   laz_header)
+
+
+def test_a_copc_copy_is_a_second_asset_and_the_laz_stays_the_source():
+    it = _add(_copc_header())
+    it.validate()
+    d = it.to_dict(include_self_link=False)
+    copc = d["assets"][laz_item.ASSET_COPC]
+    assert copc["href"] == CE_HREF and copc["href"].startswith("https://")
+    assert copc["type"] == "application/vnd.laszip+copc"
+    assert copc["file:size"] == 93_000_000 and copc["roles"] == ["data"]
+    # the copy's own format, since the item's pc:schemas describe the LAZ
+    assert copc["nge:las_version"] == "1.4" and copc["nge:point_format"] == 6
+    assert d["properties"]["nge:las_version"] == "1.2"
+    assert d["assets"][ASSET_LAZ] == item_create(PC, _header(), COLL).to_dict(
+        include_self_link=False)["assets"][ASSET_LAZ]
+
+
+@pytest.mark.parametrize("kw, why", [
+    ({"point_count": 999}, "999 points"),
+    # x, y and z: a sub-metre horizontal shift is what a re-realised datum looks like
+    ({"mins": (547410.6, 5441555.91, 2.2)}, "0.15 m from"),
+    ({"maxs": (549246.4, 5442961.2, 100.49)}, "0.22 m from"),
+    ({"maxs": (549246.4, 5442961.42, 100.79)}, "0.30 m from"),
+    ({"crs_wkt": CRS.from_epsg(2955).to_wkt()}, "horizontal CRS"),
+    ({"crs_wkt": None}, "horizontal CRS"),
+])
+def test_a_copc_that_is_not_the_same_points_is_refused(kw, why):
+    h = _copc_header(**{k: v for k, v in kw.items() if k != "point_count"})
+    h["point_count"] = kw.get("point_count", h["point_count"])
+    with pytest.raises(ValueError, match=why):
+        _add(h)
+
+
+def test_a_copc_box_off_by_the_scale_rounding_is_a_copy():
+    """0.01 m: the largest offset over all 1,964 real pairs (2026-10-09)."""
+    h = _copc_header(mins=(547410.46, 5441555.90, 2.21))
+    assert "copc" in _add(h).assets
+
+
+def test_a_second_copc_on_one_item_is_refused():
+    it = _add(_copc_header())
+    with pytest.raises(ValueError, match="already has"):
+        laz_item.copc_asset_add(it, CE_HREF, _copc_header(), _header())
+
+
+def _page2(keys, token):
+    ns = 'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"'
+    body = "".join(f'<Contents><Key>{k}</Key><ETag>&quot;e-{k}-7&quot;</ETag><Size>9</Size></Contents>'
+                   for k in keys)
+    tok = f"<NextContinuationToken>{token}</NextContinuationToken>" if token else ""
+    trunc = "true" if token is not None else "false"
+    return f'<ListBucketResult {ns}><IsTruncated>{trunc}</IsTruncated>{tok}{body}</ListBucketResult>'
+
+
+class _Session2(_Session):
+    """Records the continuation token of each request, where _Session records the marker."""
+    def get(self, url, params=None, timeout=None):
+        return super().get(url, {"marker": params.get("continuation-token")}, timeout)
+
+
+def test_canelevation_keys_list_pages_by_token_and_carries_etag_and_size():
+    s = _Session2([_page2(["p/1.copc.laz", "p/2.copc.laz"], "T1"), _page2(["p/3.copc.laz"], None)])
+    objs = laz_item.canelevation_keys_list("p/", session=s)
+    assert [o["url"] for o in objs] == [f"{laz_item.CANELEVATION}/p/{i}.copc.laz" for i in (1, 2, 3)]
+    assert objs[0]["etag"] == "e-p/1.copc.laz-7" and objs[0]["size"] == 9
+    assert s.markers == [None, "T1"]
+
+
+def test_a_canelevation_page_truncated_with_no_token_raises():
+    s = _Session2([_page2(["p/1.copc.laz"], "")])
+    with pytest.raises(OSError, match="no continuation token"):
+        laz_item.canelevation_keys_list("p/", session=s)
+
+
+def test_a_failed_canelevation_listing_raises_rather_than_reading_as_empty():
+    with pytest.raises(OSError, match="returned 403"):
+        laz_item.canelevation_keys_list("p/", session=_Session2([""], status=403))
+
+
+def _ce(name, etag="c"):
+    return {"url": f"{laz_item.CANELEVATION}/pointclouds_nuagespoints/BC/P/{name}",
+            "etag": etag, "size": 1}
+
+
+def test_the_build_refuses_a_canelevation_project_listed_short(monkeypatch):
+    def short(prefix, session=None):
+        n = 10 if "Lower_Mainland_2016" in prefix else 9000
+        return [_ce(f"f{i}.copc.laz") for i in range(n)]
+    monkeypatch.setattr(catalogue_build, "canelevation_keys_list", short)
+    with pytest.raises(RuntimeError, match="Lower_Mainland_2016: 10 .laz"):
+        catalogue_build.copc_listing()
+
+
+def test_copc_pairs_match_by_name_without_copc_or_laz():
+    other = PC.replace("019_1_4_1", "019_1_4_2")
+    pairs = catalogue_build.copc_pairs([PC, other], [_ce(PC.rsplit("/", 1)[1].replace(".laz", ".copc.laz"))])
+    assert list(pairs) == [PC]
+
+
+def test_a_duplicate_name_nothing_in_the_build_matches_is_not_its_business():
+    dup = [_ce("bc_999x001_1_1_1.copc.laz"), _ce("bc_999x001_1_1_1.laz")]
+    assert catalogue_build.copc_pairs([PC], dup) == {}
+
+
+@pytest.mark.parametrize("urls, copc, why", [
+    ([PC], [_ce("bc_092g019_1_4_1_xyes_8_utm10_20170713.copc.laz"),
+            _ce("bc_092g019_1_4_1_xyes_8_utm10_20170713.laz")], "two CanElevation files"),
+    ([PC, PC.replace("/2016/", "/2017/")], [_ce("bc_092g019_1_4_1_xyes_8_utm10_20170713.copc.laz")],
+     "two LidarBC files"),
+])
+def test_a_name_held_by_two_files_fails_the_build(urls, copc, why):
+    with pytest.raises(RuntimeError, match=why):
+        catalogue_build.copc_pairs(urls, copc)
+
+
+def _main_with_copc(tmp_path, monkeypatch, copc_header):
+    """main() over one LidarBC file whose CanElevation copy has `copc_header`
+    (an exception to raise it as a failed read)."""
+    objs = [{"url": PC, "etag": "a", "size": 1}]
+    ce = _ce("bc_092g019_1_4_1_xyes_8_utm10_20170713.copc.laz")
+
+    def read(u, session=None):
+        if u == PC:
+            return _header()
+        if isinstance(copc_header, Exception):
+            raise copc_header
+        return copc_header
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(catalogue_build, "OUT", "data/build")
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [ce])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {"092/092g/2016": 1})
+    monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__", (read,))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
+    return catalogue_build.main(), ce
+
+
+def test_the_build_carries_the_copc_copy_on_its_item(tmp_path, monkeypatch):
+    rc, ce = _main_with_copc(tmp_path, monkeypatch, _copc_header())
+    assert rc == 0
+    d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
+    assert d["assets"]["copc"]["href"] == ce["url"] and d["assets"][ASSET_LAZ]["href"] == PC
+    c = json.loads((tmp_path / "data/build/collection.json").read_text())
+    assert "Natural Resources Canada" in [p["name"] for p in c["providers"]]
+    assert "Lower_Mainland_2016" in c["description"]
+
+
+def test_the_build_refuses_when_a_copc_header_failed(tmp_path, monkeypatch):
+    rc, _ = _main_with_copc(tmp_path, monkeypatch, OSError("boom"))
+    assert rc == 1
+    assert not (tmp_path / "data/build/items").exists()
+
+
+def test_the_build_reports_every_copc_that_is_not_a_copy_then_refuses(tmp_path, monkeypatch,
+                                                                         caplog):
+    h = _copc_header()
+    h["point_count"] = 7
+    rc, _ = _main_with_copc(tmp_path, monkeypatch, h)
+    assert rc == 1
+    assert "1 of 1 CanElevation name matches are not copies" in caplog.text
+    assert "7 points" in caplog.text
+    assert not (tmp_path / "data/build/items").exists()
+
+
+def test_a_group_that_pairs_short_fails_the_build():
+    """A rename on either side passes every listing floor and pairs nothing."""
+    base = f"{PATH_S3}/092/092g/2016/pointcloud/"
+    full = {f"{base}f{i}.laz": {} for i in range(1155)}
+    other = {f"{PATH_S3}/{g}/pointcloud/f{i}.laz": {}
+             for g, n in catalogue_build.COPC_PAIRS.items() if g != "092/092g/2016"
+             for i in range(n)}
+    catalogue_build.copc_pairs_check(full | other)
+    short = dict(list(full.items())[:1154]) | other
+    with pytest.raises(RuntimeError, match="092/092g/2016: 1154 items paired"):
+        catalogue_build.copc_pairs_check(short)
+    extra = full | other | {f"{base}extra.laz": {}}
+    with pytest.raises(RuntimeError, match="092/092g/2016: 1156 items paired"):
+        catalogue_build.copc_pairs_check(extra)
+    unrecorded = full | other | {f"{PATH_S3}/082/082f/2018/pointcloud/f.laz": {}}
+    with pytest.raises(RuntimeError, match=r"not in COPC_PAIRS: 082/082f/2018 \(1\)"):
+        catalogue_build.copc_pairs_check(unrecorded)
+
+
+def test_the_build_checks_the_pair_count_before_writing(tmp_path, monkeypatch):
+    """Wiring: a full build whose copies vanished (renamed) stops in main()."""
+    objs = [{"url": PC, "etag": "a", "size": 1}]
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(catalogue_build, "OUT", "data/build")
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [_ce("renamed.copc.laz")])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {"092/092g/2016": 1})
+    monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
+                        (lambda u, session=None: _header(),))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
+    with pytest.raises(RuntimeError, match="0 items paired"):
+        catalogue_build.main()
+    assert not (tmp_path / "data/build/items").exists()
