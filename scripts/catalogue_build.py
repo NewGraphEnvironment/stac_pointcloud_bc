@@ -4,7 +4,8 @@
 Lists `pointcloud/*.laz` in the 11 mapsheet-years whose `dsm/` holds no raster (#1),
 reads each file's LAS header over one range request, and writes item JSON and a
 collection.json to `data/build/`. Where NRCan's CanElevation republishes a file as COPC
-(#6), the copy's header is read too, and the item carries it as a second asset. Publishing (s3) and registering (stacs) are separate
+(#6), the copy's header is read too (cached in `copc_headers.jsonl`), and the item carries
+it as a second asset. Publishing (s3) and registering (stacs) are separate
 steps, so a build can be inspected before anything leaves this machine.
 
 Headers are cached in `data/build/headers.jsonl`, so a re-run reads only what is missing.
@@ -62,9 +63,11 @@ INCREMENT = {
 }
 
 # The CanElevation projects that republish LidarBC files as COPC under the same file names,
-# with the .laz count measured 2026-10-09 (research/canelevation_overlap.md, #6). A listing
-# under 90% of its count is refused, as for INCREMENT. Its other BC projects hold no
-# file-level copy and are not listed.
+# with the .laz count measured 2026-10-09 (research/canelevation_overlap.md, #6). Its other
+# BC projects hold no file-level copy and are not listed. A listing under 90% of its count
+# is refused, as for INCREMENT, though not because the bucket only grows: it has moved
+# once already (FTP to S3). Dropping the assets instead would publish a catalogue that
+# reads complete, so a moved or shrunk project stops the build and gets looked at.
 CANELEVATION_ROOT = "pointclouds_nuagespoints"
 CANELEVATION_PROJECTS = {
     "BC/Vancouver_Island_Sunshine_Coast_2018": 7873,
@@ -151,23 +154,24 @@ def file_stem(url: str) -> str:
 
 
 def copc_pairs(urls: list[str], copc_objs: list[dict]) -> dict[str, dict]:
-    """LidarBC url -> the CanElevation object of the same name. A name held by two files
-    on either side raises: which one is the copy would be a guess."""
-    by_stem = {}
+    """LidarBC url -> the CanElevation object of the same name. A matched name held by two
+    files on either side raises: which one is the copy would be a guess. Names nothing in
+    `urls` matches are not this build's business."""
+    by_stem = collections.defaultdict(list)
     for o in copc_objs:
-        k = file_stem(o["url"])
-        if k in by_stem:
-            raise RuntimeError(f"two CanElevation files named {k}: {by_stem[k]['url']}, {o['url']}")
-        by_stem[k] = o
+        by_stem[file_stem(o["url"])].append(o)
     pairs, seen = {}, {}
     for u in urls:
         k = file_stem(u)
         if k not in by_stem:
             continue
+        if len(by_stem[k]) > 1:
+            raise RuntimeError(f"two CanElevation files named {k}: "
+                               f"{', '.join(o['url'] for o in by_stem[k])}")
         if k in seen:
             raise RuntimeError(f"two LidarBC files named {k}: {seen[k]}, {u}")
         seen[k] = u
-        pairs[u] = by_stem[k]
+        pairs[u] = by_stem[k][0]
     return pairs
 
 
@@ -316,6 +320,8 @@ def main() -> int:
 
     os.makedirs(out, exist_ok=True)
     objs = listing()
+    # Listed before any header is read, so a short CanElevation listing fails fast.
+    copc_objs = copc_listing()
     if args.limit:
         objs = objs[: args.limit]
     urls = [o["url"] for o in objs]
@@ -343,7 +349,7 @@ def main() -> int:
                          trust_filename_date=group(u) not in untrusted)
              for u in kept]
 
-    pairs = copc_pairs(kept, copc_listing())
+    pairs = copc_pairs(kept, copc_objs)
     copc_headers, errors = headers_fetch(list(pairs.values()), f"{out}/copc_headers.jsonl",
                                          args.workers)
     if errors:
@@ -352,9 +358,19 @@ def main() -> int:
         logger.error("%d of %d COPC headers failed - not building; re-run to retry them",
                      len(errors), len(pairs))
         return 1
+    mismatched = {}
     for u, i in zip(kept, items):
         if u in pairs:
-            copc_asset_add(i, pairs[u]["url"], copc_headers[pairs[u]["url"]])
+            try:
+                copc_asset_add(i, pairs[u]["url"], copc_headers[pairs[u]["url"]], headers[u])
+            except ValueError as e:  # all reported together, then the build refuses
+                mismatched[u] = str(e)
+    if mismatched:
+        for u, e in sorted(mismatched.items()):
+            logger.error("COPC is not a copy: %s", e)
+        logger.error("%d of %d CanElevation name matches are not copies - not building",
+                     len(mismatched), len(pairs))
+        return 1
     for g, n in sorted(collections.Counter(group(u) for u in pairs).items()):
         logger.info("%s: %d items with a CanElevation COPC copy", g, n)
     ids = [i.id for i in items]

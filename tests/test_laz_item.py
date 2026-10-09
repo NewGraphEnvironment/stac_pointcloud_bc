@@ -573,46 +573,61 @@ CE_HREF = f"{laz_item.CANELEVATION}/pointclouds_nuagespoints/BC/Lower_Mainland_2
           "bc_092g019_1_4_1_xyes_8_utm10_20170713.copc.laz"
 
 
-def _copc_header(**kw):
-    """The copy as header_read() returns it: LAS 1.4 format 6, the same points and box."""
-    h = _header(point_format=6, **kw)
+def _copc_header(crs_wkt=CRS.from_string("EPSG:3157+5703").to_wkt(), **kw):
+    """The copy as header_read() returns it: LAS 1.4 format 6, the same points and box, its
+    CRS a compound of the same horizontal (as the real copies carry, 2026-10-09)."""
+    h = _header(crs_wkt, point_format=6, **kw)
     h.update(las_version="1.4", file_size=93_000_000)
     return h
 
 
+def _add(copc_header, laz_header=None):
+    laz_header = laz_header or _header()
+    return laz_item.copc_asset_add(item_create(PC, laz_header, COLL), CE_HREF, copc_header,
+                                   laz_header)
+
+
 def test_a_copc_copy_is_a_second_asset_and_the_laz_stays_the_source():
-    it = laz_item.copc_asset_add(item_create(PC, _header(), COLL), CE_HREF, _copc_header())
+    it = _add(_copc_header())
     it.validate()
     d = it.to_dict(include_self_link=False)
     copc = d["assets"][laz_item.ASSET_COPC]
     assert copc["href"] == CE_HREF and copc["href"].startswith("https://")
     assert copc["type"] == "application/vnd.laszip+copc"
     assert copc["file:size"] == 93_000_000 and copc["roles"] == ["data"]
+    # the copy's own format, since the item's pc:schemas describe the LAZ
+    assert copc["nge:las_version"] == "1.4" and copc["nge:point_format"] == 6
+    assert d["properties"]["nge:las_version"] == "1.2"
     assert d["assets"][ASSET_LAZ] == item_create(PC, _header(), COLL).to_dict(
         include_self_link=False)["assets"][ASSET_LAZ]
 
 
 @pytest.mark.parametrize("kw, why", [
     ({"point_count": 999}, "999 points"),
-    ({"mins": (547411.6, 5441555.91, 2.2)}, "1.15 m from"),
-    ({"maxs": (549246.4, 5442960.0, 100.49)}, "1.42 m from"),
+    # x, y and z: a sub-metre horizontal shift is what a re-realised datum looks like
+    ({"mins": (547410.6, 5441555.91, 2.2)}, "0.15 m from"),
+    ({"maxs": (549246.4, 5442961.2, 100.49)}, "0.22 m from"),
+    ({"maxs": (549246.4, 5442961.42, 100.79)}, "0.30 m from"),
+    ({"crs_wkt": CRS.from_epsg(2955).to_wkt()}, "horizontal CRS"),
+    ({"crs_wkt": None}, "horizontal CRS"),
 ])
 def test_a_copc_that_is_not_the_same_points_is_refused(kw, why):
     h = _copc_header(**{k: v for k, v in kw.items() if k != "point_count"})
     h["point_count"] = kw.get("point_count", h["point_count"])
     with pytest.raises(ValueError, match=why):
-        laz_item.copc_asset_add(item_create(PC, _header(), COLL), CE_HREF, h)
+        _add(h)
 
 
-def test_a_copc_box_within_the_tolerance_is_a_copy():
-    h = _copc_header(mins=(547410.95, 5441555.41, 2.2))
-    assert "copc" in laz_item.copc_asset_add(item_create(PC, _header(), COLL), CE_HREF, h).assets
+def test_a_copc_box_off_by_the_scale_rounding_is_a_copy():
+    """0.01 m: the largest offset over all 1,964 real pairs (2026-10-09)."""
+    h = _copc_header(mins=(547410.46, 5441555.90, 2.21))
+    assert "copc" in _add(h).assets
 
 
 def test_a_second_copc_on_one_item_is_refused():
-    it = laz_item.copc_asset_add(item_create(PC, _header(), COLL), CE_HREF, _copc_header())
+    it = _add(_copc_header())
     with pytest.raises(ValueError, match="already has"):
-        laz_item.copc_asset_add(it, CE_HREF, _copc_header())
+        laz_item.copc_asset_add(it, CE_HREF, _copc_header(), _header())
 
 
 def _page2(keys, token):
@@ -669,6 +684,11 @@ def test_copc_pairs_match_by_name_without_copc_or_laz():
     assert list(pairs) == [PC]
 
 
+def test_a_duplicate_name_nothing_in_the_build_matches_is_not_its_business():
+    dup = [_ce("bc_999x001_1_1_1.copc.laz"), _ce("bc_999x001_1_1_1.laz")]
+    assert catalogue_build.copc_pairs([PC], dup) == {}
+
+
 @pytest.mark.parametrize("urls, copc, why", [
     ([PC], [_ce("bc_092g019_1_4_1_xyes_8_utm10_20170713.copc.laz"),
             _ce("bc_092g019_1_4_1_xyes_8_utm10_20170713.laz")], "two CanElevation files"),
@@ -717,9 +737,12 @@ def test_the_build_refuses_when_a_copc_header_failed(tmp_path, monkeypatch):
     assert not (tmp_path / "data/build/items").exists()
 
 
-def test_the_build_refuses_a_copc_that_is_not_the_same_points(tmp_path, monkeypatch):
+def test_the_build_reports_every_copc_that_is_not_a_copy_then_refuses(tmp_path, monkeypatch,
+                                                                         caplog):
     h = _copc_header()
     h["point_count"] = 7
-    with pytest.raises(ValueError, match="not a copy"):
-        _main_with_copc(tmp_path, monkeypatch, h)
+    rc, _ = _main_with_copc(tmp_path, monkeypatch, h)
+    assert rc == 1
+    assert "1 of 1 CanElevation name matches are not copies" in caplog.text
+    assert "7 points" in caplog.text
     assert not (tmp_path / "data/build/items").exists()

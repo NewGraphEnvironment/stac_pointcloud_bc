@@ -37,10 +37,12 @@ PRODUCTS = ("pointcloud", "dsm")
 CANELEVATION = "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com"
 ASSET_COPC = "copc"
 MEDIA_TYPE_COPC = "application/vnd.laszip+copc"
-# A copy has the same point count and a header box within this of the LidarBC file's:
-# 40 of 40 sampled pairs did (2026-10-09). COPC conversion rewrites LAS 1.2 as 1.4, so
-# the header is compared on what conversion keeps, not as a whole.
-COPC_BOX_TOLERANCE_M = 1.0
+# A copy has the same point count, horizontal CRS, and header box (x, y and z) within this
+# of the LidarBC file's. Over all 1,964 pairs in the first increment the largest offset was
+# 0.01 m, the LidarBC scale rounded into COPC's (2026-10-09); a datum re-realisation or a
+# reprojection moves a box far more. COPC conversion rewrites LAS 1.2 as 1.4, so the header
+# is compared on what conversion keeps, not as a whole.
+COPC_BOX_TOLERANCE_M = 0.05
 
 # The shape of the record header_read() returns. Bumped whenever that shape changes, so
 # a cached record of an older shape is read again rather than built from.
@@ -294,32 +296,46 @@ def item_create(url: str, header: dict, collection_href: str,
     return item
 
 
-def copc_asset_add(item: pystac.Item, href: str, copc_header: dict) -> pystac.Item:
+def copc_asset_add(item: pystac.Item, href: str, copc_header: dict,
+                   laz_header: dict) -> pystac.Item:
     """Add CanElevation's COPC copy of the item's file as the `copc` asset. Pure: no I/O.
 
-    `copc_header` is header_read() of the copy. A matching file name is how a copy is
-    found, not proof that it is one, so the copy must have the item's point count and a
-    box (in the file's own coordinates, as `proj:bbox`) within COPC_BOX_TOLERANCE_M of it;
-    anything else raises rather than linking another flight's points.
+    `copc_header` and `laz_header` are header_read() of the copy and of the LidarBC file
+    the item was made from. A matching file name is how a copy is found, not proof that it
+    is one, so the copy must have the same point count, the same horizontal CRS, and a box
+    within COPC_BOX_TOLERANCE_M; anything else raises rather than linking other points.
+    That cannot see a reclassified re-delivery under the same name, so the asset claims
+    what was checked and no more. The copy's own LAS version and point format go on the
+    asset: the item's `pc:schemas` describe the `laz` file.
     """
     if ASSET_COPC in item.assets:
         raise ValueError(f"{item.id} already has a {ASSET_COPC!r} asset")
-    count, box = item.properties["pc:count"], item.properties["proj:bbox"]
-    if copc_header["point_count"] != count:
-        raise ValueError(f"COPC has {copc_header['point_count']} points, the item {count}: "
-                         f"{href} is not a copy of {item.id}")
-    copc_box = copc_header["mins"][:2] + copc_header["maxs"][:2]
-    off = max(abs(a - b) for a, b in zip(copc_box, box))
+    if copc_header["point_count"] != laz_header["point_count"]:
+        raise ValueError(f"COPC has {copc_header['point_count']} points, the LAZ "
+                         f"{laz_header['point_count']}: {href} is not a copy of {item.id}")
+    crs = [_horizontal(CRS.from_wkt(h["crs_wkt"])) if h.get("crs_wkt") else None
+           for h in (copc_header, laz_header)]
+    epsg = [c.to_epsg() if c else None for c in crs]
+    same_crs = crs[0] is not None and (epsg[0] == epsg[1] if None not in epsg
+                                       else crs[0].equals(crs[1]))
+    if not same_crs:
+        raise ValueError(f"COPC horizontal CRS {crs[0] and crs[0].name!r} is not the LAZ's "
+                         f"{crs[1] and crs[1].name!r}: {href} is not a copy of {item.id}")
+    off = max(abs(a - b) for a, b in zip(copc_header["mins"] + copc_header["maxs"],
+                                         laz_header["mins"] + laz_header["maxs"]))
     if not off < COPC_BOX_TOLERANCE_M:
-        raise ValueError(f"COPC box is {off:.2f} m from the item's: {href} is not a copy "
+        raise ValueError(f"COPC box is {off:.2f} m from the LAZ's: {href} is not a copy "
                          f"of {item.id}")
     asset = pystac.Asset(
         href=href_encode(href),
         media_type=MEDIA_TYPE_COPC,
         roles=["data"],
         title="Point cloud (COPC), NRCan CanElevation copy",
-        description="The same points as the `laz` asset, republished by Natural Resources "
-                    "Canada as a Cloud Optimized Point Cloud (LAS 1.4).",
+        description="Natural Resources Canada's copy of the `laz` file, as a Cloud Optimized "
+                    "Point Cloud, checked at build to have the same point count, CRS and "
+                    "extent. Distributed by NRCan under the Open Government Licence - Canada.",
+        extra_fields={"nge:las_version": copc_header["las_version"],
+                      "nge:point_format": copc_header["point_format"]},
     )
     item.add_asset(ASSET_COPC, asset)
     FileExtension.ext(asset, add_if_missing=True).size = copc_header["file_size"]

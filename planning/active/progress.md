@@ -19,3 +19,8 @@
 - 7 new tests (91 total); five guards shown red when removed (short project, duplicate either side, COPC read error, the wiring itself)
 - The two existing `main()` tests reached the live CanElevation bucket once wired; they now patch `copc_listing`
 - Live `--limit 40` build over `092g/2016`: CanElevation projects listed at exactly the measured counts (7,873 / 3,866 / 682 / 1,714); 40 of 40 items got a `copc` asset; its href HEADs 200; `stacs audit` OK on all 40
+
+### Plan review folded in (review-plan.md)
+- The `--limit 40` slice of Phase 2 was made with a one-off that set `catalogue_build.INCREMENT = {"092/092g/2016": 1706}` before `main()`; `--limit` alone takes the URL-sorted head, which is `082e/2018`
+- First full build (07:44-07:52 PDT): 9,649 items, 1,964 with `copc` (332 / 57 / 1,155 / 420). Measured on its cache: max box offset 0.01 m (x/y and z), all CRSs agree, 1,575 copies are LAS 1.4/6 from 1.2/1
+- Fixes: z and CRS compared, tolerance 1 m -> 0.05 m, all mismatches reported (rc 1), COPC format on the asset, licence named, CanElevation listed first, duplicate check scoped to matched names, `data/build-limit/` ignored. 4 new tests (95); five guards shown red when removed
