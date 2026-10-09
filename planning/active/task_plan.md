@@ -55,11 +55,11 @@ in the collection description. 1,964 of the 9,649 v0.1.0 items have a copy.
 ## Phase 4: Close-out
 - [x] NEWS `0.2.0` entry (numbers derived from the build, not the issue); README "What is indexed" notes the COPC asset
 - [x] `research/canelevation_overlap.md`: section on what was done with the finding (decision A, v0.2.0); CLAUDE.md source-facts bullet
-- [ ] Issue #6 body: mark the decision built, link the release
+- [x] Issue #6 body: mark the decision built, link the release
 
 ## Validation
 
-- [ ] Tests pass (`uv run pytest tests/ -q`)
-- [ ] `/code-check` clean (once over the branch with `/code-check branch`; covers 443b88d's probe too)
-- [ ] PWF checkboxes match landed work
+- [x] Tests pass (`uv run pytest tests/ -q`)
+- [x] `/code-check` clean (once over the branch with `/code-check branch`; covers 443b88d's probe too)
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion, then `/gh-pr-push`
