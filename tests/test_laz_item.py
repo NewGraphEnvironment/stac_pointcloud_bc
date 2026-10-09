@@ -561,3 +561,87 @@ def test_the_build_applies_delivery_distrust_to_every_file_in_it(tmp_path, monke
                            f"{url_to_item_id(objs[0]['url'])}.json").read_text())["properties"]
     assert "start_datetime" in agreeing and agreeing.get("datetime") is None
     assert agreeing["nge:filename_date"] == "171015"
+
+
+# =============================================================================
+# CanElevation's COPC copy (#6)
+# =============================================================================
+
+CE_HREF = f"{laz_item.CANELEVATION}/pointclouds_nuagespoints/BC/Lower_Mainland_2016/" \
+          "bc_092g019_1_4_1_xyes_8_utm10_20170713.copc.laz"
+
+
+def _copc_header(**kw):
+    """The copy as header_read() returns it: LAS 1.4 format 6, the same points and box."""
+    h = _header(point_format=6, **kw)
+    h.update(las_version="1.4", file_size=93_000_000)
+    return h
+
+
+def test_a_copc_copy_is_a_second_asset_and_the_laz_stays_the_source():
+    it = laz_item.copc_asset_add(item_create(PC, _header(), COLL), CE_HREF, _copc_header())
+    it.validate()
+    d = it.to_dict(include_self_link=False)
+    copc = d["assets"][laz_item.ASSET_COPC]
+    assert copc["href"] == CE_HREF and copc["href"].startswith("https://")
+    assert copc["type"] == "application/vnd.laszip+copc"
+    assert copc["file:size"] == 93_000_000 and copc["roles"] == ["data"]
+    assert d["assets"][ASSET_LAZ] == item_create(PC, _header(), COLL).to_dict(
+        include_self_link=False)["assets"][ASSET_LAZ]
+
+
+@pytest.mark.parametrize("kw, why", [
+    ({"point_count": 999}, "999 points"),
+    ({"mins": (547411.6, 5441555.91, 2.2)}, "1.15 m from"),
+    ({"maxs": (549246.4, 5442960.0, 100.49)}, "1.42 m from"),
+])
+def test_a_copc_that_is_not_the_same_points_is_refused(kw, why):
+    h = _copc_header(**{k: v for k, v in kw.items() if k != "point_count"})
+    h["point_count"] = kw.get("point_count", h["point_count"])
+    with pytest.raises(ValueError, match=why):
+        laz_item.copc_asset_add(item_create(PC, _header(), COLL), CE_HREF, h)
+
+
+def test_a_copc_box_within_the_tolerance_is_a_copy():
+    h = _copc_header(mins=(547410.95, 5441555.41, 2.2))
+    assert "copc" in laz_item.copc_asset_add(item_create(PC, _header(), COLL), CE_HREF, h).assets
+
+
+def test_a_second_copc_on_one_item_is_refused():
+    it = laz_item.copc_asset_add(item_create(PC, _header(), COLL), CE_HREF, _copc_header())
+    with pytest.raises(ValueError, match="already has"):
+        laz_item.copc_asset_add(it, CE_HREF, _copc_header())
+
+
+def _page2(keys, token):
+    ns = 'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"'
+    body = "".join(f'<Contents><Key>{k}</Key><ETag>&quot;e-{k}-7&quot;</ETag><Size>9</Size></Contents>'
+                   for k in keys)
+    tok = f"<NextContinuationToken>{token}</NextContinuationToken>" if token else ""
+    trunc = "true" if token is not None else "false"
+    return f'<ListBucketResult {ns}><IsTruncated>{trunc}</IsTruncated>{tok}{body}</ListBucketResult>'
+
+
+class _Session2(_Session):
+    """Records the continuation token of each request, where _Session records the marker."""
+    def get(self, url, params=None, timeout=None):
+        return super().get(url, {"marker": params.get("continuation-token")}, timeout)
+
+
+def test_canelevation_keys_list_pages_by_token_and_carries_etag_and_size():
+    s = _Session2([_page2(["p/1.copc.laz", "p/2.copc.laz"], "T1"), _page2(["p/3.copc.laz"], None)])
+    objs = laz_item.canelevation_keys_list("p/", session=s)
+    assert [o["url"] for o in objs] == [f"{laz_item.CANELEVATION}/p/{i}.copc.laz" for i in (1, 2, 3)]
+    assert objs[0]["etag"] == "e-p/1.copc.laz-7" and objs[0]["size"] == 9
+    assert s.markers == [None, "T1"]
+
+
+def test_a_canelevation_page_truncated_with_no_token_raises():
+    s = _Session2([_page2(["p/1.copc.laz"], "")])
+    with pytest.raises(OSError, match="no continuation token"):
+        laz_item.canelevation_keys_list("p/", session=s)
+
+
+def test_a_failed_canelevation_listing_raises_rather_than_reading_as_empty():
+    with pytest.raises(OSError, match="returned 403"):
+        laz_item.canelevation_keys_list("p/", session=_Session2([""], status=403))

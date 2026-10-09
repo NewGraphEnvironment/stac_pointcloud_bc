@@ -30,9 +30,9 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
-from laz_item import header_read, keys_list
+from laz_item import CANELEVATION, canelevation_keys_list, header_read, keys_list
 
-CE = "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/"
+CE = CANELEVATION + "/"
 LIDARBC = "https://nrs.objectstore.gov.bc.ca/gdwuts"
 NS = {"s3": "http://s3.amazonaws.com/doc/2006-03-01/"}
 SEED = 6
@@ -49,23 +49,9 @@ TILE = re.compile(r"(bc_\d{3}[a-p]\d{3}(?:_\d)+)_")
 
 
 def ce_list(prefix: str) -> list[dict]:
-    """Every object under `prefix` in the CanElevation bucket (ListObjectsV2)."""
-    s, out, tok = requests.Session(), [], None
-    while True:
-        p = {"list-type": "2", "prefix": prefix}
-        if tok:
-            p["continuation-token"] = tok
-        r = s.get(CE, params=p, timeout=60)
-        r.raise_for_status()
-        root = ET.fromstring(r.content)
-        out.extend({"key": c.findtext("s3:Key", namespaces=NS),
-                    "size": int(c.findtext("s3:Size", namespaces=NS))}
-                   for c in root.findall(".//s3:Contents", NS))
-        if root.findtext("s3:IsTruncated", namespaces=NS) != "true":
-            return out
-        tok = root.findtext("s3:NextContinuationToken", namespaces=NS)
-        if not tok:
-            raise OSError(f"{prefix}: truncated with no continuation token")
+    """Every object under `prefix` in the CanElevation bucket, keyed relative to it."""
+    return [{"key": o["url"][len(CE):], "size": o["size"]}
+            for o in canelevation_keys_list(prefix)]
 
 
 def dump(obj, path: str) -> None:

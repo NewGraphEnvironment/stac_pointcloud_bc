@@ -33,12 +33,12 @@ in the collection description. 1,964 of the 9,649 v0.1.0 items have a copy.
 3. **Publish and register v0.2.0 on this branch**, as #1 did for v0.1.0.
 
 ## Phase 1: Item function and lister (tests first)
-- [ ] Tests: `copc_asset_add` adds a `copc` asset that validates, with media type, `file:size` and the LidarBC `laz` asset untouched
-- [ ] Tests: a COPC header with another point count, or a box off by > 1 m, raises
-- [ ] Tests: `canelevation_keys_list` pages by continuation token, raises on non-200 and on truncated-without-token, carries ETag and size
-- [ ] `laz_item.py`: `MEDIA_TYPE_COPC`, `ASSET_COPC = "copc"`, `CANELEVATION` base URL, `canelevation_keys_list()`, `copc_asset_add()`
-- [ ] `canelevation_overlap_probe.py` imports the lister instead of its own `ce_list`
-- [ ] Each new guard shown red with the guard removed
+- [x] Tests: `copc_asset_add` adds a `copc` asset that validates, with media type, `file:size` and the LidarBC `laz` asset untouched
+- [x] Tests: a COPC header with another point count, or a box off by > 1 m, raises
+- [x] Tests: `canelevation_keys_list` pages by continuation token, raises on non-200 and on truncated-without-token, carries ETag and size
+- [x] `laz_item.py`: `MEDIA_TYPE_COPC`, `ASSET_COPC = "copc"`, `CANELEVATION` base URL, `canelevation_keys_list()`, `copc_asset_add()`
+- [x] `canelevation_overlap_probe.py` imports the lister instead of its own `ce_list`
+- [x] Each new guard shown red with the guard removed
 
 ## Phase 2: Build wiring
 - [ ] Tests: a CanElevation project listed short is refused; a stem matching two files fails the build; a COPC header read error fails the build

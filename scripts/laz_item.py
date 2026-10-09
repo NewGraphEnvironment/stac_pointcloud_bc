@@ -2,7 +2,8 @@
 
 `item_create()` is pure: an href and a header record in, a `pystac.Item` out, with
 nothing about the bucket, the STAC host or CI in it (stactools-shaped, #1). Everything
-that touches the network is in `header_read()` and `keys_list()`.
+that touches the network is in `header_read()`, `keys_list()` and
+`canelevation_keys_list()`.
 
 The module constants are also declared in stacs.toml; tests/test_stacs_config.py fails
 if the two disagree.
@@ -29,6 +30,17 @@ PATH_S3_STAC = "https://stac-pointcloud-bc.s3.us-west-2.amazonaws.com"
 ASSET_LAZ = "laz"
 MEDIA_TYPE_LAZ = "application/vnd.laszip"
 PRODUCTS = ("pointcloud", "dsm")
+
+# NRCan's CanElevation series republishes some LidarBC files as COPC under the same file
+# names (research/canelevation_overlap.md, #6). Where it does, the item carries that copy
+# as a second asset; the `laz` asset stays the source of record.
+CANELEVATION = "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com"
+ASSET_COPC = "copc"
+MEDIA_TYPE_COPC = "application/vnd.laszip+copc"
+# A copy has the same point count and a header box within this of the LidarBC file's:
+# 40 of 40 sampled pairs did (2026-10-09). COPC conversion rewrites LAS 1.2 as 1.4, so
+# the header is compared on what conversion keeps, not as a whole.
+COPC_BOX_TOLERANCE_M = 1.0
 
 # The shape of the record header_read() returns. Bumped whenever that shape changes, so
 # a cached record of an older shape is read again rather than built from.
@@ -282,6 +294,38 @@ def item_create(url: str, header: dict, collection_href: str,
     return item
 
 
+def copc_asset_add(item: pystac.Item, href: str, copc_header: dict) -> pystac.Item:
+    """Add CanElevation's COPC copy of the item's file as the `copc` asset. Pure: no I/O.
+
+    `copc_header` is header_read() of the copy. A matching file name is how a copy is
+    found, not proof that it is one, so the copy must have the item's point count and a
+    box (in the file's own coordinates, as `proj:bbox`) within COPC_BOX_TOLERANCE_M of it;
+    anything else raises rather than linking another flight's points.
+    """
+    if ASSET_COPC in item.assets:
+        raise ValueError(f"{item.id} already has a {ASSET_COPC!r} asset")
+    count, box = item.properties["pc:count"], item.properties["proj:bbox"]
+    if copc_header["point_count"] != count:
+        raise ValueError(f"COPC has {copc_header['point_count']} points, the item {count}: "
+                         f"{href} is not a copy of {item.id}")
+    copc_box = copc_header["mins"][:2] + copc_header["maxs"][:2]
+    off = max(abs(a - b) for a, b in zip(copc_box, box))
+    if not off < COPC_BOX_TOLERANCE_M:
+        raise ValueError(f"COPC box is {off:.2f} m from the item's: {href} is not a copy "
+                         f"of {item.id}")
+    asset = pystac.Asset(
+        href=href_encode(href),
+        media_type=MEDIA_TYPE_COPC,
+        roles=["data"],
+        title="Point cloud (COPC), NRCan CanElevation copy",
+        description="The same points as the `laz` asset, republished by Natural Resources "
+                    "Canada as a Cloud Optimized Point Cloud (LAS 1.4).",
+    )
+    item.add_asset(ASSET_COPC, asset)
+    FileExtension.ext(asset, add_if_missing=True).size = copc_header["file_size"]
+    return item
+
+
 def keys_list(prefix: str, session: requests.Session | None = None,
               timeout: float = 60) -> list[dict]:
     """Every object under `prefix` on the objectstore, paged by marker, as
@@ -318,3 +362,30 @@ def keys_list(prefix: str, session: requests.Session | None = None,
             raise OSError(f"listing {prefix!r} reported truncated with no keys")
         marker = keys[-1]
     return out
+
+
+def canelevation_keys_list(prefix: str, session: requests.Session | None = None,
+                           timeout: float = 60) -> list[dict]:
+    """Every object under `prefix` in the CanElevation bucket (ListObjectsV2), as
+    `{"url", "etag", "size"}` like keys_list(), and refusing what it refuses: a non-200,
+    and a truncated page with no token to continue from."""
+    s = session or requests.Session()
+    out, token = [], None
+    ns = {"s3": "http://s3.amazonaws.com/doc/2006-03-01/"}
+    while True:
+        params = {"list-type": "2", "prefix": prefix}
+        if token:
+            params["continuation-token"] = token
+        r = s.get(CANELEVATION + "/", params=params, timeout=timeout)
+        if r.status_code != 200:
+            raise OSError(f"listing {prefix!r} returned {r.status_code}")
+        root = ET.fromstring(r.content)
+        out.extend({"url": f"{CANELEVATION}/{c.findtext('s3:Key', namespaces=ns)}",
+                    "etag": (c.findtext("s3:ETag", default="", namespaces=ns) or "").strip('"'),
+                    "size": int(c.findtext("s3:Size", default="0", namespaces=ns) or 0)}
+                   for c in root.findall(".//s3:Contents", ns))
+        if root.findtext("s3:IsTruncated", default="false", namespaces=ns) != "true":
+            return out
+        token = root.findtext("s3:NextContinuationToken", namespaces=ns)
+        if not token:
+            raise OSError(f"listing {prefix!r} reported truncated with no continuation token")

@@ -7,3 +7,8 @@
 - Branch `6-canelevation-overlap` already existed (pushed with the research); no new branch cut
 - Scaffolded PWF baseline from issue #6 with approved phases
 - Next: start Phase 1
+
+### Phase 1 — item function and lister
+- `copc_asset_add()` (pure) and `canelevation_keys_list()` in `laz_item.py`; probe now uses the shared lister
+- 9 new tests; each of the five new guards (count, box, double add, non-200, truncated-without-token) shown red when removed, in a scratch copy
+- Live: probe lister lists 682 `.laz` in `BC/Riverine_Floodplain_UTM11_2019`, as the research recorded
