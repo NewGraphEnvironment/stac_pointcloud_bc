@@ -1,0 +1,28 @@
+Package: stac.pointcloud.bc
+Type: Project
+Title: Manifest for the stac_pointcloud_bc landing page
+Version: 0.0.0.9000
+Description: Not an R package. The catalogue is built in Python (pyproject.toml);
+    this DESCRIPTION declares the R packages that render README.Rmd to README.md
+    and index.html, so one call installs them: pak::local_install_deps().
+License: MIT
+Encoding: UTF-8
+Imports:
+    bcdata (>= 0.5.0),
+    bcmaps (>= 2.2.0),
+    dplyr (>= 1.1.0),
+    DT (>= 0.30),
+    geojsonsf (>= 2.0.0),
+    ggplot2 (>= 3.5.0),
+    glue (>= 1.7.0),
+    htmlwidgets (>= 1.6.0),
+    httr2 (>= 1.0.0),
+    jsonlite (>= 1.8.0),
+    knitr (>= 1.45),
+    purrr (>= 1.0.0),
+    rmarkdown (>= 2.25),
+    rstac (>= 1.0.0),
+    sf (>= 1.0.0),
+    tibble (>= 3.2.0)
+Suggests:
+    testthat (>= 3.0.0)

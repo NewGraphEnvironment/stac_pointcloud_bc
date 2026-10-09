@@ -7,3 +7,6 @@
 - Created branch `9-readme-rmd-landing-page-served-on-github` off main
 - Scaffolded PWF baseline from issue #9 with approved phases
 - Next: start Phase 1
+- Phase 1: DESCRIPTION manifest; `pc_readme_header()` / `pc_readme_header_parse()` in
+  `scripts/readme_functions.R`; testthat file with three 375-byte fixtures, 19 pass, red on
+  both restored bugs. Live read of the COPC returned the same values.

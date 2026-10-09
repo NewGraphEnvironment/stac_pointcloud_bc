@@ -5,14 +5,14 @@
 Decided at the plan gate (user, 2026-10-09): R dependencies are declared in a `Type: Project` DESCRIPTION manifest (no renv), and the build manual stays in README.Rmd as a "Build, publish, register" section.
 
 ## Phase 1: R toolchain and header reader
-- [ ] `DESCRIPTION` (`Type: Project`, Imports with floors: rstac, rmarkdown, knitr, DT,
+- [x] `DESCRIPTION` (`Type: Project`, Imports with floors: rstac, rmarkdown, knitr, DT,
       htmlwidgets, sf, ggplot2, bcdata, bcmaps, geojsonsf, jsonlite, httr2, dplyr, purrr,
       tibble, glue), body saying it is a manifest, not a package
-- [ ] `scripts/readme_functions.R` with `pc_readme_header(url)`: range-read the first 375
+- [x] `scripts/readme_functions.R` with `pc_readme_header(url)`: range-read the first 375
       bytes, refuse anything but a 206 and a `LASF` signature, parse version, point format
       (compression bits masked), point count (the 64-bit field for LAS 1.4, legacy field
       otherwise), scale, offset, min/max
-- [ ] Test (`tests/readme_functions_test.R`, testthat, run by `Rscript`): header bytes
+- [x] Test (`tests/readme_functions_test.R`, testthat, run by `Rscript`): header bytes
       of one LAS 1.2 `laz` and one LAS 1.4 `copc` saved to `tests/fixtures/` (375 B each);
       parsed values must equal the item JSON that laspy produced (`pc:count`, `proj:bbox`,
       `nge:las_version`, `nge:point_format`). Restore the bug (legacy count on 1.4, unmasked

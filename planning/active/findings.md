@@ -58,3 +58,15 @@
 
 | Error | Resolution |
 |-------|------------|
+| `las_u32` failed on `0x80000000`: `readBin(size = 4)` returns `NA_integer_` for exactly 2^31, so `if (v < 0)` errored | Sum the four bytes as doubles; pinned by a test at 2^31 |
+
+## Phase 1: header reader (2026-10-09)
+
+- Fixtures are the first 375 bytes of three real files, fetched with `curl -r 0-374`
+  (all three answered 206): LAS 1.2 format 1 LAZ (`092g005_1_2_2`, 2016), its CanElevation
+  COPC (LAS 1.4 format 6, legacy count 0, 64-bit count 3,957,849), and a LAS 1.4 format 1
+  LAZ (`082e003_1_4_1`, 2018) whose legacy and 64-bit counts agree.
+- Expected values are laspy's, from `data/build/headers.jsonl` and `copc_headers.jsonl`.
+- Restored bugs: reading the legacy count on 1.4 fails 1 test (the COPC; the 1.4 format-1
+  file carries both counts, so only the COPC fixture can see it); the unmasked format byte
+  fails 3.
