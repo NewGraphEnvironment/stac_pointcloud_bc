@@ -31,6 +31,16 @@ from laz_item import (
 )
 from laz_remote import HttpRangeFile
 
+@pytest.fixture(autouse=True)
+def no_live_listing(monkeypatch):
+    """The build's listers reach real buckets. A test that does not replace them fails here
+    rather than passing on whatever the network returns (one did, 2026-10-09)."""
+    def refuse(*a, **k):
+        raise AssertionError("a test reached a live bucket listing")
+    monkeypatch.setattr(catalogue_build, "keys_list", refuse)
+    monkeypatch.setattr(catalogue_build, "canelevation_keys_list", refuse)
+
+
 PC = f"{PATH_S3}/092/092g/2016/pointcloud/bc_092g019_1_4_1_xyes_8_utm10_20170713.laz"
 FIXTURES = __import__("pathlib").Path(__file__).parent / "fixtures"
 # A real UTM 11 key in 082E (bc_082e053_4_4_2, 2019), for boxes in UTM 11 coordinates.
@@ -462,6 +472,7 @@ def test_the_build_refuses_when_any_header_failed(tmp_path, monkeypatch):
     objs = _objs("a", "b")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
     monkeypatch.setattr(catalogue_build, "header_read",
                         _counting_reader([], {objs[0]["url"]}))
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
@@ -534,6 +545,7 @@ def test_a_limited_build_never_writes_where_a_publish_reads(tmp_path, monkeypatc
     monkeypatch.setattr(catalogue_build, "OUT", "data/build")
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
     monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
     headers = {PC: _header(), PC11: _header(CRS.from_string("EPSG:2955+6647").to_wkt(), **UTM11_BOX)}
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
                         (lambda u, session=None: headers[u],))
@@ -556,6 +568,7 @@ def test_the_build_applies_delivery_distrust_to_every_file_in_it(tmp_path, monke
     monkeypatch.setattr(catalogue_build, "OUT", "data/build")
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
     monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__", (lambda u, session=None: h,))
     monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
     assert catalogue_build.main() == 0
@@ -716,6 +729,7 @@ def _main_with_copc(tmp_path, monkeypatch, copc_header):
     monkeypatch.setattr(catalogue_build, "OUT", "data/build")
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
     monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [ce])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__", (read,))
     monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
     return catalogue_build.main(), ce
@@ -745,4 +759,33 @@ def test_the_build_reports_every_copc_that_is_not_a_copy_then_refuses(tmp_path, 
     assert rc == 1
     assert "1 of 1 CanElevation name matches are not copies" in caplog.text
     assert "7 points" in caplog.text
+    assert not (tmp_path / "data/build/items").exists()
+
+
+def test_a_group_that_pairs_short_fails_the_build():
+    """A rename on either side passes every listing floor and pairs nothing."""
+    base = f"{PATH_S3}/092/092g/2016/pointcloud/"
+    full = {f"{base}f{i}.laz": {} for i in range(1155)}
+    other = {f"{PATH_S3}/{g}/pointcloud/f{i}.laz": {}
+             for g, n in catalogue_build.COPC_PAIRS.items() if g != "092/092g/2016"
+             for i in range(n)}
+    catalogue_build.copc_pairs_check(full | other)
+    short = dict(list(full.items())[:100]) | other
+    with pytest.raises(RuntimeError, match="092/092g/2016: 100 items paired"):
+        catalogue_build.copc_pairs_check(short)
+
+
+def test_the_build_checks_the_pair_count_before_writing(tmp_path, monkeypatch):
+    """Wiring: a full build whose copies vanished (renamed) stops in main()."""
+    objs = [{"url": PC, "etag": "a", "size": 1}]
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(catalogue_build, "OUT", "data/build")
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [_ce("renamed.copc.laz")])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {"092/092g/2016": 1})
+    monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
+                        (lambda u, session=None: _header(),))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
+    with pytest.raises(RuntimeError, match="0 items paired"):
+        catalogue_build.main()
     assert not (tmp_path / "data/build/items").exists()

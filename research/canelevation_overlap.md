@@ -1,7 +1,8 @@
 # Which LidarBC point clouds NRCan's CanElevation series republishes
 
 **Verified:** 2026-10-09 · **Issues:** #6 (opened from #1) · **Produced by:**
-`scripts/canelevation_overlap_probe.py`; log `logs/20261009_*_canelevation_overlap_probe.log`
+`scripts/canelevation_overlap_probe.py`; log `logs/20261009_*_canelevation_overlap_probe.log`;
+the per-pair check by `scripts/catalogue_build.py` (`logs/20261009_catalogue_build_v0.2.0.log`)
 (gitignored; the numbers below are the record).
 
 ## Where CanElevation's point clouds are
@@ -36,9 +37,10 @@ That is 13,996 of LidarBC's 181,708 `.laz`, all `pointcloud/` and none `dsm/`, s
 28 mapsheet-years (2016, 2018, 2019). Some groups are republished whole (`093g/2019`,
 1,261 of 1,261) and some barely (`092j/2019`, 3 of 198). The probe log has the per-group table.
 
-**A matching name means the same points.** A seeded sample of 10 pairs per project (40 in total)
-read both headers: 40 of 40 have the same point count and a bounding box within 1 m.
-The only difference is format. COPC requires LAS 1.4
+**A matching name has been the same points wherever it was checked.** A seeded sample of 10
+pairs per project (40 in total) read both headers: 40 of 40 have the same point count and a
+bounding box within 1 m. The build later checked every pair in the first increment (below).
+Apart from coordinates re-quantised by up to 0.01 m, the only difference is format. COPC requires LAS 1.4
 point format 6–8, so the `Lower_Mainland_2016` files were converted from LAS 1.2
 format 1, which is why a whole-header comparison fails for that project and nowhere else. A
 CanElevation copy is larger (one pair: 65 MB `.laz`, 93 MB `.copc.laz`), so file size
@@ -56,6 +58,21 @@ CanElevation copy, all in four of the 11 mapsheet-years:
 
 The other seven (`082e/2018`, `082f/2018`, `082g/2018`, `082j/2018`, `082k/2017`,
 `082l/2018`, `092j/2016`) have none.
+
+## What the collection does with it (decision A, v0.2.0)
+
+The maintainer chose to link rather than note or drop (#6). From v0.2.0, each item whose
+file CanElevation republishes carries the copy as a second asset, `copc`, and the collection
+description names the four projects. The `laz` asset stays the source of record.
+
+The build does not trust the name. For every pair it reads the copy's header and links it
+only if the point count and horizontal CRS are the same and the box (x, y and z) is within
+0.05 m. Over all 1,964 pairs in the first increment the largest offset was 0.01 m: 371 boxes
+were identical and 1,593 differed by up to 0.01 m, which is coordinates re-quantised by the
+conversion. The full CRSs never match: 1,575 copies add an unknown vertical CRS to a
+horizontal-only source, and 389 drop the source's CGVD2013. The horizontal EPSG agrees in
+every pair (3157 for 1,575 and 2955 for 389). A check on header values cannot see a
+reclassified re-delivery under the same name.
 
 ## Same tile under another name is not the same points
 

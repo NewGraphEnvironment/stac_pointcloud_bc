@@ -76,6 +76,13 @@ CANELEVATION_PROJECTS = {
     "BC/Lower_Mainland_2016": 1714,
 }
 
+# Items with a CanElevation copy per INCREMENT group, measured 2026-10-09 (#6). The listing
+# floors above cannot see a rename on either side, which pairs nothing while every count
+# passes, so a group pairing under 90% of this is refused: the publish would drop its
+# `copc` assets without a word. Groups not named here have no copy.
+COPC_PAIRS = {"082/082e/2019": 332, "082/082l/2019": 57, "092/092g/2016": 1155,
+              "092/092h/2016": 420}
+
 # Files whose header is known to be faulty, excluded by name with the reason. Anything
 # else item_create() refuses fails the build, so a new fault is seen rather than dropped.
 # Each entry records the fault as observed; if the header no longer shows it (the file
@@ -97,12 +104,12 @@ DESCRIPTION = (
     "the province's objectstore. Each item's footprint, point count and CRS come from the "
     "file's LAS header. The `laz` asset is the file itself; nothing is copied. The raster "
     "elevation products of the same deliveries are the stac-elevation-bc collection. "
-    "Natural Resources Canada's CanElevation series republishes four LidarBC projects as "
-    "COPC under the same file names (Vancouver_Island_Sunshine_Coast_2018, "
+    "Natural Resources Canada's CanElevation series republishes many LidarBC files as COPC "
+    "under the same file names, in four of its projects (Vancouver_Island_Sunshine_Coast_2018, "
     "Riverine_Floodplain_UTM10_2019, Riverine_Floodplain_UTM11_2019, Lower_Mainland_2016). "
     "Where an item's file is one of them, the item also carries that copy as its `copc` "
-    "asset, checked to have the same point count and extent; the `laz` asset stays the "
-    "source of record."
+    "asset, checked to have the same point count and horizontal CRS and a header box within "
+    "5 cm; the `laz` asset stays the source of record."
 )
 PROVIDERS = [
     {"name": "Province of British Columbia", "roles": ["producer", "licensor", "host"],
@@ -173,6 +180,16 @@ def copc_pairs(urls: list[str], copc_objs: list[dict]) -> dict[str, dict]:
         seen[k] = u
         pairs[u] = by_stem[k][0]
     return pairs
+
+
+def copc_pairs_check(pairs: dict[str, dict]) -> None:
+    """Refuse a COPC_PAIRS group that paired under 90% of its measured count."""
+    n = collections.Counter("/".join(key_parse(u)["key"].split("/")[:3]) for u in pairs)
+    for g, expected in COPC_PAIRS.items():
+        if n[g] < 0.9 * expected:
+            raise RuntimeError(f"{g}: {n[g]} items paired with a CanElevation copy, under 90% "
+                               f"of the {expected} measured 2026-10-09 - a renamed or moved "
+                               f"file on either side would drop their copc assets")
 
 
 def cache_tail_repair(path: str) -> None:
@@ -350,6 +367,8 @@ def main() -> int:
              for u in kept]
 
     pairs = copc_pairs(kept, copc_objs)
+    if not args.limit:  # a limited build is a slice, and is never published
+        copc_pairs_check(pairs)
     copc_headers, errors = headers_fetch(list(pairs.values()), f"{out}/copc_headers.jsonl",
                                          args.workers)
     if errors:
