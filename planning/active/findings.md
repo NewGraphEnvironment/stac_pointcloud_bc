@@ -26,6 +26,13 @@ What to do about the 13,996 files, which this collection will reach in later inc
 
 A changes item JSON, so the build goes through `/planning-init 6`, on branch `6-canelevation-overlap`.
 
+## Build wiring (2026-10-09)
+
+- CanElevation ETags are multipart (`"<md5>-7"`), stable per object, so the COPC header
+  cache keys on them as the LidarBC cache does.
+- `stacs audit` (v0.1.1) checks only the required `laz` key; a second asset on another
+  host passes (40 items, limited build).
+
 ## Errors Encountered
 
 | Error | Resolution |

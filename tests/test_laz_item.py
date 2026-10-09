@@ -533,6 +533,7 @@ def test_a_limited_build_never_writes_where_a_publish_reads(tmp_path, monkeypatc
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(catalogue_build, "OUT", "data/build")
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
     headers = {PC: _header(), PC11: _header(CRS.from_string("EPSG:2955+6647").to_wkt(), **UTM11_BOX)}
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
                         (lambda u, session=None: headers[u],))
@@ -554,6 +555,7 @@ def test_the_build_applies_delivery_distrust_to_every_file_in_it(tmp_path, monke
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(catalogue_build, "OUT", "data/build")
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__", (lambda u, session=None: h,))
     monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
     assert catalogue_build.main() == 0
@@ -645,3 +647,79 @@ def test_a_canelevation_page_truncated_with_no_token_raises():
 def test_a_failed_canelevation_listing_raises_rather_than_reading_as_empty():
     with pytest.raises(OSError, match="returned 403"):
         laz_item.canelevation_keys_list("p/", session=_Session2([""], status=403))
+
+
+def _ce(name, etag="c"):
+    return {"url": f"{laz_item.CANELEVATION}/pointclouds_nuagespoints/BC/P/{name}",
+            "etag": etag, "size": 1}
+
+
+def test_the_build_refuses_a_canelevation_project_listed_short(monkeypatch):
+    def short(prefix, session=None):
+        n = 10 if "Lower_Mainland_2016" in prefix else 9000
+        return [_ce(f"f{i}.copc.laz") for i in range(n)]
+    monkeypatch.setattr(catalogue_build, "canelevation_keys_list", short)
+    with pytest.raises(RuntimeError, match="Lower_Mainland_2016: 10 .laz"):
+        catalogue_build.copc_listing()
+
+
+def test_copc_pairs_match_by_name_without_copc_or_laz():
+    other = PC.replace("019_1_4_1", "019_1_4_2")
+    pairs = catalogue_build.copc_pairs([PC, other], [_ce(PC.rsplit("/", 1)[1].replace(".laz", ".copc.laz"))])
+    assert list(pairs) == [PC]
+
+
+@pytest.mark.parametrize("urls, copc, why", [
+    ([PC], [_ce("bc_092g019_1_4_1_xyes_8_utm10_20170713.copc.laz"),
+            _ce("bc_092g019_1_4_1_xyes_8_utm10_20170713.laz")], "two CanElevation files"),
+    ([PC, PC.replace("/2016/", "/2017/")], [_ce("bc_092g019_1_4_1_xyes_8_utm10_20170713.copc.laz")],
+     "two LidarBC files"),
+])
+def test_a_name_held_by_two_files_fails_the_build(urls, copc, why):
+    with pytest.raises(RuntimeError, match=why):
+        catalogue_build.copc_pairs(urls, copc)
+
+
+def _main_with_copc(tmp_path, monkeypatch, copc_header):
+    """main() over one LidarBC file whose CanElevation copy has `copc_header`
+    (an exception to raise it as a failed read)."""
+    objs = [{"url": PC, "etag": "a", "size": 1}]
+    ce = _ce("bc_092g019_1_4_1_xyes_8_utm10_20170713.copc.laz")
+
+    def read(u, session=None):
+        if u == PC:
+            return _header()
+        if isinstance(copc_header, Exception):
+            raise copc_header
+        return copc_header
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(catalogue_build, "OUT", "data/build")
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [ce])
+    monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__", (read,))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
+    return catalogue_build.main(), ce
+
+
+def test_the_build_carries_the_copc_copy_on_its_item(tmp_path, monkeypatch):
+    rc, ce = _main_with_copc(tmp_path, monkeypatch, _copc_header())
+    assert rc == 0
+    d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
+    assert d["assets"]["copc"]["href"] == ce["url"] and d["assets"][ASSET_LAZ]["href"] == PC
+    c = json.loads((tmp_path / "data/build/collection.json").read_text())
+    assert "Natural Resources Canada" in [p["name"] for p in c["providers"]]
+    assert "Lower_Mainland_2016" in c["description"]
+
+
+def test_the_build_refuses_when_a_copc_header_failed(tmp_path, monkeypatch):
+    rc, _ = _main_with_copc(tmp_path, monkeypatch, OSError("boom"))
+    assert rc == 1
+    assert not (tmp_path / "data/build/items").exists()
+
+
+def test_the_build_refuses_a_copc_that_is_not_the_same_points(tmp_path, monkeypatch):
+    h = _copc_header()
+    h["point_count"] = 7
+    with pytest.raises(ValueError, match="not a copy"):
+        _main_with_copc(tmp_path, monkeypatch, h)
+    assert not (tmp_path / "data/build/items").exists()

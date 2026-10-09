@@ -41,10 +41,10 @@ in the collection description. 1,964 of the 9,649 v0.1.0 items have a copy.
 - [x] Each new guard shown red with the guard removed
 
 ## Phase 2: Build wiring
-- [ ] Tests: a CanElevation project listed short is refused; a stem matching two files fails the build; a COPC header read error fails the build
-- [ ] `catalogue_build.py`: `CANELEVATION` projects + counts, `copc_pairs()`, COPC header fetch via `headers_fetch()`, assets added before validation
-- [ ] `DESCRIPTION` names the overlap; NRCan in `PROVIDERS`; test that the collection still validates
-- [ ] `--limit` build to `data/build-limit/` on a `092g/2016` slice: inspect one item's `copc` asset and HEAD its href (200)
+- [x] Tests: a CanElevation project listed short is refused; a stem matching two files fails the build; a COPC header read error fails the build
+- [x] `catalogue_build.py`: `CANELEVATION` projects + counts, `copc_pairs()`, COPC header fetch via `headers_fetch()`, assets added before validation
+- [x] `DESCRIPTION` names the overlap; NRCan in `PROVIDERS`; test that the collection still validates
+- [x] `--limit` build to `data/build-limit/` on a `092g/2016` slice: inspect one item's `copc` asset and HEAD its href (200)
 
 ## Phase 3: Build, publish, register v0.2.0
 - [ ] Full build: 9,649 items, 1,964 with a `copc` asset, per-group counts match the research (1,155 / 420 / 332 / 57); log under `logs/`
