@@ -1,6 +1,6 @@
 [project]
 name = "stac-pointcloud-bc"
-version = "0.1.0"
+version = "0.2.0"
 description = "STAC items for LidarBC point clouds (.laz): listing, header read, item creation, validation."
 requires-python = ">=3.12"
 dependencies = [
