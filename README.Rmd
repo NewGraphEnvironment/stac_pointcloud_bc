@@ -34,8 +34,8 @@ htmlwidgets::setWidgetIdSeed(42)
 # Both targets come from this file. `rmd_on` switches what differs between them;
 # `update_query` decides whether the network is used at all.
 #
-#   update_query = TRUE   the API, the bucket and two header reads -> fig/footprints.png
-#                         and data/readme_cache.rds
+#   update_query = TRUE   the API, the bucket, two header reads and the DEM demo ->
+#                         data/readme_cache.rds, data/readme_dem.json, fig/kanaka_dem.png
 #   update_query = FALSE  the cache only; no network
 #
 # Run the md first: it is the one that refreshes the cache the html then reads.
@@ -62,7 +62,11 @@ if (isTRUE(params$update_query)) {
   # The example must show both kinds of item, or it demonstrates half the collection.
   stopifnot(any(vapply(r$features, \(f) !is.null(f$assets$copc), logical(1))),
             any(vapply(r$features, \(f) is.null(f$assets$copc), logical(1))))
-  pc_readme_fig(all$items, aoi)
+  # The DEM demo is Python (laspy reads a COPC window over HTTPS); it writes
+  # fig/kanaka_dem.png and data/readme_dem.json.
+  if (system2("uv", c("run", "--group", "readme", "python", "scripts/readme_dem.py")) != 0L) {
+    stop("scripts/readme_dem.py failed", call. = FALSE)
+  }
   groups <- sf::st_drop_geometry(all$items) |>
     dplyr::group_by(group) |>
     dplyr::summarise(items = dplyr::n(), copc = sum(copc), points = sum(points)) |>
@@ -77,10 +81,13 @@ if (isTRUE(params$update_query)) {
   ), CACHE)
 }
 # A missing cache must stop the render rather than produce a page with no numbers in it.
-if (!file.exists(CACHE)) {
-  stop(CACHE, " is missing — render once with params$update_query = TRUE", call. = FALSE)
+for (f in c(CACHE, DEM_JSON)) {
+  if (!file.exists(f)) {
+    stop(f, " is missing — render once with params$update_query = TRUE", call. = FALSE)
+  }
 }
 cached <- readRDS(CACHE)
+dem <- jsonlite::fromJSON(DEM_JSON, simplifyVector = FALSE)
 groups <- cached$groups
 rows <- cached$rows
 ex <- cached$example
@@ -105,11 +112,18 @@ if (identical(params$rmd_on, FALSE)) {
 
 **`stac-pointcloud-bc`** catalogues British Columbia's [LidarBC](https://lidar.gov.bc.ca/) point clouds as a [SpatioTemporal Asset Catalog](https://stacspec.org/) (STAC): one item per `.laz` file on the province's objectstore, so a client can find the files covering an area without downloading any of them first. Each item's footprint, point count, point format and coordinate reference system come from the file's own LAS header and the CRS record that follows it, read at build time with range requests; the `.laz` stays where the province publishes it, and nothing is copied. The collection holds **`r fmt(n_items)` items in `r nrow(groups)` mapsheet-years** so far. The endpoint is <https://images.a11s.one>, readable from the [`rstac`](https://brazil-data-cube.github.io/rstac/) R package, `pystac-client`, QGIS 3.42+, or any other STAC client.
 
-```{r fig, echo=FALSE, fig.alt="Footprints of the stac-pointcloud-bc items across southern British Columbia, labelled by mapsheet and year, with the items that also carry a COPC from NRCan's CanElevation series in orange and the Similkameen River watershed group outlined."}
-knitr::include_graphics("fig/footprints.png")
+## From a search to a DEM, without downloading a file
+
+```{r dem-fig, echo=FALSE, fig.alt="A hillshaded bare-earth elevation model of the lower Kanaka Creek where it meets the Fraser River at Maple Ridge, built from lidar ground returns: the creek's meander, the terrace escarpment above the floodplain, and the highway and rail embankments, with water in light blue."}
+knitr::include_graphics("fig/kanaka_dem.png")
 ```
 
-Every published item, by mapsheet and year of flight. The `r fmt(n_copc)` in orange also carry a Cloud Optimized Point Cloud from NRCan's CanElevation series; the dashed outline is the Similkameen River watershed group searched in the example below.
+`r dem_mb <- function(b) fmt(round(b / 1e6)); paste0("The lower Kanaka Creek where it meets the Fraser at Maple Ridge. One STAC search for a ", fmt(dem$window_m[[1]] / 1000), " × ", fmt(dem$window_m[[2]] / 1000), " km window returned the ", length(dem$items), " items covering it. Reading only that window from each item's ")` `copc` `r paste0("asset transferred ", dem_mb(dem$bytes_read), " MB of the ", dem_mb(dem$bytes_files), " MB in those files: ", fmt(round(dem$points / 1e6, 1)), " million points, ", fmt(round(dem$ground_points / 1e6, 1)), " million of them ground returns, gridded at ", dem$cell_m, " m into the surface above. Light blue is water, which returns almost no pulses.")` A `laz` asset has no spatial index, so the same window from it means downloading the whole file; the window read is what the `copc` asset adds. `r n_go <- length(dem$ground_only_items); if (n_go > 0) paste0(if (n_go == 1) "One" else fmt(n_go), " of these ", length(dem$items), " items ", if (n_go == 1) "holds" else "hold", " ground returns only, so trees and buildings cannot be measured from ", if (n_go == 1) "it" else "them", ": a LidarBC delivery is not always the full point cloud.")`
+
+```{python dem-code, eval=FALSE, code=pc_readme_lines("scripts/readme_dem.py", "shown on the landing page")}
+```
+
+The whole script, with the gridding, is [`scripts/readme_dem.py`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_dem.py).
 
 ## What an item holds
 
@@ -251,7 +265,7 @@ Rscript -e 'pak::local_install_dev_deps("scripts")'
 Rscript -e 'testthat::test_file("tests/readme_functions_test.R")'
 ```
 
-Then run the two `rmarkdown::render()` calls in the `build` chunk at the top of `README.Rmd`: the `README.md` render with `update_query = TRUE` refreshes `fig/footprints.png` and `data/readme_cache.rds`, and the `index.html` render reads them. [research/](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/README.md) holds what is known about the source and how it was measured.
+The DEM demo is Python, in its own dependency group: `uv sync --group readme`. Then run the two `rmarkdown::render()` calls in the `build` chunk at the top of `README.Rmd`: the `README.md` render with `update_query = TRUE` queries the API, runs `scripts/readme_dem.py`, and refreshes `data/readme_cache.rds`, `data/readme_dem.json` and `fig/kanaka_dem.png`; the `index.html` render reads them. [research/](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/README.md) holds what is known about the source and how it was measured.
 
 ## Licence
 

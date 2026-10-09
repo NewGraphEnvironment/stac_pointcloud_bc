@@ -60,6 +60,23 @@ Decided at the plan gate (user, 2026-10-09): R dependencies are declared in a `T
 - [x] Diff limited to the new bullet (stac_dem_bc's DT ids are unseeded, so index.html
       may churn — note it in the PR if so rather than fixing it there); open the PR
 
+## Phase 6: From a search to a DEM (added 2026-10-09, user direction)
+
+The user redirected the lead figure: show what the collection is for (find by place, get a
+point cloud, make something) rather than a coverage map. Houston (093l) was asked for first
+but is not indexed yet (#2) and has no COPC; Kanaka Creek at the Fraser was chosen from the
+stream mouths that fall in COPC-linked items. The coverage map was then dropped ("we will
+register all very soon").
+
+- [x] `scripts/readme_dem.py`: pystac-client search for a window, windowed COPC read through
+      `HttpRangeFile` (bytes counted), ground returns gridded at 2 m, hillshaded DEM →
+      `fig/kanaka_dem.png`, numbers → `data/readme_dem.json`
+- [x] `readme` dependency group (matplotlib, pystac-client)
+- [x] Tests for `grid()` and `fill_small_gaps()`; two restored bugs each fail them
+- [x] README.Rmd: the demo leads the page; its code is the script's own lines between markers
+      (`pc_readme_lines()`); coverage map, `pc_readme_fig()`, bcmaps and ggplot2 removed
+- [x] Renders: live md == cached md; cached renders byte-identical
+
 ## Validation
 
 - [ ] Tests pass (`uv run pytest tests/ -q` and the R test)

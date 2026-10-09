@@ -9,9 +9,50 @@ stac-pointcloud-bc
 
 **`stac-pointcloud-bc`** catalogues British Columbia’s [LidarBC](https://lidar.gov.bc.ca/) point clouds as a [SpatioTemporal Asset Catalog](https://stacspec.org/) (STAC): one item per `.laz` file on the province’s objectstore, so a client can find the files covering an area without downloading any of them first. Each item’s footprint, point count, point format and coordinate reference system come from the file’s own LAS header and the CRS record that follows it, read at build time with range requests; the `.laz` stays where the province publishes it, and nothing is copied. The collection holds **9,649 items in 11 mapsheet-years** so far. The endpoint is <https://images.a11s.one>, readable from the [`rstac`](https://brazil-data-cube.github.io/rstac/) R package, `pystac-client`, QGIS 3.42+, or any other STAC client.
 
-<img src="fig/footprints.png" alt="Footprints of the stac-pointcloud-bc items across southern British Columbia, labelled by mapsheet and year, with the items that also carry a COPC from NRCan's CanElevation series in orange and the Similkameen River watershed group outlined." width="100%" />
+## From a search to a DEM, without downloading a file
 
-Every published item, by mapsheet and year of flight. The 1,964 in orange also carry a Cloud Optimized Point Cloud from NRCan’s CanElevation series; the dashed outline is the Similkameen River watershed group searched in the example below.
+<img src="fig/kanaka_dem.png" alt="A hillshaded bare-earth elevation model of the lower Kanaka Creek where it meets the Fraser River at Maple Ridge, built from lidar ground returns: the creek's meander, the terrace escarpment above the floodplain, and the highway and rail embankments, with water in light blue." width="100%" />
+
+The lower Kanaka Creek where it meets the Fraser at Maple Ridge. One STAC search for a 1.6 × 1.2 km window returned the 4 items covering it. Reading only that window from each item’s `copc` asset transferred 74 MB of the 434 MB in those files: 6.8 million points, 1.5 million of them ground returns, gridded at 2 m into the surface above. Light blue is water, which returns almost no pulses. A `laz` asset has no spatial index, so the same window from it means downloading the whole file; the window read is what the `copc` asset adds. One of these 4 items holds ground returns only, so trees and buildings cannot be measured from it: a LidarBC delivery is not always the full point cloud.
+
+``` python
+client = Client.open(API)
+# The CRS of the item at the mouth sets the grid; every item in the window must share it.
+at_mouth = list(client.search(collections=[COLLECTION],
+                              intersects={"type": "Point", "coordinates": [MOUTH_LON, MOUTH_LAT]}
+                              ).items())
+if not at_mouth:
+    sys.exit("no item covers the mouth")
+crs = at_mouth[0].properties["proj:code"]
+x0, y0 = Transformer.from_crs("EPSG:4326", crs, always_xy=True).transform(MOUTH_LON, MOUTH_LAT)
+items, box = window_items(client, crs, x0, y0)
+if any("copc" not in i.assets for i in items):
+    # A laz-only tile would have to be downloaded whole; this demo is the windowed read.
+    sys.exit("an item in the window has no copc asset: " +
+             ", ".join(i.id for i in items if "copc" not in i.assets))
+if any(i.properties["proj:code"] != crs for i in items):
+    sys.exit("items in the window do not share one CRS")
+
+xs, ys, zs, cls = [], [], [], []
+fetched = size = 0
+ground_only = []
+for it in items:
+    f = HttpRangeFile(it.assets["copc"].href)
+    with CopcReader(f) as rd:
+        # Only the COPC octree nodes that meet the window are fetched.
+        pts = rd.query(bounds=Bounds(mins=np.array(box[:2]), maxs=np.array(box[2:])))
+    xs.append(np.asarray(pts.x))
+    ys.append(np.asarray(pts.y))
+    zs.append(np.asarray(pts.z))
+    cls.append(np.asarray(pts.classification))
+    fetched += f.bytes_fetched
+    size += f.size
+    if len(pts) and np.all(cls[-1] == GROUND):
+        ground_only.append(it.id)
+x, y, z, c = (np.concatenate(a) for a in (xs, ys, zs, cls))
+```
+
+The whole script, with the gridding, is [`scripts/readme_dem.py`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_dem.py).
 
 ## What an item holds
 
@@ -142,7 +183,7 @@ Rscript -e 'pak::local_install_dev_deps("scripts")'
 Rscript -e 'testthat::test_file("tests/readme_functions_test.R")'
 ```
 
-Then run the two `rmarkdown::render()` calls in the `build` chunk at the top of `README.Rmd`: the `README.md` render with `update_query = TRUE` refreshes `fig/footprints.png` and `data/readme_cache.rds`, and the `index.html` render reads them. [research/](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/README.md) holds what is known about the source and how it was measured.
+The DEM demo is Python, in its own dependency group: `uv sync --group readme`. Then run the two `rmarkdown::render()` calls in the `build` chunk at the top of `README.Rmd`: the `README.md` render with `update_query = TRUE` queries the API, runs `scripts/readme_dem.py`, and refreshes `data/readme_cache.rds`, `data/readme_dem.json` and `fig/kanaka_dem.png`; the `index.html` render reads them. [research/](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/README.md) holds what is known about the source and how it was measured.
 
 ## Licence
 

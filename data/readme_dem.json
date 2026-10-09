@@ -1,0 +1,31 @@
+{
+  "items": [
+    "092-092g-2016-pointcloud-bc_092g018_3_3_3_xyes_8_utm10_20170714",
+    "092-092g-2016-pointcloud-bc_092g018_3_3_4_xyes_8_utm10_20170714",
+    "092-092g-2016-pointcloud-bc_092g028_1_1_1_xyes_8_utm10_20170714",
+    "092-092g-2016-pointcloud-bc_092g028_1_1_2_xyes_8_utm10_20170714"
+  ],
+  "copc": [
+    "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Lower_Mainland_2016/bc_092g018_3_3_3_xyes_8_utm10_20170714.copc.laz",
+    "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Lower_Mainland_2016/bc_092g018_3_3_4_xyes_8_utm10_20170714.copc.laz",
+    "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Lower_Mainland_2016/bc_092g028_1_1_1_xyes_8_utm10_20170714.copc.laz",
+    "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Lower_Mainland_2016/bc_092g028_1_1_2_xyes_8_utm10_20170714.copc.laz"
+  ],
+  "crs": "EPSG:3157",
+  "window_m": [
+    1600,
+    1200
+  ],
+  "cell_m": 2.0,
+  "points": 6843778,
+  "ground_points": 1517992,
+  "bytes_read": 73798471,
+  "bytes_files": 434180935,
+  "ground_only_items": [
+    "092-092g-2016-pointcloud-bc_092g028_1_1_1_xyes_8_utm10_20170714"
+  ],
+  "elevation_m": [
+    1.4,
+    39.9
+  ]
+}

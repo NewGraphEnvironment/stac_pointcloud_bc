@@ -15,11 +15,9 @@ Depends:
     R (>= 4.4.0)
 Imports:
     bcdata (>= 0.5.0),
-    bcmaps (>= 2.2.0),
     dplyr (>= 1.1.0),
     DT (>= 0.30),
     geojsonsf (>= 2.0.0),
-    ggplot2 (>= 3.5.0),
     glue (>= 1.7.0),
     htmlwidgets (>= 1.6.0),
     httr2 (>= 1.1.0),

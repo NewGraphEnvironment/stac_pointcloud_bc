@@ -19,3 +19,7 @@
 - Phase 5: stac_dem_bc PR #54 (hand-edited bullet in README.Rmd/README.md/index.html; a
   re-render there would also rewrite staticimports.R, README.html and the badges).
   Follow-up for floodplains' sister list: stac_floodplains_bc#73.
+- Code-check round 1: one finding (`%||%` needs R 4.4) fixed in f53a21d.
+- User redirected the lead figure to a search → COPC → DEM demo; Houston unavailable (not
+  indexed, no COPC); Kanaka Creek chosen. Coverage map dropped at user request.
+- Phase 6 landed: `scripts/readme_dem.py`, tests, README.Rmd lead section; renders identical.

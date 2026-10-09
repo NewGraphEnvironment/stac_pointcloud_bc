@@ -106,3 +106,20 @@ Runners-up: Fraser Canyon 283/89, Squamish 334/72, Kettle River 369/119.
 
 md (`update_query = TRUE`) → html (FALSE) → md (FALSE) → html (FALSE): README.md and
 index.html byte-identical between the two cache-only passes. DT ids seeded.
+
+## Phase 6: the DEM demo (2026-10-09)
+
+- **Houston is not in the collection.** LidarBC holds `093/093l/` point clouds (2016, 2018,
+  2019, 2021; `093l037` 2019 tiles cover the Buck Creek confluence) but this increment is the
+  11 southern groups (#2 is the rest), and no CanElevation BC project covers UTM zone 9 there.
+- **Choosing a site:** Freshwater Atlas main-stem mouths (`DOWNSTREAM_ROUTE_MEASURE == 0`,
+  `BLUE_LINE_KEY == WATERSHED_KEY`) searched as points: 22 of 23 named streams tried fall in
+  items with `copc`. The atlas routes a tributary's main stem to the receiving river's
+  centreline, so its "mouth" sits mid-Fraser; the window is offset onto the creek instead.
+- **Kanaka window, 1.6 × 1.2 km, 4 items:** 74 MB read of 434 MB (17%), 6.8 M points,
+  1.5 M ground, ~2 min. laspy `CopcReader` over `HttpRangeFile` (serial 64 KB ranges).
+- **`092g028_1_1_1` (092g/2016) is ground-only:** 748,497 points in the window, all class 2.
+  Its neighbour `092g018_3_3_3` carries classes 1 and 2. Nothing in an item says so, and the
+  build's header read cannot see it (class counts are not in the header).
+- First render had black rims at every bank: `gist_earth` starts at black and banks sit just
+  under the 1st-percentile floor. Fixed by starting the colormap at 0.15.

@@ -9,6 +9,23 @@ API_ROOT <- "https://images.a11s.one"
 COLLECTION <- "stac-pointcloud-bc"
 BUCKET_URL <- "https://stac-pointcloud-bc.s3.us-west-2.amazonaws.com"
 CACHE <- "data/readme_cache.rds"
+DEM_JSON <- "data/readme_dem.json"
+
+#' The lines of a file between `# --- <marker>: begin` and `# --- <marker>: end`
+#'
+#' So the page shows the script's own code rather than a copy of it. Refuses a missing or
+#' doubled marker rather than showing nothing, or the wrong span.
+pc_readme_lines <- function(path, marker) {
+  x <- readLines(path)
+  b <- grep(paste0("# --- ", marker, ": begin"), x, fixed = TRUE)
+  e <- grep(paste0("# --- ", marker, ": end"), x, fixed = TRUE)
+  if (length(b) != 1L || length(e) != 1L || e <= b + 1L) {
+    stop(path, ": expected one '", marker, "' begin/end pair around some code", call. = FALSE)
+  }
+  # Dedent by the begin marker's own indent, so the excerpt reads at the left margin.
+  ind <- nchar(sub("#.*", "", x[b]))
+  sub(paste0("^ {0,", ind, "}"), "", x[(b + 1L):(e - 1L)])
+}
 
 
 # ---- the LAS header, read remotely -------------------------------------------------------
@@ -192,46 +209,6 @@ pc_readme_rows <- function(features) {
 pc_readme_link <- function(href) {
   ifelse(is.na(href), "",
          paste0('<a href="', href, '" target="_blank">', basename(href), "</a>"))
-}
-
-
-# ---- the figure --------------------------------------------------------------------------
-
-#' Item footprints by mapsheet-year, with the items carrying a `copc` asset marked
-pc_readme_fig <- function(items, aoi, path = "fig/footprints.png", width = 9, dpi = 200) {
-  bc <- sf::st_transform(bcmaps::bc_bound(), 3005)
-  it <- sf::st_transform(items, 3005)
-  it$asset <- ifelse(it$copc, "laz + copc", "laz only")
-  # Two years of one sheet can overlap (082e, 082l), so the copc items are drawn last and a
-  # laz-only footprint from the other year cannot hide them.
-  it <- it[order(it$copc), ]
-  aoi <- sf::st_transform(aoi, 3005)
-  # One label per mapsheet, listing its years: per-year labels of an overlapping sheet sit
-  # on top of each other.
-  sheet <- sub("/.*", "", it$group)
-  lab <- do.call(rbind, lapply(split(it, sheet), \(g) {
-    years <- sort(unique(sub(".*/", "", g$group)))
-    data.frame(label = paste(sub("/.*", "", g$group[1]), paste(years, collapse = " · ")),
-               t(colMeans(sf::st_coordinates(sf::st_centroid(sf::st_geometry(g))))))
-  }))
-  box <- sf::st_bbox(sf::st_buffer(sf::st_as_sfc(sf::st_bbox(it)), 40000))
-  p <- ggplot2::ggplot() +
-    ggplot2::geom_sf(data = bc, fill = "grey96", colour = "grey60", linewidth = 0.3) +
-    ggplot2::geom_sf(data = it, ggplot2::aes(fill = asset), colour = NA) +
-    ggplot2::geom_sf(data = aoi, fill = NA, colour = "black", linewidth = 0.4,
-                     linetype = "dashed") +
-    ggplot2::geom_label(data = lab, ggplot2::aes(X, Y, label = label), size = 2.6,
-                        label.size = 0, alpha = 0.8, nudge_y = 25000) +
-    ggplot2::scale_fill_manual(values = c("laz only" = "#8c8c8c", "laz + copc" = "#c2410c"),
-                               name = NULL) +
-    ggplot2::coord_sf(xlim = box[c("xmin", "xmax")], ylim = box[c("ymin", "ymax")],
-                      crs = 3005, expand = FALSE) +
-    ggplot2::labs(x = NULL, y = NULL) +
-    ggplot2::theme_minimal(base_size = 10) +
-    ggplot2::theme(legend.position = "bottom", panel.grid = ggplot2::element_line(colour = "grey90"))
-  ggplot2::ggsave(path, p, width = width, height = width * 0.62, dpi = dpi, bg = "white",
-                  create.dir = TRUE)
-  invisible(path)
 }
 
 
