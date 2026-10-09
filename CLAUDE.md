@@ -12,6 +12,11 @@ item JSON to `s3://stac-pointcloud-bc` and registers it with
 **The repo holds discovery and item creation only.** Registration and verification are
 `stacs`. Change them there, not here.
 
+`README.md` and `index.html` (the GitHub Pages landing page) are generated from
+`README.Rmd`. Edit that and re-render with its `build` chunk; never edit the outputs. Its R
+packages are declared in `scripts/DESCRIPTION`, not at the root, so `/gh-pr-merge` keeps
+treating the repo as a Python package (#9).
+
 ## Decisions this repo starts from (#35, decided 2026-09-30)
 
 - **Its own collection, one item per `.laz` file.** The `.laz` tiles have different,

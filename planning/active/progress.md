@@ -10,3 +10,7 @@
 - Phase 1: DESCRIPTION manifest; `pc_readme_header()` / `pc_readme_header_parse()` in
   `scripts/readme_functions.R`; testthat file with three 375-byte fixtures, 19 pass, red on
   both restored bugs. Live read of the COPC returned the same values.
+- Plan review returned; findings folded in (see findings.md). DESCRIPTION moved to
+  `scripts/` to keep the gh-pr-merge release route.
+- Phases 2–3: fetch with id-set guard, example (Similkameen River), header check, figure,
+  cache; README.Rmd rendered to README.md + index.html, re-render byte-identical.

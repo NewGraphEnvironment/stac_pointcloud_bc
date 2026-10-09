@@ -70,3 +70,39 @@
 - Restored bugs: reading the legacy count on 1.4 fails 1 test (the COPC; the 1.4 format-1
   file carries both counts, so only the COPC fixture can see it); the unmasked format byte
   fails 3.
+
+## Plan review (Plan agent, 2026-10-09, returned 21:07Z)
+
+Folded in, each checked before acting:
+
+- **The API sends no `numberMatched`** (probed: `POST /search` returns `numberReturned` only).
+  The completeness guard compares the fetched ids with the bucket's collection.json
+  `rel: item` links as sets, both ways, plus API vs bucket version (`pc_readme_fetch()`).
+  `items_fetch()` pages: 9,649 in ~36 s, 251 MB in memory; only a slim summary is cached
+  (`data/readme_cache.rds`, 6 KB).
+- **A root DESCRIPTION would reroute releases** — confirmed in
+  `soul/skills/gh-pr-merge/SKILL.md`: `Type: Project` selects the manifest route
+  (`SKIP_BUMP=1 SKIP_TAG=1`, "the release script cuts the tag"), and this repo has no
+  release script, so catalogue releases would stop being tagged. The manifest moved to
+  `scripts/DESCRIPTION` (`pak::local_install_dev_deps("scripts")`); the user's decision —
+  a DESCRIPTION, no renv — stands.
+- `pc_readme_header()` now reads the status before the body (`req_perform_connection`), so a
+  200 is refused without downloading the file; probed against `images.a11s.one/collections`
+  (answers 200 to a range): refused.
+- `.nojekyll`; knitr intermediates in `.gitignore`; absolute GitHub links for `.md` targets
+  (Pages serves `.md` as `text/markdown`).
+- Figure: copc drawn last (082e/082l years overlap), one label per mapsheet.
+- Not taken: a BC inset map (the axes carry lat/long, and the extent is the point);
+  printing the reader inline (the page links the function file instead).
+
+## Example AOI (2026-10-09)
+
+Items per watershed group, from all 9,649 footprints (`st_intersects`): every group with copc
+also has laz-only items. Chosen: **Similkameen River (SIML)**, 306 items, 213 with `copc`
+(082e/2018 and 082e/2019). The render `stopifnot`s that the result holds both kinds.
+Runners-up: Fraser Canyon 283/89, Squamish 334/72, Kettle River 369/119.
+
+## Render determinism
+
+md (`update_query = TRUE`) → html (FALSE) → md (FALSE) → html (FALSE): README.md and
+index.html byte-identical between the two cache-only passes. DT ids seeded.

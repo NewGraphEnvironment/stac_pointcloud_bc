@@ -19,33 +19,33 @@ Decided at the plan gate (user, 2026-10-09): R dependencies are declared in a `T
       format byte) and watch it fail
 
 ## Phase 2: Query, cache and figure
-- [ ] `pc_readme_fetch()`: every item of `stac-pointcloud-bc` via rstac, reduced to a slim
+- [x] `pc_readme_fetch()`: every item of `stac-pointcloud-bc` via rstac, reduced to a slim
       sf (id, mapsheet-year, has_copc, `laz`/`copc` href, footprint); stops unless the
       fetched id count equals the API's `numberMatched` (a truncated page must not draw a
       smaller map)
-- [ ] Example AOI with bcdata, as the sisters: one chosen by measurement so the result
+- [x] Example AOI with bcdata, as the sisters: one chosen by measurement so the result
       holds both laz-only and laz+copc items at a table-sized count; record the choice in
       findings.md
-- [ ] Header read of one returned item's `laz` and `copc`; the render `stopifnot`s each
+- [x] Header read of one returned item's `laz` and `copc`; the render `stopifnot`s each
       against the item's own `pc:count` and `proj:bbox`
-- [ ] `pc_readme_fig()` → `fig/footprints.png`: footprints by mapsheet-year over a BC
+- [x] `pc_readme_fig()` → `fig/footprints.png`: footprints by mapsheet-year over a BC
       outline (bcmaps), `copc` items marked, from the cached sf
-- [ ] One cache, `data/readme_cache.rds` (slim; check its size before committing)
+- [x] One cache, `data/readme_cache.rds` (slim; check its size before committing)
 
 ## Phase 3: README.Rmd and render
-- [ ] `README.Rmd`: floodplains' YAML/params/seed/build chunk; badges md-only
-- [ ] Write-up: one item per LidarBC `.laz`; footprint, count, CRS from the header; what
+- [x] `README.Rmd`: floodplains' YAML/params/seed/build chunk; badges md-only
+- [x] Write-up: one item per LidarBC `.laz`; footprint, count, CRS from the header; what
       is indexed, linking NEWS.md (counts computed from the cache, never typed); the `copc`
       asset and its header check (`research/canelevation_overlap.md`); `dsm/*.laz` not
       indexed
-- [ ] Example: rstac search shown (`eval = params$update_query`), table of items with
+- [x] Example: rstac search shown (`eval = params$update_query`), table of items with
       `laz`/`copc` links (kable head in md, DT in html), the header read and its check
-- [ ] Figure; sister collections (`stac-elevation-bc`, `stac-floodplains-bc`,
+- [x] Figure; sister collections (`stac-elevation-bc`, `stac-floodplains-bc`,
       `stac-airphoto-bc`, `imagery-uav-bc-prod`); "Build, publish, register" section
       carrying today's README commands; licence
-- [ ] Render md (`update_query = TRUE`) then html (`FALSE`); re-render both and confirm
+- [x] Render md (`update_query = TRUE`) then html (`FALSE`); re-render both and confirm
       no diff (determinism); commit README.Rmd, README.md, index.html, fig/, cache
-- [ ] CLAUDE.md: one line that README.md and index.html are generated from README.Rmd
+- [x] CLAUDE.md: one line that README.md and index.html are generated from README.Rmd
 
 ## Phase 4: Pages and About
 - [ ] Enable Pages from `main` at `/` (`gh api -X POST repos/…/pages`) — after the PR
