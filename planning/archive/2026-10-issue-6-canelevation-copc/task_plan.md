@@ -62,4 +62,4 @@ in the collection description. 1,964 of the 9,649 v0.1.0 items have a copy.
 - [x] Tests pass (`uv run pytest tests/ -q`)
 - [x] `/code-check` clean (once over the branch with `/code-check branch`; covers 443b88d's probe too)
 - [x] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion, then `/gh-pr-push`
+- [x] `/planning-archive` on completion, then `/gh-pr-push`
