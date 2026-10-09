@@ -11,6 +11,8 @@ Description: Not an R package. The catalogue is built in Python (pyproject.toml)
     does not have.
 License: MIT
 Encoding: UTF-8
+Depends:
+    R (>= 4.4.0)
 Imports:
     bcdata (>= 0.5.0),
     bcmaps (>= 2.2.0),
