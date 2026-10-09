@@ -50,7 +50,7 @@ Decided at the plan gate (user, 2026-10-09): R dependencies are declared in a `T
 ## Phase 4: Pages and About
 - [x] Enable Pages from `main` at `/` (`gh api -X POST repos/…/pages`) — enabled before
       the merge (review O1): it serves main's README until then, index.html after
-- [ ] Confirm https://www.newgraphenvironment.com/stac_pointcloud_bc/ returns 200 with the
+- [x] Confirm https://www.newgraphenvironment.com/stac_pointcloud_bc/ returns 200 with the
       page title
 - [x] `gh repo edit --homepage <url> --description <…>`
 

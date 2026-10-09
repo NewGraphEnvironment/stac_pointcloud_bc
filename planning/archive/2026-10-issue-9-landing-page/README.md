@@ -31,4 +31,4 @@ HTTPS"), `research/laz_header_read.md` ("some deliveries are ground-only").
 
 The plan review and three code-check rounds in this directory (`review-*.md`).
 
-Closed by: PR (to be opened from branch 9-readme-rmd-landing-page-served-on-github)
+Closed by: PR #11 (merge 2c7af9c). Pages served the merged `index.html` byte-identical at 2026-10-09T22:40Z.
