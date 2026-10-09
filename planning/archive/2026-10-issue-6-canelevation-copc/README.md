@@ -27,4 +27,4 @@ Producer: `scripts/copc_pairs_measure.py` (`--published` for the body comparison
 `logs/20261009_*` (gitignored: build, sync and register logs of v0.2.0); the review files
 in this directory.
 
-Closed by: PR (this branch, `6-canelevation-overlap`)
+Closed by: PR #8
