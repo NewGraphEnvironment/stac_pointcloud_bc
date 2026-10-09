@@ -333,8 +333,8 @@ def copc_asset_add(item: pystac.Item, href: str, copc_header: dict,
         title="Point cloud (COPC), NRCan CanElevation copy",
         description="Natural Resources Canada's copy of the `laz` file, as a Cloud Optimized "
                     "Point Cloud, checked at build to have the same point count and "
-                    "horizontal CRS, and a header box within 5 cm. Distributed by NRCan under "
-                    "the Open Government Licence - Canada.",
+                    f"horizontal CRS, and a header box within {COPC_BOX_TOLERANCE_M:g} m. "
+                    "Distributed by NRCan under the Open Government Licence - Canada.",
         extra_fields={"nge:las_version": copc_header["las_version"],
                       "nge:point_format": copc_header["point_format"]},
     )

@@ -35,6 +35,7 @@ from tqdm import tqdm
 from laz_item import (
     ASSET_LAZ,
     COLLECTION_ID,
+    COPC_BOX_TOLERANCE_M,
     HEADER_VERSION,
     date_parse,
     key_parse,
@@ -78,8 +79,9 @@ CANELEVATION_PROJECTS = {
 
 # Items with a CanElevation copy per INCREMENT group, measured 2026-10-09 (#6). The listing
 # floors above cannot see a rename on either side, which pairs nothing while every count
-# passes, so a group pairing under 90% of this is refused: the publish would drop its
-# `copc` assets without a word. Groups not named here have no copy.
+# passes. Pairing is a deterministic join, so there is no slack: a group pairing fewer than
+# this is refused, since the publish would drop those `copc` assets without a word. A group
+# that pairs and is not named here is refused too, until its count is recorded.
 COPC_PAIRS = {"082/082e/2019": 332, "082/082l/2019": 57, "092/092g/2016": 1155,
               "092/092h/2016": 420}
 
@@ -109,7 +111,7 @@ DESCRIPTION = (
     "Riverine_Floodplain_UTM10_2019, Riverine_Floodplain_UTM11_2019, Lower_Mainland_2016). "
     "Where an item's file is one of them, the item also carries that copy as its `copc` "
     "asset, checked to have the same point count and horizontal CRS and a header box within "
-    "5 cm; the `laz` asset stays the source of record."
+    f"{COPC_BOX_TOLERANCE_M:g} m; the `laz` asset stays the source of record."
 )
 PROVIDERS = [
     {"name": "Province of British Columbia", "roles": ["producer", "licensor", "host"],
@@ -183,13 +185,18 @@ def copc_pairs(urls: list[str], copc_objs: list[dict]) -> dict[str, dict]:
 
 
 def copc_pairs_check(pairs: dict[str, dict]) -> None:
-    """Refuse a COPC_PAIRS group that paired under 90% of its measured count."""
+    """Refuse a group that paired fewer than COPC_PAIRS records, or paired at all without
+    a recorded count."""
     n = collections.Counter("/".join(key_parse(u)["key"].split("/")[:3]) for u in pairs)
     for g, expected in COPC_PAIRS.items():
-        if n[g] < 0.9 * expected:
-            raise RuntimeError(f"{g}: {n[g]} items paired with a CanElevation copy, under 90% "
-                               f"of the {expected} measured 2026-10-09 - a renamed or moved "
+        if n[g] < expected:
+            raise RuntimeError(f"{g}: {n[g]} items paired with a CanElevation copy, fewer than "
+                               f"the {expected} measured 2026-10-09 - a renamed or moved "
                                f"file on either side would drop their copc assets")
+    new = sorted(set(n) - set(COPC_PAIRS))
+    if new:
+        raise RuntimeError(f"groups pairing with CanElevation but not in COPC_PAIRS: "
+                           f"{', '.join(f'{g} ({n[g]})' for g in new)} - record their counts")
 
 
 def cache_tail_repair(path: str) -> None:

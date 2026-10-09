@@ -19,7 +19,7 @@ Nine CanElevation projects hold BC data: seven under `BC/` and two federal flood
 (FHIMP) projects under `NRCAN/`. `BC/Skeena_Terrace_2023` is in the bucket but missing
 from the project index, so a footprint query alone misses it.
 
-## 13,996 LidarBC files are republished, from four projects
+## 13,996 LidarBC file names recur in CanElevation, from four projects
 
 Matched by file name, with `.copc` and `.laz` stripped. No name maps to more than one
 LidarBC file.
@@ -40,9 +40,11 @@ That is 13,996 of LidarBC's 181,708 `.laz`, all `pointcloud/` and none `dsm/`, s
 **A matching name has been the same points wherever it was checked.** A seeded sample of 10
 pairs per project (40 in total) read both headers: 40 of 40 have the same point count and a
 bounding box within 1 m. The build later checked every pair in the first increment (below).
-Apart from coordinates re-quantised by up to 0.01 m, the only difference is format. COPC requires LAS 1.4
-point format 6–8, so the `Lower_Mainland_2016` files were converted from LAS 1.2
-format 1, which is why a whole-header comparison fails for that project and nowhere else. A
+The headers still differ, in three ways: coordinates re-quantised by up to 0.01 m, a
+vertical CRS added or dropped in every pair (below), and, for `Lower_Mainland_2016` only,
+the format. COPC requires LAS 1.4 point format 6–8, so those files were converted from LAS 1.2
+format 1. So a whole-header comparison fails for every pair, and the test is on point count,
+horizontal CRS and box. A
 CanElevation copy is larger (one pair: 65 MB `.laz`, 93 MB `.copc.laz`), so file size
 does not identify a pair.
 

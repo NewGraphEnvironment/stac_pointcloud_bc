@@ -729,7 +729,7 @@ def _main_with_copc(tmp_path, monkeypatch, copc_header):
     monkeypatch.setattr(catalogue_build, "OUT", "data/build")
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
     monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [ce])
-    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {"092/092g/2016": 1})
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__", (read,))
     monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
     return catalogue_build.main(), ce
@@ -770,9 +770,12 @@ def test_a_group_that_pairs_short_fails_the_build():
              for g, n in catalogue_build.COPC_PAIRS.items() if g != "092/092g/2016"
              for i in range(n)}
     catalogue_build.copc_pairs_check(full | other)
-    short = dict(list(full.items())[:100]) | other
-    with pytest.raises(RuntimeError, match="092/092g/2016: 100 items paired"):
+    short = dict(list(full.items())[:1154]) | other
+    with pytest.raises(RuntimeError, match="092/092g/2016: 1154 items paired"):
         catalogue_build.copc_pairs_check(short)
+    unrecorded = full | other | {f"{PATH_S3}/082/082f/2018/pointcloud/f.laz": {}}
+    with pytest.raises(RuntimeError, match=r"not in COPC_PAIRS: 082/082f/2018 \(1\)"):
+        catalogue_build.copc_pairs_check(unrecorded)
 
 
 def test_the_build_checks_the_pair_count_before_writing(tmp_path, monkeypatch):
