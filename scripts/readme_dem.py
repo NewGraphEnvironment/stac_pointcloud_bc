@@ -101,8 +101,8 @@ def main() -> None:
     year = at_mouth[0].properties["start_datetime"][:4]
     crs = at_mouth[0].properties["proj:code"]
     x0, y0 = Transformer.from_crs("EPSG:4326", crs, always_xy=True).transform(MOUTH_LON, MOUTH_LAT)
-    items, box = window_items(client, crs, x0, y0)
-    items = [i for i in items if i.properties["start_datetime"][:4] == year]
+    found, box = window_items(client, crs, x0, y0)
+    items = [i for i in found if i.properties["start_datetime"][:4] == year]
     if any("copc" not in i.assets for i in items):
         # A laz-only tile would have to be downloaded whole; this demo is the windowed read.
         sys.exit("an item in the window has no copc asset: " +
@@ -135,6 +135,10 @@ def main() -> None:
     dem = fill_small_gaps(grid(x[g], y[g], z[g], box, CELL, "mean"), passes=10)
     plot(dem, box)
     out = {
+        # What the search returned, and the one delivery read from it. The page states both,
+        # so a second flight indexed later cannot make it miscount the search.
+        "items_found": [i.id for i in found],
+        "year": year,
         "items": [i.id for i in items],
         "copc": [i.assets["copc"].href for i in items],
         "crs": crs,

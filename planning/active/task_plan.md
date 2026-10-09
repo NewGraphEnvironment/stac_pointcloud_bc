@@ -79,7 +79,7 @@ register all very soon").
 
 ## Validation
 
-- [ ] Tests pass (`uv run pytest tests/ -q` and the R test)
-- [ ] `/code-check` clean (once over the branch with `/code-check branch`)
-- [ ] PWF checkboxes match landed work
+- [x] Tests pass (`uv run pytest tests/ -q` and the R test)
+- [x] `/code-check` clean (once over the branch with `/code-check branch`)
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion

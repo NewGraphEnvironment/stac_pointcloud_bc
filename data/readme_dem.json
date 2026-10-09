@@ -1,4 +1,11 @@
 {
+  "items_found": [
+    "092-092g-2016-pointcloud-bc_092g018_3_3_3_xyes_8_utm10_20170714",
+    "092-092g-2016-pointcloud-bc_092g018_3_3_4_xyes_8_utm10_20170714",
+    "092-092g-2016-pointcloud-bc_092g028_1_1_1_xyes_8_utm10_20170714",
+    "092-092g-2016-pointcloud-bc_092g028_1_1_2_xyes_8_utm10_20170714"
+  ],
+  "year": "2016",
   "items": [
     "092-092g-2016-pointcloud-bc_092g018_3_3_3_xyes_8_utm10_20170714",
     "092-092g-2016-pointcloud-bc_092g018_3_3_4_xyes_8_utm10_20170714",

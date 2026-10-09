@@ -106,7 +106,9 @@ pc_readme_header <- function(url) {
   while (length(raw) < LAS_HEADER_BYTES && !httr2::resp_stream_is_complete(resp)) {
     raw <- c(raw, httr2::resp_stream_raw(resp, kb = 1))
   }
-  pc_readme_header_parse(raw[seq_len(min(length(raw), LAS_HEADER_BYTES))])
+  raw <- raw[seq_len(min(length(raw), LAS_HEADER_BYTES))]
+  # What was actually transferred, so the page states a measurement rather than the request.
+  c(pc_readme_header_parse(raw), bytes = length(raw))
 }
 
 #' Check a header read against the item that describes the file

@@ -123,3 +123,27 @@ index.html byte-identical between the two cache-only passes. DT ids seeded.
   build's header read cannot see it (class counts are not in the header).
 - First render had black rims at every bank: `gist_earth` starts at black and banks sit just
   under the 1st-percentile floor. Fixed by starting the colormap at 0.15.
+
+## Code-check (branch mode, 2026-10-09)
+
+| Round | Findings | Fixed | Accepted | Inside previous fix? |
+|---|---|---|---|---|
+| 1 | 1 (`%||%` needs R 4.4) | 1 | 0 | — |
+| 2 | 3 (reticulate for the python excerpt; window could mix deliveries; stale map refs + unused purrr) | 3 | 0 | n (new code) |
+| 3 | 1 (page says "the search returned N" after the year filter made N the delivery read) | 1 | 0 | **y** (inside round 2's year filter) |
+
+Round 3 also measured the R1/R2 mechanism — the declared environment agreeing with this machine
+by accident — in a `git archive` copy with a library holding only what scripts/DESCRIPTION
+declares (109 packages, no reticulate, no purrr): the live render, both cached renders and the
+R tests all passed, outputs byte-identical. That mechanism is closed by measurement.
+
+Round 3's own mechanism — one fact from two places (a sentence describing one quantity, a
+number computed from another) — ended the loop by enumeration rather than a further round:
+all 13 inline R expressions, the 3 computed tables, and the literal numbers and quantifiers in
+the prose (`grep '`r '`; prose with chunks stripped). Five did not match their source and were
+fixed: the "ten, five of each" sample (now computed from the rows shown); "375-byte header"
+(LAS 1.2's is 227; the table now prints the bytes actually read); "holds ground returns only"
+(evidence was the window; now scoped to it, linking #10); "every pointcloud/*.laz" (one file
+excluded); "light blue is water" (it is cells with no ground return). The other expressions
+each read the quantity their sentence names. Spend: three reviewer rounds plus one plan
+review, five agents in all.

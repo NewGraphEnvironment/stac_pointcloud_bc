@@ -94,6 +94,8 @@ ex <- cached$example
 n_items <- sum(groups$items)
 n_copc <- sum(groups$copc)
 fmt <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+# The README.md sample of the example table: up to five items of each kind.
+md_rows <- rbind(head(rows[!is.na(rows$copc), ], 5), head(rows[is.na(rows$copc), ], 5))
 ```
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
@@ -118,7 +120,7 @@ if (identical(params$rmd_on, FALSE)) {
 knitr::include_graphics("fig/kanaka_dem.png")
 ```
 
-`r dem_mb <- function(b) fmt(round(b / 1e6)); paste0("The lower Kanaka Creek where it meets the Fraser at Maple Ridge. One STAC search for a ", fmt(dem$window_m[[1]] / 1000), " × ", fmt(dem$window_m[[2]] / 1000), " km window returned the ", length(dem$items), " items covering it. Reading only that window from each item's ")` `copc` `r paste0("asset transferred ", dem_mb(dem$bytes_read), " MB of the ", dem_mb(dem$bytes_files), " MB in those files: ", fmt(round(dem$points / 1e6, 1)), " million points, ", fmt(round(dem$ground_points / 1e6, 1)), " million of them ground returns, gridded at ", dem$cell_m, " m into the surface above. Light blue is water, which returns almost no pulses.")` A `laz` asset has no spatial index, so the same window from it means downloading the whole file; the window read is what the `copc` asset adds. `r n_go <- length(dem$ground_only_items); if (n_go > 0) paste0(if (n_go == 1) "One" else fmt(n_go), " of these ", length(dem$items), " items ", if (n_go == 1) "holds" else "hold", " ground returns only, so trees and buildings cannot be measured from ", if (n_go == 1) "it" else "them", ": a LidarBC delivery is not always the full point cloud.")`
+`r dem_mb <- function(b) fmt(round(b / 1e6)); paste0("The lower Kanaka Creek where it meets the Fraser at Maple Ridge. One STAC search for a ", fmt(dem$window_m[[1]] / 1000), " × ", fmt(dem$window_m[[2]] / 1000), " km window returned ", if (length(dem$items_found) == length(dem$items)) paste0("the ", length(dem$items), " items covering it, all flown in ", dem$year, ".") else paste0(length(dem$items_found), " items from more than one flight; the ", length(dem$items), " flown in ", dem$year, " were used."), " Reading only that window from each of those items' ")` `copc` `r paste0("asset transferred ", dem_mb(dem$bytes_read), " MB of the ", dem_mb(dem$bytes_files), " MB in those files: ", fmt(round(dem$points / 1e6, 1)), " million points, ", fmt(round(dem$ground_points / 1e6, 1)), " million of them ground returns, gridded at ", dem$cell_m, " m into the surface above. Light blue is where no ground was returned, which here is the water.")` A `laz` asset has no spatial index, so the same window from it means downloading the whole file; the window read is what the `copc` asset adds. `r n_go <- length(dem$ground_only_items); if (n_go > 0) paste0(if (n_go == 1) "One" else fmt(n_go), " of these ", length(dem$items), " items ", "returned", " ground points only in this window, so trees and buildings cannot be measured from ", if (n_go == 1) "it" else "them", " here: a LidarBC delivery is not always the full point cloud ([#10](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/10)).")`
 
 ```{python dem-code, eval=FALSE, python.reticulate=FALSE, code=pc_readme_lines("scripts/readme_dem.py", "shown on the landing page")}
 ```
@@ -138,7 +140,7 @@ Items carry the [pointcloud](https://github.com/stac-extensions/pointcloud), [pr
 
 ## What is indexed
 
-The first increment is every `pointcloud/*.laz` in the 11 mapsheet-years whose `dsm/` directory holds only `.laz`, where [stac_dem_bc](https://github.com/NewGraphEnvironment/stac_dem_bc) reports DEM tiles with no surface model. The rest of the province's `pointcloud/*.laz` is not yet indexed, and the `dsm/*.laz` are not indexed at all: in every tile compared they were an RGB-colourised copy of the point cloud, not a surface model ([#3](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/3), [`research/laz_header_read.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_header_read.md)). [NEWS.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/NEWS.md) says what each release published.
+The first increment is the `pointcloud/*.laz` in the 11 mapsheet-years whose `dsm/` directory holds only `.laz`, where [stac_dem_bc](https://github.com/NewGraphEnvironment/stac_dem_bc) reports DEM tiles with no surface model, less one file whose header is faulty. The rest of the province's `pointcloud/*.laz` is not yet indexed, and the `dsm/*.laz` are not indexed at all: in every tile compared they were an RGB-colourised copy of the point cloud, not a surface model ([#3](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/3), [`research/laz_header_read.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_header_read.md)). [NEWS.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/NEWS.md) says what each release published.
 
 ```{r groups, echo=FALSE}
 knitr::kable(
@@ -156,7 +158,7 @@ knitr::kable(
 
 ## Query it
 
-Use [`bcdata`](https://github.com/bcgov/bcdata) for an area of interest and `rstac` to search the collection for the items intersecting it. Below: every point cloud in the Similkameen River watershed group.
+Use [`bcdata`](https://github.com/bcgov/bcdata) for an area of interest and `rstac` to search the collection for the items intersecting it. Below: every indexed point cloud in the Similkameen River watershed group.
 
 ```{r example, eval=FALSE}
 # Freshwater Atlas watershed groups, by the record's permanent id.
@@ -178,11 +180,11 @@ r <- rstac::stac("https://images.a11s.one/") |>
   rstac::items_fetch()
 ```
 
-**`r fmt(nrow(rows))` items**, `r fmt(sum(!is.na(rows$copc)))` of them with a `copc` asset. `r if (identical(params$rmd_on, FALSE)) "Ten are below, five of each kind; every one, with download links for both assets, is in the table at <https://www.newgraphenvironment.com/stac_pointcloud_bc/>."`
+**`r fmt(nrow(rows))` items**, `r fmt(sum(!is.na(rows$copc)))` of them with a `copc` asset. `r if (identical(params$rmd_on, FALSE)) paste0("A sample of ", nrow(md_rows), " is below, ", sum(!is.na(md_rows$copc)), " with a copc asset and ", sum(is.na(md_rows$copc)), " without; every one, with download links for both assets, is in the table at <https://www.newgraphenvironment.com/stac_pointcloud_bc/>.")`
 
 ```{r tab-md, echo=FALSE, eval=identical(params$rmd_on, FALSE)}
 md_link <- function(href) ifelse(is.na(href), "", paste0("[", basename(href), "](", href, ")"))
-rbind(head(rows[!is.na(rows$copc), ], 5), head(rows[is.na(rows$copc), ], 5)) |>
+md_rows |>
   dplyr::transmute(item, points = fmt(points), laz = md_link(laz), copc = md_link(copc)) |>
   knitr::kable(align = c("l", "r", "l", "l"))
 ```
@@ -200,7 +202,7 @@ rows |>
 
 ### Read a header without downloading the file
 
-A LAS file starts with a 375-byte public header holding its version, point format, point count and bounding box. One HTTP range request reads it from either asset, whatever the file's size. `pc_readme_header()` in [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R) does it with `httr2` and base R, with no LAS library, and checks the result against the item:
+A LAS file starts with a public header, at most 375 bytes, holding its version, point format, point count and bounding box. One HTTP range request reads it from either asset, whatever the file's size. `pc_readme_header()` in [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R) does it with `httr2` and base R, with no LAS library, and checks the result against the item:
 
 ```{r header, eval=FALSE}
 it <- r$features[order(vapply(r$features, \(f) f$id, ""))] |>
@@ -222,7 +224,7 @@ hdr <- function(h, a, off) {
     `min x, y` = paste(sprintf("%.2f", h$mins[1:2]), collapse = ", "),
     `max x, y` = paste(sprintf("%.2f", h$maxs[1:2]), collapse = ", "),
     `offset from the item's box (m)` = sprintf("%.3f", off),
-    `bytes read / file size` = paste0("375 / ", fmt(a[["file:size"]])))
+    `bytes read / file size` = paste0(fmt(h$bytes), " / ", fmt(a[["file:size"]])))
 }
 knitr::kable(
   data.frame(check.names = FALSE,

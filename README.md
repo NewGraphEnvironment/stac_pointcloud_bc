@@ -13,7 +13,7 @@ stac-pointcloud-bc
 
 <img src="fig/kanaka_dem.png" alt="A hillshaded bare-earth elevation model of the lower Kanaka Creek where it meets the Fraser River at Maple Ridge, built from lidar ground returns: the creek's meander, the terrace escarpment above the floodplain, and the highway and rail embankments, with water in light blue." width="100%" />
 
-The lower Kanaka Creek where it meets the Fraser at Maple Ridge. One STAC search for a 1.6 × 1.2 km window returned the 4 items covering it. Reading only that window from each item’s `copc` asset transferred 74 MB of the 434 MB in those files: 6.8 million points, 1.5 million of them ground returns, gridded at 2 m into the surface above. Light blue is water, which returns almost no pulses. A `laz` asset has no spatial index, so the same window from it means downloading the whole file; the window read is what the `copc` asset adds. One of these 4 items holds ground returns only, so trees and buildings cannot be measured from it: a LidarBC delivery is not always the full point cloud.
+The lower Kanaka Creek where it meets the Fraser at Maple Ridge. One STAC search for a 1.6 × 1.2 km window returned the 4 items covering it, all flown in 2016. Reading only that window from each of those items’ `copc` asset transferred 74 MB of the 434 MB in those files: 6.8 million points, 1.5 million of them ground returns, gridded at 2 m into the surface above. Light blue is where no ground was returned, which here is the water. A `laz` asset has no spatial index, so the same window from it means downloading the whole file; the window read is what the `copc` asset adds. One of these 4 items returned ground points only in this window, so trees and buildings cannot be measured from it here: a LidarBC delivery is not always the full point cloud ([\#10](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/10)).
 
 ``` python
 client = Client.open(API)
@@ -29,8 +29,8 @@ if not at_mouth:
 year = at_mouth[0].properties["start_datetime"][:4]
 crs = at_mouth[0].properties["proj:code"]
 x0, y0 = Transformer.from_crs("EPSG:4326", crs, always_xy=True).transform(MOUTH_LON, MOUTH_LAT)
-items, box = window_items(client, crs, x0, y0)
-items = [i for i in items if i.properties["start_datetime"][:4] == year]
+found, box = window_items(client, crs, x0, y0)
+items = [i for i in found if i.properties["start_datetime"][:4] == year]
 if any("copc" not in i.assets for i in items):
     # A laz-only tile would have to be downloaded whole; this demo is the windowed read.
     sys.exit("an item in the window has no copc asset: " +
@@ -72,7 +72,7 @@ Items carry the [pointcloud](https://github.com/stac-extensions/pointcloud), [pr
 
 ## What is indexed
 
-The first increment is every `pointcloud/*.laz` in the 11 mapsheet-years whose `dsm/` directory holds only `.laz`, where [stac_dem_bc](https://github.com/NewGraphEnvironment/stac_dem_bc) reports DEM tiles with no surface model. The rest of the province’s `pointcloud/*.laz` is not yet indexed, and the `dsm/*.laz` are not indexed at all: in every tile compared they were an RGB-colourised copy of the point cloud, not a surface model ([\#3](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/3), [`research/laz_header_read.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_header_read.md)). [NEWS.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/NEWS.md) says what each release published.
+The first increment is the `pointcloud/*.laz` in the 11 mapsheet-years whose `dsm/` directory holds only `.laz`, where [stac_dem_bc](https://github.com/NewGraphEnvironment/stac_dem_bc) reports DEM tiles with no surface model, less one file whose header is faulty. The rest of the province’s `pointcloud/*.laz` is not yet indexed, and the `dsm/*.laz` are not indexed at all: in every tile compared they were an RGB-colourised copy of the point cloud, not a surface model ([\#3](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/3), [`research/laz_header_read.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_header_read.md)). [NEWS.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/NEWS.md) says what each release published.
 
 | mapsheet / year | items | with copc |        points |
 |:----------------|------:|----------:|--------------:|
@@ -92,7 +92,7 @@ Catalogue version 0.2.0, read from the API on 2026-10-09. Every id the bucket’
 
 ## Query it
 
-Use [`bcdata`](https://github.com/bcgov/bcdata) for an area of interest and `rstac` to search the collection for the items intersecting it. Below: every point cloud in the Similkameen River watershed group.
+Use [`bcdata`](https://github.com/bcgov/bcdata) for an area of interest and `rstac` to search the collection for the items intersecting it. Below: every indexed point cloud in the Similkameen River watershed group.
 
 ``` r
 # Freshwater Atlas watershed groups, by the record's permanent id.
@@ -114,7 +114,7 @@ r <- rstac::stac("https://images.a11s.one/") |>
   rstac::items_fetch()
 ```
 
-**306 items**, 213 of them with a `copc` asset. Ten are below, five of each kind; every one, with download links for both assets, is in the table at <https://www.newgraphenvironment.com/stac_pointcloud_bc/>.
+**306 items**, 213 of them with a `copc` asset. A sample of 10 is below, 5 with a copc asset and 5 without; every one, with download links for both assets, is in the table at <https://www.newgraphenvironment.com/stac_pointcloud_bc/>.
 
 | item | points | laz | copc |
 |:---|---:|:---|:---|
@@ -131,7 +131,7 @@ r <- rstac::stac("https://images.a11s.one/") |>
 
 ### Read a header without downloading the file
 
-A LAS file starts with a 375-byte public header holding its version, point format, point count and bounding box. One HTTP range request reads it from either asset, whatever the file’s size. `pc_readme_header()` in [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R) does it with `httr2` and base R, with no LAS library, and checks the result against the item:
+A LAS file starts with a public header, at most 375 bytes, holding its version, point format, point count and bounding box. One HTTP range request reads it from either asset, whatever the file’s size. `pc_readme_header()` in [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R) does it with `httr2` and base R, with no LAS library, and checks the result against the item:
 
 ``` r
 it <- r$features[order(vapply(r$features, \(f) f$id, ""))] |>
