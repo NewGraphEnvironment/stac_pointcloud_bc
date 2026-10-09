@@ -95,3 +95,13 @@ All 9,650 `pointcloud/` headers read without error. Three things the item code n
 
 The 15 ` (2).laz` files are not copies of their namesakes: they have different extents and point
 counts. Both are indexed.
+
+## What a header cannot say: some deliveries are ground-only (2026-10-09, #9)
+
+Class counts are not in the LAS header, so nothing the build reads says whether a file carries
+vegetation and buildings. Reading points for the landing page's DEM demo (`scripts/readme_dem.py`)
+found `092g/2016/.../bc_092g028_1_1_1_xyes_8_utm10_20170714` returning **only class 2** in a
+1.6 × 1.2 km window (748,497 points), while its three neighbours carry classes 1 and 2. A coarse
+sample of the whole tile's COPC (octree levels 0–2, 296,120 points; code-check round 3) was also
+100% ground. The COPC's point count equals the LidarBC file's (the #6 pairing), so this is how the
+province delivered it. How common it is, and whether items should say so, is #10.

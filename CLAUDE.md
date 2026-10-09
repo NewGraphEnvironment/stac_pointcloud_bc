@@ -12,6 +12,11 @@ item JSON to `s3://stac-pointcloud-bc` and registers it with
 **The repo holds discovery and item creation only.** Registration and verification are
 `stacs`. Change them there, not here.
 
+`README.md` and `index.html` (the GitHub Pages landing page) are generated from
+`README.Rmd`. Edit that and re-render with its `build` chunk; never edit the outputs. Its R
+packages are declared in `scripts/DESCRIPTION`, not at the root, so `/gh-pr-merge` keeps
+treating the repo as a Python package (#9).
+
 ## Decisions this repo starts from (#35, decided 2026-09-30)
 
 - **Its own collection, one item per `.laz` file.** The `.laz` tiles have different,
@@ -40,6 +45,9 @@ item JSON to `s3://stac-pointcloud-bc` and registers it with
   #6). A name is not proof: the build pairs by name, checks each copy's header (point count,
   horizontal CRS, box within 0.05 m), and only then adds it as the `copc` asset. The `laz`
   asset stays the source of record.
+- **Some point clouds are ground-only** (class 2 and nothing else), and the header cannot say
+  so: `092g028_1_1_1` (092g/2016) is one, found by reading points (#10,
+  `research/laz_header_read.md`). Do not assume a tile carries vegetation.
 - **Source URLs are `https://`.** `ngr::ngr_s3_keys_get()` returned `https:/` before ngr
   0.0.3 (ngr#38). Anything that reads a URL list refuses the one-slash form; never
   repair it silently (stac_dem_bc#51).

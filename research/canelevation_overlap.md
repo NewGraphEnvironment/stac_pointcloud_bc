@@ -114,3 +114,13 @@ over a shared footprint.
 16,500 headers, most of the run, because COPC reads from S3 are slower than the
 objectstore's. The JSON written to OUTDIR (listings, pairs, headers) is enough to rerun a
 comparison without listing again.
+
+## Reading a window from a COPC over HTTPS (2026-10-09, #9)
+
+The landing page's demo (`scripts/readme_dem.py`) searches the collection for a 1.6 × 1.2 km
+window on the lower Kanaka Creek, then reads only that window from each item's `copc` with laspy
+`CopcReader` over `scripts/laz_remote.py`'s `HttpRangeFile`, which counts what it transfers:
+**74 MB of the 434 MB** in the four files (17%), 6.8 M points, about 2 minutes with serial 64 KB
+ranges. A first probe of one tile's window read 24 MB of 96 MB (2.5 M points, 48 s). A plain
+`laz` has no spatial index, so the same window from it means reading the whole file. Numbers in
+`data/readme_dem.json`.
