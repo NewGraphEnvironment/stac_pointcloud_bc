@@ -55,3 +55,21 @@ test_that("anything that is not a LAS header is refused", {
                "no LASF signature")
   expect_error(pc_readme_header_parse(fixture("las14_copc")[1:300]), "needs 375 bytes")
 })
+
+test_that("a header read is checked against its item's count and box", {
+  item <- function(count, bbox) {
+    list(id = "092-092g-2016-pointcloud-bc_092g005_1_2_2_xyes_8_utm10_20170714",
+         properties = list(`pc:count` = count, `proj:bbox` = as.list(bbox)))
+  }
+  bbox <- c(490856.09, 5427462.71, 492686.14, 5428853.82)
+  # The LAZ matches its item exactly; the COPC is 1 mm off, inside the build's 0.05 m.
+  expect_lt(pc_readme_header_check(pc_readme_header_parse(fixture("las12_laz")),
+                                   item(3957849L, bbox)), 1e-6)
+  expect_equal(pc_readme_header_check(pc_readme_header_parse(fixture("las14_copc")),
+                                      item(3957849L, bbox)), 0.001, tolerance = 1e-6)
+  h <- pc_readme_header_parse(fixture("las12_laz"))
+  expect_error(pc_readme_header_check(h, item(3957848L, bbox)), "disagrees")
+  expect_error(pc_readme_header_check(h, item(3957849L, bbox + c(0, 0, 0.06, 0))),
+               "disagrees")
+  expect_error(pc_readme_header_check(h, item(3957849L, c(bbox, 0, 1))), "not 2D")
+})

@@ -14,3 +14,15 @@ __pycache__/
 # Secrets
 .env
 *.tfvars
+
+# R / knitr. README.Rmd renders README.md and index.html, both tracked. A chunk that prints
+# a plot instead of writing it through pc_readme_fig() lands in README_files/, untracked, so
+# it would render here and 404 for everyone else.
+.Rhistory
+.RData
+.Rproj.user
+README.html
+README_files/
+index_files/
+*.knit.md
+*.utf8.md

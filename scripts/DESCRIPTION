@@ -4,7 +4,11 @@ Title: Manifest for the stac_pointcloud_bc landing page
 Version: 0.0.0.9000
 Description: Not an R package. The catalogue is built in Python (pyproject.toml);
     this DESCRIPTION declares the R packages that render README.Rmd to README.md
-    and index.html, so one call installs them: pak::local_install_deps().
+    and index.html, so one call installs them:
+    pak::local_install_dev_deps("scripts"). It sits in scripts/, not at the
+    root, because a root DESCRIPTION would move the repo onto gh-pr-merge's
+    manifest release route, which leaves tagging to a release script this repo
+    does not have.
 License: MIT
 Encoding: UTF-8
 Imports:
@@ -16,7 +20,7 @@ Imports:
     ggplot2 (>= 3.5.0),
     glue (>= 1.7.0),
     htmlwidgets (>= 1.6.0),
-    httr2 (>= 1.0.0),
+    httr2 (>= 1.1.0),
     jsonlite (>= 1.8.0),
     knitr (>= 1.45),
     purrr (>= 1.0.0),
