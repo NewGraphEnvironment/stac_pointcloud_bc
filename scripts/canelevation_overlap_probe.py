@@ -7,7 +7,7 @@ Four steps, each printing its own counts:
 2. Read the headers of a seeded sample of name-matched pairs (10 per CanElevation
    project) and compare point count and bounding box. Point format and LAS version are
    reported, not compared: COPC requires LAS 1.4 format 6-8, so a converted 1.2 file
-   differs there. (The CRS differs too, in its vertical part; see the research file.)
+   differs there. The CRS is not read.
 3. For CanElevation files on a LidarBC tile id but under another name, read both
    headers (a seeded sample of 10) to see whether they are the same points.
 4. For the CanElevation BC projects with no name match, read every header and look for a

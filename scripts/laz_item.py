@@ -31,9 +31,9 @@ ASSET_LAZ = "laz"
 MEDIA_TYPE_LAZ = "application/vnd.laszip"
 PRODUCTS = ("pointcloud", "dsm")
 
-# NRCan's CanElevation series republishes some LidarBC files as COPC under the same file
-# names (research/canelevation_overlap.md, #6). Where it does, the item carries that copy
-# as a second asset; the `laz` asset stays the source of record.
+# NRCan's CanElevation series publishes COPC under many LidarBC file names
+# (research/canelevation_overlap.md, #6). Where it does and copc_asset_add's header check
+# passes, the item carries that file as a second asset; the `laz` stays the source of record.
 CANELEVATION = "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com"
 ASSET_COPC = "copc"
 MEDIA_TYPE_COPC = "application/vnd.laszip+copc"
@@ -330,11 +330,12 @@ def copc_asset_add(item: pystac.Item, href: str, copc_header: dict,
         href=href_encode(href),
         media_type=MEDIA_TYPE_COPC,
         roles=["data"],
-        title="Point cloud (COPC), NRCan CanElevation copy",
-        description="Natural Resources Canada's copy of the `laz` file, as a Cloud Optimized "
-                    "Point Cloud, checked at build to have the same point count and "
-                    f"horizontal CRS, and a header box within {COPC_BOX_TOLERANCE_M:g} m. "
-                    "Distributed by NRCan under the Open Government Licence - Canada.",
+        title="Point cloud (COPC), NRCan CanElevation",
+        description="The Cloud Optimized Point Cloud that Natural Resources Canada's "
+                    "CanElevation series publishes under this file's name, checked at build "
+                    "to have the same point count and horizontal CRS as the `laz` file and a "
+                    f"header box within {COPC_BOX_TOLERANCE_M:g} m of it. Distributed by NRCan "
+                    "under the Open Government Licence - Canada.",
         extra_fields={"nge:las_version": copc_header["las_version"],
                       "nge:point_format": copc_header["point_format"]},
     )

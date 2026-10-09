@@ -3,9 +3,9 @@
 
 Lists `pointcloud/*.laz` in the 11 mapsheet-years whose `dsm/` holds no raster (#1),
 reads each file's LAS header over one range request, and writes item JSON and a
-collection.json to `data/build/`. Where NRCan's CanElevation republishes a file as COPC
-(#6), the copy's header is read too (cached in `copc_headers.jsonl`), and the item carries
-it as a second asset. Publishing (s3) and registering (stacs) are separate
+collection.json to `data/build/`. Where NRCan's CanElevation publishes a COPC under a
+file's name (#6), its header is read too (cached in `copc_headers.jsonl`), and if it passes
+laz_item.copc_asset_add's check the item carries it as a second asset. Publishing (s3) and registering (stacs) are separate
 steps, so a build can be inspected before anything leaves this machine.
 
 Headers are cached in `data/build/headers.jsonl`, so a re-run reads only what is missing.
@@ -63,12 +63,12 @@ INCREMENT = {
     "092/092h/2016": 1020, "092/092j/2016": 182,
 }
 
-# The CanElevation projects that republish LidarBC files as COPC under the same file names,
-# with the .laz count measured 2026-10-09 (research/canelevation_overlap.md, #6). Its other
-# BC projects hold no file-level copy and are not listed. A listing under 90% of its count
-# is refused, as for INCREMENT, though not because the bucket only grows: it has moved
-# once already (FTP to S3). Dropping the assets instead would publish a catalogue that
-# reads complete, so a moved or shrunk project stops the build and gets looked at.
+# The CanElevation projects that publish COPC under LidarBC file names, with the .laz count
+# measured 2026-10-09 (research/canelevation_overlap.md, #6). Its other BC projects share
+# no file name with LidarBC (and no header, as far as the research could test), and are not
+# listed. A listing under 90% of its count is refused, as for INCREMENT, though not because
+# the bucket only grows: it has moved once already (FTP to S3). A smaller loss passes here
+# and is caught by COPC_PAIRS, for the groups it records.
 CANELEVATION_ROOT = "pointclouds_nuagespoints"
 CANELEVATION_PROJECTS = {
     "BC/Vancouver_Island_Sunshine_Coast_2018": 7873,
@@ -79,9 +79,10 @@ CANELEVATION_PROJECTS = {
 
 # Items with a CanElevation copy per INCREMENT group, measured 2026-10-09 (#6). The listing
 # floors above cannot see a rename on either side, which pairs nothing while every count
-# passes. Pairing is a deterministic join, so there is no slack: a group pairing fewer than
-# this is refused, since the publish would drop those `copc` assets without a word. A group
-# that pairs and is not named here is refused too, until its count is recorded.
+# passes. Pairing is a deterministic join, so there is no slack either way: a group pairing
+# other than this is refused (fewer would drop published `copc` assets without a word; more
+# would publish assets a later shrink back to this count could drop unseen), and so is a
+# group that pairs and is not named here. Record the new count when the change is real.
 COPC_PAIRS = {"082/082e/2019": 332, "082/082l/2019": 57, "092/092g/2016": 1155,
               "092/092h/2016": 420}
 
@@ -106,10 +107,10 @@ DESCRIPTION = (
     "the province's objectstore. Each item's footprint, point count and CRS come from the "
     "file's LAS header. The `laz` asset is the file itself; nothing is copied. The raster "
     "elevation products of the same deliveries are the stac-elevation-bc collection. "
-    "Natural Resources Canada's CanElevation series republishes many LidarBC files as COPC "
-    "under the same file names, in four of its projects (Vancouver_Island_Sunshine_Coast_2018, "
+    "Natural Resources Canada's CanElevation series publishes COPC under many LidarBC file "
+    "names, in four of its projects (Vancouver_Island_Sunshine_Coast_2018, "
     "Riverine_Floodplain_UTM10_2019, Riverine_Floodplain_UTM11_2019, Lower_Mainland_2016). "
-    "Where an item's file is one of them, the item also carries that copy as its `copc` "
+    "Where an item's file name is one of them, the item also carries that COPC as its `copc` "
     "asset, checked to have the same point count and horizontal CRS and a header box within "
     f"{COPC_BOX_TOLERANCE_M:g} m; the `laz` asset stays the source of record."
 )
@@ -185,14 +186,14 @@ def copc_pairs(urls: list[str], copc_objs: list[dict]) -> dict[str, dict]:
 
 
 def copc_pairs_check(pairs: dict[str, dict]) -> None:
-    """Refuse a group that paired fewer than COPC_PAIRS records, or paired at all without
+    """Refuse a group that paired other than COPC_PAIRS records, or paired at all without
     a recorded count."""
     n = collections.Counter("/".join(key_parse(u)["key"].split("/")[:3]) for u in pairs)
     for g, expected in COPC_PAIRS.items():
-        if n[g] < expected:
-            raise RuntimeError(f"{g}: {n[g]} items paired with a CanElevation copy, fewer than "
-                               f"the {expected} measured 2026-10-09 - a renamed or moved "
-                               f"file on either side would drop their copc assets")
+        if n[g] != expected:
+            raise RuntimeError(f"{g}: {n[g]} items paired with a CanElevation COPC, not the "
+                               f"{expected} recorded in COPC_PAIRS - a renamed, moved or new "
+                               f"file on either side; record the count if the change is real")
     new = sorted(set(n) - set(COPC_PAIRS))
     if new:
         raise RuntimeError(f"groups pairing with CanElevation but not in COPC_PAIRS: "

@@ -773,6 +773,9 @@ def test_a_group_that_pairs_short_fails_the_build():
     short = dict(list(full.items())[:1154]) | other
     with pytest.raises(RuntimeError, match="092/092g/2016: 1154 items paired"):
         catalogue_build.copc_pairs_check(short)
+    extra = full | other | {f"{base}extra.laz": {}}
+    with pytest.raises(RuntimeError, match="092/092g/2016: 1156 items paired"):
+        catalogue_build.copc_pairs_check(extra)
     unrecorded = full | other | {f"{PATH_S3}/082/082f/2018/pointcloud/f.laz": {}}
     with pytest.raises(RuntimeError, match=r"not in COPC_PAIRS: 082/082f/2018 \(1\)"):
         catalogue_build.copc_pairs_check(unrecorded)

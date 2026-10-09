@@ -2,7 +2,8 @@
 
 **Verified:** 2026-10-09 · **Issues:** #6 (opened from #1) · **Produced by:**
 `scripts/canelevation_overlap_probe.py`; log `logs/20261009_*_canelevation_overlap_probe.log`;
-the per-pair check by `scripts/catalogue_build.py` (`logs/20261009_catalogue_build_v0.2.0.log`)
+the per-pair check by `scripts/catalogue_build.py` (`logs/20261009_catalogue_build_v0.2.0.log`),
+measured by `scripts/copc_pairs_measure.py`
 (gitignored; the numbers below are the record).
 
 ## Where CanElevation's point clouds are
@@ -37,14 +38,13 @@ That is 13,996 of LidarBC's 181,708 `.laz`, all `pointcloud/` and none `dsm/`, s
 28 mapsheet-years (2016, 2018, 2019). Some groups are republished whole (`093g/2019`,
 1,261 of 1,261) and some barely (`092j/2019`, 3 of 198). The probe log has the per-group table.
 
-**A matching name has been the same points wherever it was checked.** A seeded sample of 10
-pairs per project (40 in total) read both headers: 40 of 40 have the same point count and a
-bounding box within 1 m. The build later checked every pair in the first increment (below).
-The headers still differ, in three ways: coordinates re-quantised by up to 0.01 m, a
-vertical CRS added or dropped in every pair (below), and, for `Lower_Mainland_2016` only,
-the format. COPC requires LAS 1.4 point format 6–8, so those files were converted from LAS 1.2
-format 1. So a whole-header comparison fails for every pair, and the test is on point count,
-horizontal CRS and box. A
+**Wherever a matching name was checked, it had the same point count and box.** A seeded
+sample of 10 pairs per project (40 in total) read both headers: 40 of 40 have the same point
+count and a bounding box within 1 m. The sample did not read the CRS. The build later
+checked every pair in the first increment (below), all from two of the four projects. The
+format differs for `Lower_Mainland_2016`: COPC requires LAS 1.4 point format 6–8, so those
+files were converted from LAS 1.2 format 1. The sample says nothing finer than that, and the
+other two projects' 11,739 files have not been compared beyond it. A
 CanElevation copy is larger (one pair: 65 MB `.laz`, 93 MB `.copc.laz`), so file size
 does not identify a pair.
 
@@ -64,17 +64,22 @@ The other seven (`082e/2018`, `082f/2018`, `082g/2018`, `082j/2018`, `082k/2017`
 ## What the collection does with it (decision A, v0.2.0)
 
 The maintainer chose to link rather than note or drop (#6). From v0.2.0, each item whose
-file CanElevation republishes carries the copy as a second asset, `copc`, and the collection
+file name CanElevation publishes carries that file as a second asset, `copc`, and the collection
 description names the four projects. The `laz` asset stays the source of record.
 
-The build does not trust the name. For every pair it reads the copy's header and links it
-only if the point count and horizontal CRS are the same and the box (x, y and z) is within
-0.05 m. Over all 1,964 pairs in the first increment the largest offset was 0.01 m: 371 boxes
-were identical and 1,593 differed by up to 0.01 m, which is coordinates re-quantised by the
-conversion. The full CRSs never match: 1,575 copies add an unknown vertical CRS to a
-horizontal-only source, and 389 drop the source's CGVD2013. The horizontal EPSG agrees in
-every pair (3157 for 1,575 and 2955 for 389). A check on header values cannot see a
-reclassified re-delivery under the same name.
+The build does not trust the name. For every pair it reads the CanElevation file's header
+and links it only if the point count and horizontal CRS are the same and the box (x, y and z)
+is within 0.05 m. The first increment's 1,964 pairs (1,575 `Lower_Mainland_2016`, 389
+`Riverine_Floodplain_UTM11_2019`; `scripts/copc_pairs_measure.py` over the build's header
+caches) all pass:
+
+- The largest box offset is 0.01 m: 371 boxes are identical and 1,593 differ by up to
+  0.01 m, which is coordinates re-quantised by the conversion.
+- The full CRSs never match, so a whole-header comparison fails every pair: the 1,575 add an
+  unknown vertical CRS to a horizontal-only source, and the 389 drop the source's CGVD2013.
+  The horizontal EPSG agrees in every pair (3157 and 2955).
+
+A check on header values cannot see a reclassified re-delivery under the same name.
 
 ## Same tile under another name is not the same points
 
