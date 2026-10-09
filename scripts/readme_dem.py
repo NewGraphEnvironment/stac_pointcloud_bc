@@ -89,15 +89,20 @@ def main() -> None:
 
     # --- shown on the landing page: begin
     client = Client.open(API)
-    # The CRS of the item at the mouth sets the grid; every item in the window must share it.
-    at_mouth = list(client.search(collections=[COLLECTION],
-                                  intersects={"type": "Point", "coordinates": [MOUTH_LON, MOUTH_LAT]}
-                                  ).items())
+    # Several deliveries can cover one place. Take the earliest item at the mouth that has a
+    # copc (ids sort by sheet, then year), and read only its delivery: two flights averaged
+    # into one grid would be neither.
+    at_mouth = sorted((i for i in client.search(
+        collections=[COLLECTION],
+        intersects={"type": "Point", "coordinates": [MOUTH_LON, MOUTH_LAT]}).items()
+        if "copc" in i.assets), key=lambda i: i.id)
     if not at_mouth:
-        sys.exit("no item covers the mouth")
+        sys.exit("no item with a copc asset covers the mouth")
+    year = at_mouth[0].properties["start_datetime"][:4]
     crs = at_mouth[0].properties["proj:code"]
     x0, y0 = Transformer.from_crs("EPSG:4326", crs, always_xy=True).transform(MOUTH_LON, MOUTH_LAT)
     items, box = window_items(client, crs, x0, y0)
+    items = [i for i in items if i.properties["start_datetime"][:4] == year]
     if any("copc" not in i.assets for i in items):
         # A laz-only tile would have to be downloaded whole; this demo is the windowed read.
         sys.exit("an item in the window has no copc asset: " +

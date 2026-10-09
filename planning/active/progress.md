@@ -23,3 +23,4 @@
 - User redirected the lead figure to a search → COPC → DEM demo; Houston unavailable (not
   indexed, no COPC); Kanaka Creek chosen. Coverage map dropped at user request.
 - Phase 6 landed: `scripts/readme_dem.py`, tests, README.Rmd lead section; renders identical.
+- Code-check round 2: 3 findings (reticulate needed by the python excerpt chunk; window could mix deliveries; stale map references + unused purrr), all fixed; demo rerun gives identical JSON and PNG.

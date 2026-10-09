@@ -23,7 +23,6 @@ Imports:
     httr2 (>= 1.1.0),
     jsonlite (>= 1.8.0),
     knitr (>= 1.45),
-    purrr (>= 1.0.0),
     rmarkdown (>= 2.25),
     rstac (>= 1.0.0),
     sf (>= 1.0.0),

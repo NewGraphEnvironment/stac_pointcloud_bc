@@ -120,7 +120,7 @@ knitr::include_graphics("fig/kanaka_dem.png")
 
 `r dem_mb <- function(b) fmt(round(b / 1e6)); paste0("The lower Kanaka Creek where it meets the Fraser at Maple Ridge. One STAC search for a ", fmt(dem$window_m[[1]] / 1000), " × ", fmt(dem$window_m[[2]] / 1000), " km window returned the ", length(dem$items), " items covering it. Reading only that window from each item's ")` `copc` `r paste0("asset transferred ", dem_mb(dem$bytes_read), " MB of the ", dem_mb(dem$bytes_files), " MB in those files: ", fmt(round(dem$points / 1e6, 1)), " million points, ", fmt(round(dem$ground_points / 1e6, 1)), " million of them ground returns, gridded at ", dem$cell_m, " m into the surface above. Light blue is water, which returns almost no pulses.")` A `laz` asset has no spatial index, so the same window from it means downloading the whole file; the window read is what the `copc` asset adds. `r n_go <- length(dem$ground_only_items); if (n_go > 0) paste0(if (n_go == 1) "One" else fmt(n_go), " of these ", length(dem$items), " items ", if (n_go == 1) "holds" else "hold", " ground returns only, so trees and buildings cannot be measured from ", if (n_go == 1) "it" else "them", ": a LidarBC delivery is not always the full point cloud.")`
 
-```{python dem-code, eval=FALSE, code=pc_readme_lines("scripts/readme_dem.py", "shown on the landing page")}
+```{python dem-code, eval=FALSE, python.reticulate=FALSE, code=pc_readme_lines("scripts/readme_dem.py", "shown on the landing page")}
 ```
 
 The whole script, with the gridding, is [`scripts/readme_dem.py`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_dem.py).

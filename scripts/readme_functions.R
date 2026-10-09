@@ -1,9 +1,10 @@
 # readme_functions.R — sourced by README.Rmd (#9).
 #
-# Everything the landing page shows comes from one cache, written when the page is rendered
-# with `update_query = TRUE`: the published items reduced to what the figure and the example
-# need, the example's search result, and two header reads. A render with
-# `update_query = FALSE` reads only the cache, so it needs no network.
+# Everything the landing page shows comes from two caches, written when the page is rendered
+# with `update_query = TRUE`: data/readme_cache.rds (the published items reduced to counts,
+# the example's search result, two header reads) and data/readme_dem.json (written by
+# scripts/readme_dem.py). A render with `update_query = FALSE` reads only those, so it needs
+# no network.
 
 API_ROOT <- "https://images.a11s.one"
 COLLECTION <- "stac-pointcloud-bc"
@@ -147,11 +148,11 @@ pc_readme_bucket <- function(api_root = API_ROOT, collection = COLLECTION) {
        version = s3$version, api_version = coll$version)
 }
 
-#' Every published item, reduced to what the figure and the counts need
+#' Every published item, reduced to what the counts need
 #'
 #' Refuses anything short of the whole collection: the fetched ids must equal the ids the
 #' bucket links, as sets in both directions, and the API and the bucket must serve the same
-#' catalogue version. A truncated page would otherwise draw a smaller map that looks right.
+#' catalogue version. A truncated page would otherwise report a smaller collection.
 pc_readme_fetch <- function(api_root = API_ROOT, collection = COLLECTION) {
   r <- rstac::stac(paste0(api_root, "/")) |>
     rstac::stac_search(collections = collection, limit = 1000) |>

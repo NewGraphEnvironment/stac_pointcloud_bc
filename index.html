@@ -3417,15 +3417,20 @@ adds. One of these 4 items holds ground returns only, so trees and
 buildings cannot be measured from it: a LidarBC delivery is not always
 the full point cloud.</p>
 <pre class="python"><code>client = Client.open(API)
-# The CRS of the item at the mouth sets the grid; every item in the window must share it.
-at_mouth = list(client.search(collections=[COLLECTION],
-                              intersects={&quot;type&quot;: &quot;Point&quot;, &quot;coordinates&quot;: [MOUTH_LON, MOUTH_LAT]}
-                              ).items())
+# Several deliveries can cover one place. Take the earliest item at the mouth that has a
+# copc (ids sort by sheet, then year), and read only its delivery: two flights averaged
+# into one grid would be neither.
+at_mouth = sorted((i for i in client.search(
+    collections=[COLLECTION],
+    intersects={&quot;type&quot;: &quot;Point&quot;, &quot;coordinates&quot;: [MOUTH_LON, MOUTH_LAT]}).items()
+    if &quot;copc&quot; in i.assets), key=lambda i: i.id)
 if not at_mouth:
-    sys.exit(&quot;no item covers the mouth&quot;)
+    sys.exit(&quot;no item with a copc asset covers the mouth&quot;)
+year = at_mouth[0].properties[&quot;start_datetime&quot;][:4]
 crs = at_mouth[0].properties[&quot;proj:code&quot;]
 x0, y0 = Transformer.from_crs(&quot;EPSG:4326&quot;, crs, always_xy=True).transform(MOUTH_LON, MOUTH_LAT)
 items, box = window_items(client, crs, x0, y0)
+items = [i for i in items if i.properties[&quot;start_datetime&quot;][:4] == year]
 if any(&quot;copc&quot; not in i.assets for i in items):
     # A laz-only tile would have to be downloaded whole; this demo is the windowed read.
     sys.exit(&quot;an item in the window has no copc asset: &quot; +
