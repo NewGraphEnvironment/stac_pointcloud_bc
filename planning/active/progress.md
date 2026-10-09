@@ -14,3 +14,8 @@
   `scripts/` to keep the gh-pr-merge release route.
 - Phases 2–3: fetch with id-set guard, example (Similkameen River), header check, figure,
   cache; README.Rmd rendered to README.md + index.html, re-render byte-identical.
+- Phase 4: Pages enabled from main `/` (building at 21:2xZ; serves main's README until the
+  merge); About homepage + description set. The 200 check waits for the merge.
+- Phase 5: stac_dem_bc PR #54 (hand-edited bullet in README.Rmd/README.md/index.html; a
+  re-render there would also rewrite staticimports.R, README.html and the badges).
+  Follow-up for floodplains' sister list: stac_floodplains_bc#73.

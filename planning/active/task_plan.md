@@ -48,16 +48,16 @@ Decided at the plan gate (user, 2026-10-09): R dependencies are declared in a `T
 - [x] CLAUDE.md: one line that README.md and index.html are generated from README.Rmd
 
 ## Phase 4: Pages and About
-- [ ] Enable Pages from `main` at `/` (`gh api -X POST repos/…/pages`) — after the PR
-      merges, since it serves `main`; until then, record the step in the PR body
+- [x] Enable Pages from `main` at `/` (`gh api -X POST repos/…/pages`) — enabled before
+      the merge (review O1): it serves main's README until then, index.html after
 - [ ] Confirm https://www.newgraphenvironment.com/stac_pointcloud_bc/ returns 200 with the
       page title
-- [ ] `gh repo edit --homepage <url> --description <…>`
+- [x] `gh repo edit --homepage <url> --description <…>`
 
 ## Phase 5: stac_dem_bc sister link (PR there)
-- [ ] Branch in stac_dem_bc, add `stac_pointcloud_bc` (`stac-pointcloud-bc`) to the
+- [x] Branch in stac_dem_bc, add `stac_pointcloud_bc` (`stac-pointcloud-bc`) to the
       sister list in README.Rmd, re-render both outputs with `update_query = FALSE`
-- [ ] Diff limited to the new bullet (stac_dem_bc's DT ids are unseeded, so index.html
+- [x] Diff limited to the new bullet (stac_dem_bc's DT ids are unseeded, so index.html
       may churn — note it in the PR if so rather than fixing it there); open the PR
 
 ## Validation
