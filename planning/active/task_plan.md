@@ -47,14 +47,14 @@ in the collection description. 1,964 of the 9,649 v0.1.0 items have a copy.
 - [x] `--limit` build to `data/build-limit/` on a `092g/2016` slice: inspect one item's `copc` asset and HEAD its href (200)
 
 ## Phase 3: Build, publish, register v0.2.0
-- [ ] Full build: 9,649 items, 1,964 with a `copc` asset, per-group counts match the research (1,155 / 420 / 332 / 57); log under `logs/`
-- [ ] `collection_version.py --version 0.2.0`; `s3_sync.sh --dryrun` then sync
-- [ ] `stacs verify` (expect 9,649 ids both ways, 1,964 + collection changed), `stacs register --mode drift` from the tailnet machine, `stacs verify` again: IN SYNC
-- [ ] An item served by the API has a `copc` href that answers 200 on HEAD
+- [x] Full build: 9,649 items, 1,964 with a `copc` asset, per-group counts match the research (1,155 / 420 / 332 / 57); log under `logs/`
+- [x] `collection_version.py --version 0.2.0`; `s3_sync.sh --dryrun` then sync
+- [x] `stacs verify` (expect 9,649 ids both ways, 1,964 + collection changed), `stacs register --mode drift` from the tailnet machine, `stacs verify` again: IN SYNC
+- [x] An item served by the API has a `copc` href that answers 200 on HEAD
 
 ## Phase 4: Close-out
-- [ ] NEWS `0.2.0` entry (numbers derived from the build, not the issue); README "What is indexed" notes the COPC asset
-- [ ] `research/canelevation_overlap.md`: section on what was done with the finding (decision A, v0.2.0); CLAUDE.md source-facts bullet
+- [x] NEWS `0.2.0` entry (numbers derived from the build, not the issue); README "What is indexed" notes the COPC asset
+- [x] `research/canelevation_overlap.md`: section on what was done with the finding (decision A, v0.2.0); CLAUDE.md source-facts bullet
 - [ ] Issue #6 body: mark the decision built, link the release
 
 ## Validation

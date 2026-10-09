@@ -5,6 +5,30 @@ and the `stac-pointcloud-bc` collection at <https://images.a11s.one>. A tag mean
 catalogue is in this state". Same convention as
 [`stac_dem_bc`](https://github.com/NewGraphEnvironment/stac_dem_bc).
 
+## 0.2.0
+
+CanElevation's COPC linked (#6). **1,964 of the 9,649 items gain a `copc` asset**: the Cloud
+Optimized Point Cloud that NRCan's CanElevation series publishes under the same file name. No
+item was added or removed, and nothing else in any item changed: before upload, every
+published body was compared with its build (`links` removed, as stacs digests them), and the
+changed ids were exactly the 1,964 with a `copc` asset, differing by that asset alone
+(`scripts/copc_pairs_measure.py --published`). Published 2026-10-09 and verified `IN SYNC`
+(9,649 ids equal in both directions, every body digest-equal).
+
+- **Which items.** `092g/2016` 1,155, `092h/2016` 420, `082e/2019` 332, `082l/2019` 57;
+  the other seven mapsheet-years have no copy. 13,996 LidarBC file names recur in four
+  CanElevation projects, so later increments are likely to link more
+  (`research/canelevation_overlap.md`).
+- **Checked per item, not by name alone.** A COPC is linked only when its header has the
+  same point count, the same horizontal CRS, and a box within 0.05 m of the LidarBC file's.
+  All 1,964 passed, with the largest offset 0.01 m (`scripts/copc_pairs_measure.py`). That
+  test cannot see a reclassified re-delivery under the same name.
+- **The COPC can be a different format.** 1,575 (`Lower_Mainland_2016`) are LAS 1.4
+  format 6 where the source is 1.2 format 1. The item's `pc:schemas` describe the `laz`
+  asset; the `copc` asset carries its own `nge:las_version` and `nge:point_format`.
+- **Collection.** The description names the four CanElevation projects, and Natural
+  Resources Canada is added as a `host` provider.
+
 ## 0.1.0
 
 First increment (#1, from stac_dem_bc#35): **9,649 items**, one per `pointcloud/*.laz`

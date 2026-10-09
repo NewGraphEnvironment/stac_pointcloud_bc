@@ -19,6 +19,11 @@ deliveries (DEM, DSM) are the `stac-elevation-bc` collection, built by
 | the rest of `pointcloud/*.laz` | 165,667 | not yet |
 | `dsm/*.laz` (in the tiles compared, an RGB copy of the point cloud; #3) | 6,391 | no |
 
+Where NRCan's [CanElevation](https://open.canada.ca/data/en/dataset/7069387e-9986-4297-9f55-0288e9676947)
+series publishes a COPC under a file's name, the item also carries that COPC as its `copc`
+asset, after the build has checked that its header has the same point count and
+horizontal CRS, and a box within 5 cm (`research/canelevation_overlap.md`).
+
 See [NEWS.md](NEWS.md) for what each release published and
 [research/](research/README.md) for how the source was measured.
 
