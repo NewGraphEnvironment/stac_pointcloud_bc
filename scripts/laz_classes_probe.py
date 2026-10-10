@@ -9,10 +9,11 @@ file (LAZ is chunked, so a seek fetches one chunk, not the file), and where the 
 Each sample's class counts are kept separately, so how often the first points alone would
 have misled is measured rather than assumed.
 
-A sample can only miss a class, never add one, so "mixed" is certain and only "ground-only"
-can be wrong. `--confirm` therefore downloads and fully decompresses every item any sample
-calls ground-only, to `--full`, tallying every point's class and return pair; that makes the
-count exact rather than estimated.
+A sample can only miss a class, never add one, so a class seen is certain and only an absence
+can be wrong: "ground-only" (no class but ground, noise and water) and "no ground" (no class
+2). `--confirm` therefore downloads and fully decompresses every item a sample gives either
+verdict, to `--full`, tallying every point's class and return pair; that makes both counts
+exact rather than estimated.
 
 One JSON line per item goes to `--out` as it lands; a re-run reads only the items missing
 from it. A failed read is recorded with its error and read again next run. `--summary` prints
@@ -83,6 +84,15 @@ def ground_only(counts: dict) -> bool | None:
     if not present:
         return None
     return GROUND in present and present <= GROUND_ONLY_CLASSES
+
+
+def no_ground(counts: dict) -> bool | None:
+    """Whether a sample holds points but none of class 2, so a bare-earth surface built from it
+    is empty; None for an empty sample."""
+    present = {int(k) for k, n in counts.items() if n}
+    if not present:
+        return None
+    return GROUND not in present
 
 
 def counts_merge(*samples: dict) -> dict[int, int]:
@@ -164,10 +174,28 @@ def full_probe(item: dict, session: requests.Session | None = None) -> dict:
     return {"id": item["id"], "laz": laz, "full": laz_full(laz, session)}
 
 
-def confirm_ids(recs: dict[str, dict]) -> set[str]:
-    """The items any sample calls ground-only: the only verdicts a sample can get wrong."""
+def ground_only_ids(recs: dict[str, dict]) -> set[str]:
+    """The items any sample calls ground-only."""
     return {k for k, r in recs.items() if "error" not in r
             and any(v is True for v in verdicts(r).values())}
+
+
+def no_ground_ids(recs: dict[str, dict]) -> set[str]:
+    """The items whose samples together hold no ground: the laz samples merged, and the copc
+    sample where there is one. One chunk without ground is ordinary; a tile without it is not."""
+    out = set()
+    for k, r in recs.items():
+        if "error" in r:
+            continue
+        merged = counts_merge(*r["laz_sample"]["samples"].values())
+        if no_ground(merged) or ("copc_sample" in r and no_ground(r["copc_sample"]["classes"])):
+            out.add(k)
+    return out
+
+
+def confirm_ids(recs: dict[str, dict]) -> set[str]:
+    """The items a sample calls ground-only or no-ground: the only verdicts it can get wrong."""
+    return ground_only_ids(recs) | no_ground_ids(recs)
 
 
 def item_probe(item: dict, session: requests.Session | None = None) -> dict:
@@ -312,35 +340,37 @@ def summary(items: list[dict], recs: dict[str, dict], full: dict[str, dict] | No
 
     want = confirm_ids(good)
     full = {k: f for k, f in (full or {}).items() if k in want}
-    print(f"\nany sample ground-only: {len(want)}; fully read {len(full)}; "
+    print(f"\nto confirm by a full read: {len(want)}; read {len(full)}; "
           f"unread {sorted(want - full.keys())[:10]}")
     errs = sorted(k for k, f in full.items() if "error" in f)
     if errs:
         print(f"full-read failures: {errs}")
-    print("id\tsampled(first,laz,copc)\tfull_classes\tpts/m2\tdensity_pct_in_group\t"
-          "nonlast_share\tsingle_share\tcreation\tsoftware")
-    for k in sorted(want):
-        f = full.get(k, {}).get("full")
-        row = [k, ",".join(str(x)[0] if x is not None else "-" for x in v[k].values())]
-        if f:
-            n = sum(f["returns"].values())
-            nonlast = sum(c for rn, c in f["returns"].items()
-                          if int(rn.split("/")[0]) < int(rn.split("/")[1])) / n
-            single = f["returns"].get("1/1", 0) / n
-            row += [str(f["classes"]), f"{dens.get(k, float('nan')):.2f}",
-                    f"{pct.get(k, float('nan')):.0f}", f"{nonlast:.3f}", f"{single:.3f}",
-                    f["creation_date"], f["generating_software"].strip()]
-        print("\t".join(row))
-    confirmed = sorted(k for k in want if k in full and "full" in full[k]
-                       and ground_only(full[k]["full"]["classes"]))
-    print(f"\nconfirmed ground-only by a full read: {len(confirmed)}")
-    cg = collections.Counter()
-    for k in confirmed:
-        p = key_parse(good[k]["laz"])
-        cg[f"{p['block']}/{p['sheet']}/{p['year']}"] += 1
-    for g in sorted(cg):
-        print(f"  {g}\t{cg[g]}")
-
+    for label, ids, test in (("ground-only", ground_only_ids(good), ground_only),
+                             ("no ground", no_ground_ids(good), no_ground)):
+        print(f"\nsampled {label}: {len(ids)}")
+        print("id\tsampled(first,laz,copc ground-only)\tfull_classes\tpts/m2\t"
+              "density_pct_in_group\tnonlast_share\tsingle_share\tcreation\tsoftware")
+        for k in sorted(ids):
+            f = full.get(k, {}).get("full")
+            row = [k, ",".join(str(x)[0] if x is not None else "-" for x in v[k].values())]
+            if f:
+                n = sum(f["returns"].values()) or 1
+                nonlast = sum(c for rn, c in f["returns"].items()
+                              if int(rn.split("/")[0]) < int(rn.split("/")[1])) / n
+                single = f["returns"].get("1/1", 0) / n
+                row += [str(f["classes"]), f"{dens.get(k, float('nan')):.2f}",
+                        f"{pct.get(k, float('nan')):.0f}", f"{nonlast:.3f}", f"{single:.3f}",
+                        f["creation_date"], f["generating_software"].strip()]
+            print("\t".join(row))
+        confirmed = sorted(k for k in ids if "full" in full.get(k, {})
+                           and test(full[k]["full"]["classes"]))
+        print(f"{label}, confirmed by a full read: {len(confirmed)}")
+        cg = collections.Counter()
+        for k in confirmed:
+            p = key_parse(good[k]["laz"])
+            cg[f"{p['block']}/{p['sheet']}/{p['year']}"] += 1
+        for g in sorted(cg):
+            print(f"  {g}\t{cg[g]}")
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -377,8 +407,8 @@ def main() -> int:
     if args.confirm:
         cache_tail_repair(out)
         want = confirm_ids(records_load(out))
-        errors = probe_all([i for i in items if i["id"] in want], full, args.workers,
-                           probe=full_probe)
+        items = [i for i in items if i["id"] in want]
+        errors = probe_all(items, full, args.workers, probe=full_probe)
     else:
         errors = probe_all(items, out, args.workers)
     for k, e in sorted(errors.items()):

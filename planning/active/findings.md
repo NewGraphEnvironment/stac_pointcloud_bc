@@ -56,7 +56,20 @@ A per-item class sample makes #2's build read ~1.3 MB per file instead of a 64 K
   unclassified is still there). The summary tabulates every class set, so the definition's
   spread is visible.
 
+## Result (2026-10-10) — full numbers in research/laz_classes.md
+
+- Ground-only, confirmed by full read: **1** of 9,649 (`092g028_1_1_1`). Sampled 3; the other
+  two hold class 1 (`082k017_1_3_3` 0.1%, a bare tile; `092g028_2_1_1` mixed, first points
+  alone misled).
+- No ground: sampled 70, confirmed **57** (water-like, classes 1/7(/9/18), >= 93.5% single
+  returns; 2 in `092h/2016` are class 0 only, never classified).
+- COPC levels 0-1 never disagreed with merged laz samples (1,964).
+- Header density <= p5 within mapsheet-year catches 58/58 (488 flagged); p10 971 flagged.
+- Cost: laz sample 2.12 MB / 4.2 s median, 20.4 GB, 72 min at 16 workers for 9,649.
+
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
+| 9 transient read failures in the full sample run (503, RemoteDisconnected, ReadTimeout; mostly CanElevation S3) | Re-run with 4 workers reads only the failed items; all 9 succeeded |
+| Test: 300k-point fixture too small for seeks to skip bytes (6 chunks, all touched) | 1M points, 20 chunks |

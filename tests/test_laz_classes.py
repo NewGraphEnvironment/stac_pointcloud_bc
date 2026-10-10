@@ -21,6 +21,7 @@ from laz_classes_probe import (
     ground_only,
     laz_full,
     laz_sample,
+    no_ground,
     probe_all,
     verdicts,
 )
@@ -148,16 +149,29 @@ def test_an_interrupted_last_record_is_dropped_and_read_again(tmp_path):
     assert set(lcp.records_load(str(out))) == {"i0", "i1"}
 
 
-def test_every_item_any_sample_calls_ground_only_is_confirmed_and_no_other():
-    g, m = {2: 9}, {1: 1, 2: 9}
+@pytest.mark.parametrize("counts, want", [
+    ({1: 5, 7: 2}, True),
+    ({0: 9}, True),  # never classified
+    ({1: 5, 2: 1}, False),
+    ({}, None),
+])
+def test_no_ground_is_points_but_none_of_class_2(counts, want):
+    assert no_ground(counts) is want
+
+
+def test_every_item_a_sample_calls_ground_only_or_groundless_is_confirmed_and_no_other():
+    g, m, w = {2: 9}, {1: 1, 2: 9}, {1: 9, 9: 3}
     recs = {
+        # A chunk without ground is ordinary; the tile's samples together have it.
+        "one_chunk_groundless": {"laz_sample": {"samples": {"first": w, "at_0.5": m}}},
+        "groundless": {"laz_sample": {"samples": {"first": w, "at_0.5": {1: 4}}}},
         "all_ground": {"laz_sample": {"samples": {"first": g}}},
         "first_only": {"laz_sample": {"samples": {"first": g, "at_0.5": m}}},
         "copc_only": {"laz_sample": {"samples": {"first": m}}, "copc_sample": {"classes": g}},
         "mixed": {"laz_sample": {"samples": {"first": m}}, "copc_sample": {"classes": m}},
         "failed": {"error": "OSError: x"},
     }
-    assert confirm_ids(recs) == {"all_ground", "first_only", "copc_only"}
+    assert confirm_ids(recs) == {"all_ground", "first_only", "copc_only", "groundless"}
 
 
 def test_a_full_read_tallies_every_point_as_a_local_read_does(serve):

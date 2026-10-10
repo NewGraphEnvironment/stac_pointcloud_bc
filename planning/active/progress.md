@@ -16,3 +16,7 @@
   density and near-ground-only in the summary; laspy floor 2.7. 118 tests pass.
 - Full sample run started 2026-10-10 05:51 UTC from a frozen copy
   (`logs/20261010_055107_laz_classes_probe.log`).
+- Full sample run 05:51–07:03 UTC; 9 transient failures re-read; `--confirm` full-read 73 files
+  07:05–07:08 UTC. Added a "no ground" verdict (70 sampled, 57 confirmed). Research written to
+  `research/laz_classes.md`; every quantified claim re-derived from the records before commit
+  (three corrected: 52 non-last returns, not none; 2 not 6; class 4 does appear, in 898).

@@ -104,4 +104,5 @@ found `092g/2016/.../bc_092g028_1_1_1_xyes_8_utm10_20170714` returning **only cl
 1.6 × 1.2 km window (748,497 points), while its three neighbours carry classes 1 and 2. A coarse
 sample of the whole tile's COPC (octree levels 0–2, 296,120 points; code-check round 3) was also
 100% ground. The COPC's point count equals the LidarBC file's (the #6 pairing), so this is how the
-province delivered it. How common it is, and whether items should say so, is #10.
+province delivered it. How common it is was measured in #10:
+[laz_classes.md](laz_classes.md) (one ground-only tile in the increment; 57 with no ground at all).

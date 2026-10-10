@@ -20,14 +20,17 @@
   tabulated so the definition's spread is visible
 
 ## Phase 2: Measure the 9,649
-- [ ] Smoke: `092g028_1_1_1` reads ground-only on all three samples; a neighbour reads mixed
-- [ ] Full run in the background from a frozen copy, log `logs/<ts>_laz_classes_probe.log`
-- [ ] Summary (in the script, `--summary`): ground-only count per mapsheet-year and per
+- [x] Smoke: `092g028_1_1_1` reads ground-only on all three samples; a neighbour reads mixed
+- [x] Full run in the background from a frozen copy, log `logs/<ts>_laz_classes_probe.log`
+- [x] Summary (in the script, `--summary`): ground-only count per mapsheet-year and per
   delivery; distinct class sets; first-points vs COPC agreement on the 1,964 (confusion
   table); spread-chunk confirmations; bytes and seconds per file → projected cost for #2's
   165,667
-- [ ] `research/laz_header_read.md` section revised with the numbers (or a new
+- [x] `research/laz_header_read.md` section revised with the numbers (or a new
   `research/laz_classes.md` if it outgrows the section), `research/README.md` row
+  (new file `research/laz_classes.md`; header-read section points to it)
+- [x] Added in the run: "no ground" verdict (no class 2) confirmed by full read too — the
+  sample found 70, more consequential for DEM users than ground-only
 - [ ] Issue #10 body edited with the result
 
 ## Phase 3: Decision — user's (gate)
