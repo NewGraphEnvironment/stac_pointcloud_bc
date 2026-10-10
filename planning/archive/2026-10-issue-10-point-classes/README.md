@@ -35,4 +35,4 @@ Durable record: [`research/laz_classes.md`](../../../research/laz_classes.md).
 `logs/20261010_*_laz_classes_*.log`, `logs/20261010_*_catalogue_build_classes.log` (gitignored;
 the research file holds the numbers).
 
-Closed by: the PR for branch `10-some-point-clouds-hold-ground-returns-on`
+Closed by: PR #13
