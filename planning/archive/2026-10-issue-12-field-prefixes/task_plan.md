@@ -53,7 +53,7 @@ L88. No cache or registration config holds a key: `stacs.toml` requires only the
       chunk with `update_query = FALSE`, which uses the cache only and no network.
 - [x] `research/laz_header_read.md` L88: the new name, plus a Verified line noting the
       rename.
-- [ ] NEWS.md: the 0.1.0 and 0.2.0 entries stay as they are, because they describe what
+- [x] NEWS.md: the 0.1.0 and 0.2.0 entries stay as they are, because they describe what
       was published. The release that publishes the rename (#2) names old → new. That
       requirement goes into #2's body.
 

@@ -26,6 +26,10 @@ treating the repo as a Python package (#9).
   elevation catalogue at its root, and stac_dem_bc's registration requires a `dem` asset
   on every item there. The bucket (`stac-pointcloud-bc`, us-west-2, public read,
   versioned) and the CI role (`stac_pointcloud_bc_update`) are IaC in rtj (rtj#362).
+- **Custom fields are named for what they describe, never `nge:`** (#12): `lidarbc:` for
+  LidarBC's paths and file names, `las:` for LAS-format facts. A standard extension's field
+  beats either. `tests/test_laz_item.py` pins every key path the build writes
+  (`ITEM_PATHS`), so a new field fails there until it is declared on purpose.
 - **Item creation is stactools-shaped:** a pure function from an href and a header to a
   `pystac.Item`, with nothing about the bucket, host or CI in it. That keeps a later
   stactools contribution a lift rather than a rewrite.
