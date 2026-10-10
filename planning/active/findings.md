@@ -78,9 +78,12 @@ with the remedy each message gives and whether running it clears the state:
 |---|---|---|
 | line names no `laz` (pre-fix error record) | remove line, re-run `--confirm` | yes: re-read if flagged, else count change (row 5) |
 | failed read (latest record per url) | re-run `--confirm` | yes: `confirm_work` includes any record not good now |
-| ETag changed | re-run probe, then `--confirm` | yes: the build updates `headers.jsonl` before refusing, `record_good` compares against it |
+| ETag changed | re-run probe, then `--confirm` | yes: since round 3 the build writes `class_targets.jsonl` (listing ETags) before refusing, and `record_good` compares against it |
 | `classes_add` refuses at the same ETag | remove line, re-run `--confirm` | yes, as row 1 |
-| `CLASSES_READ` mismatch (incl. a file that left the build) | run probe + `--confirm`, or record new counts | yes; the message named no command before round 2's fix |
+| `CLASSES_READ` mismatch (incl. a file that left the build) | run probe + `--confirm`, or record new counts | yes; the message named no command before round 2's fix; a real count change is deliberately a human edit |
+| `classes_full.jsonl` cut off mid-line (killed `--confirm`) | none needed | yes: the build now runs `cache_tail_repair` first (round 4) |
+| listing gives a file no ETag | look at the listing | no command clears it, by design: nothing can match a read to that file. Not live (0 of 9,649). Round 4; its message used to blame a re-delivery |
+| probe: no `class_targets.jsonl` | run `catalogue_build.py` | yes: every class refusal comes after the targets are written (round 4 checked every `return 1`) |
 
 Records are keyed by item id in the probe and by laz url in the build; `url_to_item_id` is 1:1.
 Accepted: files new to the listing are not sampled until #2 moves the screen into the build.

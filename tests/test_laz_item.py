@@ -949,4 +949,13 @@ def test_a_build_refused_for_want_of_class_reads_has_already_listed_what_to_read
 def test_an_empty_listing_etag_matches_no_class_read():
     items = {PC: item_create(PC, _header(), COLL)}
     records = {PC: {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000}, etag="")}}
-    assert "re-delivered" in catalogue_build.classes_attach(items, {PC: ""}, records)[PC]
+    assert "no ETag" in catalogue_build.classes_attach(items, {PC: ""}, records)[PC]
+
+
+def test_a_class_cache_cut_off_mid_write_is_repaired_not_fatal(tmp_path, monkeypatch):
+    good = {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000})}
+    rc = _main_with_classes(tmp_path, monkeypatch, [good], {"092/092g/2016": 1})
+    assert rc == 0
+    with open(tmp_path / "data/build" / catalogue_build.CLASSES_FULL, "a") as fh:
+        fh.write('{"id": "x", "laz": "https://x')  # a --confirm killed mid-line
+    assert catalogue_build.main() == 0

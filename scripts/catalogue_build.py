@@ -355,7 +355,10 @@ def classes_attach(items: dict[str, pystac.Item], etags: dict[str, str],
         if "error" in r:
             problems[u] = (f"the class read failed: {r['error']}; re-run "
                            "laz_classes_probe.py --confirm")
-        elif not etags[u] or r["full"]["etag"] != etags[u]:
+        elif not etags[u]:
+            problems[u] = ("the listing gives this file no ETag, so no class read can be "
+                           "matched to it; look at the listing before building")
+        elif r["full"]["etag"] != etags[u]:
             problems[u] = (f"read at ETag {r['full']['etag']}, listed at {etags[u]}: the file "
                            "was re-delivered; re-run laz_classes_probe.py, then with "
                            "--confirm (each reads again what has a new ETag)")
@@ -478,6 +481,7 @@ def main() -> int:
 
     etags = {o["url"]: o["etag"] for o in objs}
     class_targets_write(f"{out}/{CLASS_TARGETS}", kept, items, etags, pairs)
+    cache_tail_repair(f"{out}/{CLASSES_FULL}")  # a --confirm killed mid-write
     records = classes_records_load(f"{out}/{CLASSES_FULL}")
     gone = sorted(set(records) - set(kept))
     if gone and not args.limit:  # a slice leaves most files out; that is not news

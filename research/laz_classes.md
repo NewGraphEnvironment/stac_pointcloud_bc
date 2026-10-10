@@ -58,8 +58,9 @@ Class sets across the merged laz samples (items): `[1, 2, 7]` 5,646; `[1, 2]` 2,
 `[0, 1, 2]` 5; `[1, 2, 7, 9, 17, 18]` 4; `[1, 2, 10]` 3; `[0]` 2; one each of `[1, 2, 7, 30]`,
 `[2, 7]`, `[2]`, `[0, 1, 2, 7]`. No 1.2 key-point (8) or overlap (12) class appears. Of the
 vegetation and building classes (3–6) only 4 (medium vegetation) appears, in 898 items. In every
-other item, whatever stands above the ground can only be in class 1, so a canopy model built from
-this collection has to read class 1, not 3–5.
+other item's samples no class 3–6 appears, so its vegetation and buildings are in class 1 unless
+the sample missed them (a sample cannot show a class absent). A canopy model built from this
+collection has to read class 1, not 3–5.
 
 ## Point density screens all 58 from the header
 

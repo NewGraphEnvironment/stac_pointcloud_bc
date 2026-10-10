@@ -56,8 +56,8 @@
   here, since NEWS describes the published catalogue)
 
 ## Validation
-- [ ] Tests pass (`uv run pytest`)
-- [ ] `/code-check` clean (once over the branch with `/code-check branch`)
-- [ ] PWF checkboxes match landed work
+- [x] Tests pass (`uv run pytest`)
+- [x] `/code-check` clean (once over the branch with `/code-check branch`) — 4 rounds; ended by enumeration (findings.md)
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
 
