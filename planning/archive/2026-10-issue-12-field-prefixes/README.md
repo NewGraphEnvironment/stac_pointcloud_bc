@@ -22,4 +22,4 @@ On 2026-10-10 at 19:36Z, a full rebuild from the cached headers, written to a sc
 
 That replaced an earlier, weaker check. A `--limit 40` build (0 `"nge:` keys) had looked like enough, but it exercised no COPC pair, no EPSG-less CRS and no trusted filename date. Round 3 showed those last two branches cover 197 and 6,475 real items. Each guard extension was proved by mutation: an `nge:` or bare key restored on each branch turned the pinned test red.
 
-Closed by: PR (opened from branch `12-rename-the-nge-item-fields-to-a-prefix-t`)
+Closed by: PR #14
