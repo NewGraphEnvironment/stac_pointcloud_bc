@@ -42,7 +42,7 @@ from laspy import DecompressionSelection, LazBackend
 import requests
 from tqdm import tqdm
 
-from catalogue_build import cache_tail_repair
+from catalogue_build import cache_tail_repair, headers_load
 from laz_item import ASSET_COPC, ASSET_LAZ, key_parse
 from laz_remote import HttpRangeFile
 
@@ -116,7 +116,7 @@ def laz_sample(url: str, session: requests.Session | None = None) -> dict:
             for at in SPREAD_AT:
                 r.seek(int(n * at))
                 samples[f"at_{at:g}"] = classes_count(r.read_points(SPREAD_POINTS))
-    return {"point_count": n, "samples": samples, "bytes": f.bytes_fetched,
+    return {"etag": f.etag, "point_count": n, "samples": samples, "bytes": f.bytes_fetched,
             "seconds": round(time.monotonic() - t0, 2)}
 
 
@@ -172,7 +172,7 @@ def laz_full(url: str, session: requests.Session | None = None) -> dict:
 
 
 def full_probe(item: dict, session: requests.Session | None = None) -> dict:
-    laz = urllib.parse.unquote(item["assets"][ASSET_LAZ]["href"])
+    laz = laz_url(item)
     return {"id": item["id"], "laz": laz, "full": laz_full(laz, session)}
 
 
@@ -202,7 +202,7 @@ def confirm_ids(recs: dict[str, dict]) -> set[str]:
 
 def item_probe(item: dict, session: requests.Session | None = None) -> dict:
     """The record for one item: its laz sample and, if it has one, its copc sample."""
-    laz = urllib.parse.unquote(item["assets"][ASSET_LAZ]["href"])
+    laz = laz_url(item)
     rec = {"id": item["id"], "laz": laz, "laz_sample": laz_sample(laz, session)}
     if ASSET_COPC in item["assets"]:
         rec["copc"] = item["assets"][ASSET_COPC]["href"]
@@ -230,10 +230,27 @@ def records_load(path: str) -> dict[str, dict]:
     return recs
 
 
-def probe_all(items: list[dict], out_path: str, workers: int, probe=item_probe) -> dict:
-    """Probe every item with no good record in `out_path`, appending each as it lands."""
+def record_etag(rec: dict) -> str | None:
+    """The ETag of the file a record was read from (a sample's or a whole-file read's)."""
+    return (rec.get("laz_sample") or rec.get("full") or {}).get("etag")
+
+
+def laz_url(item: dict) -> str:
+    return urllib.parse.unquote(item["assets"][ASSET_LAZ]["href"])
+
+
+def probe_all(items: list[dict], out_path: str, workers: int, probe=item_probe,
+              current: dict[str, str] | None = None) -> dict:
+    """Probe every item with no good record in `out_path`, appending each as it lands.
+
+    With `current` (item id -> the file's ETag now), a record of another ETag is not good:
+    the file was re-delivered, so it is read again. A record from before ETags were kept has
+    none, and is read again too. A failed read is recorded with the item's laz url, so the
+    build can name it, and a later good record replaces it.
+    """
     cache_tail_repair(out_path)
-    done = {k for k, r in records_load(out_path).items() if "error" not in r}
+    done = {k for k, r in records_load(out_path).items() if "error" not in r
+            and (current is None or record_etag(r) == current.get(k))}
     todo = [i for i in items if i["id"] not in done]
     logger.info("%d items recorded, %d to read", len(items) - len(todo), len(todo))
     session = requests.Session()
@@ -250,6 +267,8 @@ def probe_all(items: list[dict], out_path: str, workers: int, probe=item_probe) 
                 rec = fut.result()
             except Exception as e:  # a probe records every item, failures included
                 rec = {"id": i["id"], "error": f"{type(e).__name__}: {e}"}
+                if "assets" in i:
+                    rec["laz"] = laz_url(i)
                 errors[i["id"]] = rec["error"]
             out.write(json.dumps(rec) + "\n")
             out.flush()
@@ -406,13 +425,20 @@ def main() -> int:
                 headers = {r["url"]: r["header"] for r in map(json.loads, fh)}
         summary(items, records_load(out), records_load(full), headers)
         return 0
+    # The ETag each file has now, from the build's header cache: the build re-reads a header
+    # whose listing ETag changed, so a re-delivery shows here before the class records.
+    hdr_path = f"{args.build}/headers.jsonl"
+    if not os.path.exists(hdr_path):
+        raise SystemExit(f"no {hdr_path}: run catalogue_build.py first")
+    etags = {u: h["etag"] for u, h in headers_load(hdr_path).items()}
+    current = {i["id"]: etags.get(laz_url(i)) for i in items}
     if args.confirm:
         cache_tail_repair(out)
         want = confirm_ids(records_load(out))
         items = [i for i in items if i["id"] in want]
-        errors = probe_all(items, full, args.workers, probe=full_probe)
+        errors = probe_all(items, full, args.workers, probe=full_probe, current=current)
     else:
-        errors = probe_all(items, out, args.workers)
+        errors = probe_all(items, out, args.workers, current=current)
     for k, e in sorted(errors.items()):
         logger.error("%s: %s", k, e)
     logger.info("done: %d items, %d failed", len(items), len(errors))

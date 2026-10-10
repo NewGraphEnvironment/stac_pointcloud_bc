@@ -29,3 +29,4 @@
   the bucket's 9,649 items: exactly the 73 changed, by the class list alone. 135 tests;
   three guard mutations each redden their test.
 - Landing page (README.Rmd → README.md, index.html; cache-only render) and CLAUDE.md source facts updated to the measured result.
+- /code-check branch round 1: 3 findings (failed full read crashed the build with KeyError; stale-ETag refusal pointed at a no-op re-run; collection description claimed unenforced sample coverage) + research wording. All fixed; 139 tests; both new guards mutation-checked.

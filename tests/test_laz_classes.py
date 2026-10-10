@@ -188,3 +188,37 @@ def test_a_full_read_tallies_every_point_as_a_local_read_does(serve):
     assert f["returns"] == dict(sorted(want.items()))
     assert f["bytes"] == path.stat().st_size
     assert ground_only(f["classes"]) is False
+
+
+def _item(k):
+    return {"id": f"i{k}", "assets": {"laz": {"href": f"https://x.invalid/f{k}%20(2).laz"}}}
+
+
+def test_a_record_of_another_etag_is_read_again(tmp_path):
+    """A re-delivered file (new ETag) and a record from before ETags were kept are both
+    stale; only the record of the current ETag is kept."""
+    out = tmp_path / "classes.jsonl"
+    with open(out, "w") as fh:
+        fh.write(json.dumps({"id": "i0", "full": {"etag": "old"}}) + "\n")
+        fh.write(json.dumps({"id": "i1", "full": {"etag": "b"}}) + "\n")
+        fh.write(json.dumps({"id": "i2", "laz_sample": {}}) + "\n")  # no ETag kept
+    calls = []
+
+    def probe(item, session=None):
+        calls.append(item["id"])
+        return {"id": item["id"], "full": {"etag": "new"}}
+
+    current = {"i0": "new", "i1": "b", "i2": "c"}
+    probe_all([_item(k) for k in range(3)], str(out), 1, probe=probe, current=current)
+    assert sorted(calls) == ["i0", "i2"]
+
+
+def test_a_failed_read_names_its_laz_file_so_the_build_can(tmp_path):
+    out = tmp_path / "classes_full.jsonl"
+
+    def probe(item, session=None):
+        raise OSError("range request returned 503")
+
+    probe_all([_item(0)], str(out), 1, probe=probe)
+    rec = lcp.records_load(str(out))["i0"]
+    assert rec["laz"] == "https://x.invalid/f0 (2).laz" and "503" in rec["error"]

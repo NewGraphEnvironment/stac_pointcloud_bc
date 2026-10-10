@@ -124,10 +124,9 @@ DESCRIPTION = (
     "Where an item's file name is one of them, the item also carries that COPC as its `copc` "
     "asset, checked to have the same point count and horizontal CRS and a header box within "
     f"{COPC_BOX_TOLERANCE_M:g} m; the `laz` asset stays the source of record. "
-    "A LAS header does not say which classes a file holds. Every file here was sampled "
-    "(its first 100,000 points and a chunk at a quarter, half and three quarters through), "
-    "and each one a sample found to hold only ground, noise and water, or no ground at all, "
-    "was read whole: its `laz` asset lists every class present, with its point count, in "
+    "A LAS header does not say which classes a file holds. Files that a sample of their "
+    "points found to hold only ground, noise and water, or no ground at all, were read "
+    "whole: their `laz` asset lists every class present, with its point count, in "
     "`classification:classes`. An item without that list was not read whole. Most of the "
     "listed items hold no ground (class 2) at all, and so give no bare-earth surface; "
     "vegetation in this collection is mostly unclassified (class 1), not classes 3 to 5."
@@ -316,8 +315,12 @@ def classes_records_load(path: str) -> dict[str, dict]:
     out = {}
     if os.path.exists(path):
         with open(path) as fh:
-            for line in fh:
+            for n, line in enumerate(fh, 1):
                 r = json.loads(line)
+                if "laz" not in r:
+                    raise ValueError(f"{path} line {n} names no laz file ({r.get('id')}): "
+                                     "written before failed reads carried one; remove it "
+                                     "and re-run laz_classes_probe.py --confirm")
                 out[r["laz"]] = r
     return out
 
@@ -335,7 +338,8 @@ def classes_attach(items: dict[str, pystac.Item], etags: dict[str, str],
             problems[u] = "a class read of a file that is not in the build"
         elif r["full"]["etag"] != etags[u]:
             problems[u] = (f"read at ETag {r['full']['etag']}, listed at {etags[u]}: the file "
-                           "was re-delivered; re-run laz_classes_probe.py --confirm")
+                           "was re-delivered; re-run laz_classes_probe.py, then with "
+                           "--confirm (each reads again what has a new ETag)")
         else:
             try:
                 classes_add(items[u], r["full"])

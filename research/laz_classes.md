@@ -25,8 +25,9 @@ Definitions: **ground-only** = class 2 present and no class outside {2, 7, 9, 18
 noise, water, high noise). Class 1 counts against it: vegetation left unclassified is still there.
 **No ground** = points, but none of class 2.
 
-All 9,649 items were sampled. Nine reads failed on transient errors (503, dropped connections,
-one timeout, mostly against the CanElevation bucket) and succeeded on re-run; none are unresolved.
+All 9,649 items were sampled. Nine reads failed on transient errors (seven dropped connections,
+plus a 503 and a timeout from the CanElevation bucket) and succeeded on re-run; none are
+unresolved.
 
 ## Results
 

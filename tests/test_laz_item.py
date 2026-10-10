@@ -854,7 +854,7 @@ def test_a_class_read_applies_only_to_the_file_it_was_read_from():
     problems = catalogue_build.classes_attach(items, {PC: "new"}, records)
     assert "re-delivered" in problems[PC] and "not in the build" in problems[other]
     assert "classification:classes" not in items[PC].assets[ASSET_LAZ].extra_fields
-    failed = {PC: {"laz": PC, "error": "OSError: 503"}}
+    failed = {PC: {"id": url_to_item_id(PC), "laz": PC, "error": "OSError: 503"}}
     assert "failed" in catalogue_build.classes_attach(items, {PC: "a"}, failed)[PC]
 
 
@@ -904,3 +904,21 @@ def test_a_build_with_a_stale_class_read_is_refused(tmp_path, monkeypatch, caplo
     assert rc == 1
     assert "re-delivered" in caplog.text
     assert not (tmp_path / "data/build/items").exists()
+
+
+def test_a_failed_class_read_is_refused_by_name_and_a_retry_replaces_it(tmp_path, monkeypatch,
+                                                                         caplog):
+    """The cache as laz_classes_probe.probe_all writes it: a failed read, then (on a re-run)
+    a good one. The failure alone refuses the build by name; the retry lets it through."""
+    err = {"id": url_to_item_id(PC), "error": "OSError: 503", "laz": PC}
+    good = {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000})}
+    assert _main_with_classes(tmp_path, monkeypatch, [err], {"092/092g/2016": 1}) == 1
+    assert "the class read failed: OSError: 503" in caplog.text
+    assert _main_with_classes(tmp_path, monkeypatch, [err, good], {"092/092g/2016": 1}) == 0
+
+
+def test_a_class_record_naming_no_file_is_refused_with_its_line(tmp_path):
+    p = tmp_path / "c.jsonl"
+    p.write_text(json.dumps({"id": "x", "error": "OSError: 503"}) + "\n")
+    with pytest.raises(ValueError, match="line 1 names no laz file"):
+        catalogue_build.classes_records_load(str(p))
