@@ -984,37 +984,69 @@ def _keys(x):
             yield from _keys(v)
 
 
-# Unprefixed keys STAC itself defines, where the build writes them.
-PROPERTIES_CORE = {"datetime", "start_datetime", "end_datetime"}
-ASSET_CORE = {"href", "type", "roles", "title", "description"}
+# Every key the build writes, by path (`[]` for a list element), from one build with a COPC
+# copy and one with a class read. Pinned whole, so a key added anywhere - an item's top level,
+# a link, a provider - fails here rather than in whichever place a hand-picked check missed.
+ITEM_PATHS = {
+    "assets", "assets.copc", "assets.copc.description", "assets.copc.file:size",
+    "assets.copc.href", "assets.copc.las:point_format", "assets.copc.las:version",
+    "assets.copc.roles", "assets.copc.title", "assets.copc.type", "assets.laz",
+    "assets.laz.classification:classes", "assets.laz.classification:classes[].count",
+    "assets.laz.classification:classes[].name", "assets.laz.classification:classes[].value",
+    "assets.laz.file:size", "assets.laz.href", "assets.laz.roles", "assets.laz.title",
+    "assets.laz.type", "bbox", "collection", "geometry", "geometry.coordinates",
+    "geometry.type", "id", "links", "links[].href", "links[].rel", "links[].type",
+    "properties", "properties.datetime", "properties.end_datetime",
+    "properties.las:point_format", "properties.las:version",
+    "properties.lidarbc:datetime_source", "properties.lidarbc:filename_date",
+    "properties.lidarbc:product", "properties.pc:count", "properties.pc:encoding",
+    "properties.pc:schemas", "properties.pc:schemas[].name", "properties.pc:schemas[].size",
+    "properties.pc:schemas[].type", "properties.pc:type", "properties.proj:bbox",
+    "properties.proj:code", "properties.start_datetime", "stac_extensions", "stac_version",
+    "type",
+}
+COLLECTION_PATHS = {
+    "description", "extent", "extent.spatial", "extent.spatial.bbox", "extent.temporal",
+    "extent.temporal.interval", "id", "keywords", "license", "links", "links[].href",
+    "links[].rel", "links[].title", "links[].type", "providers", "providers[].name",
+    "providers[].roles", "providers[].url", "stac_version", "summaries",
+    "summaries.lidarbc:product", "title", "type",
+}
 
 
-def _fields_check(items, collection):
-    """Every prefixed key is a standard extension's or declared here, and every declared one
-    is written; an unprefixed key on properties or an asset is a core STAC field."""
-    keys = set(_keys(collection))
-    # a summaries key is a field name too; a bare one would escape the prefix checks below
-    assert all(":" in k for k in collection.get("summaries", {}))
-    for d in items:
-        keys |= set(_keys(d))
-        assert set(d["properties"]) - {k for k in d["properties"] if ":" in k} \
-            <= PROPERTIES_CORE
-        for a in d["assets"].values():
-            assert {k for k in a if ":" not in k} <= ASSET_CORE
-    prefixed = {k for k in keys if ":" in k}
-    assert not {k for k in prefixed if k.startswith("nge:")}
-    assert {k for k in prefixed if k.split(":")[0] not in PREFIXES_STANDARD} == FIELDS_CUSTOM
+def _paths(x, at=""):
+    """Every dict key anywhere in a JSON-shaped value, as a path from the root."""
+    if isinstance(x, dict):
+        for k, v in x.items():
+            p = f"{at}.{k}" if at else k
+            yield p
+            yield from _paths(v, p)
+    elif isinstance(x, list):
+        for v in x:
+            yield from _paths(v, at + "[]")
+
+
+def test_the_declared_fields_are_the_ones_the_pinned_paths_carry():
+    """FIELDS_CUSTOM and the pinned paths are two statements of one fact; hold them equal."""
+    keys = {p.split(".")[-1].removesuffix("[]") for p in ITEM_PATHS | COLLECTION_PATHS}
+    assert {k for k in keys if ":" in k and k.split(":")[0] not in PREFIXES_STANDARD} == \
+        FIELDS_CUSTOM
+    assert not {k for k in keys if k.startswith("nge:")}
 
 
 def test_every_field_an_item_carries_is_a_standard_one_or_declared():
     it = laz_item.classes_add(_add(_copc_header()), _full({1: 400, 2: 600}))
     c = catalogue_build.collection_build([it])
-    _fields_check([it.to_dict(include_self_link=False)], c.to_dict())
+    keys = set(_keys(it.to_dict(include_self_link=False))) | set(_keys(c.to_dict()))
+    prefixed = {k for k in keys if ":" in k}
+    assert not {k for k in prefixed if k.startswith("nge:")}
+    assert {k for k in prefixed if k.split(":")[0] not in PREFIXES_STANDARD} == FIELDS_CUSTOM
 
 
-def test_every_field_the_build_writes_is_a_standard_one_or_declared(tmp_path, monkeypatch):
-    """What main() writes, not just what item_create returns: a field added at build level
-    would escape the test above. One build with a COPC copy, one with a class read."""
+def test_every_key_the_build_writes_is_pinned(tmp_path, monkeypatch):
+    """What main() writes, not just what item_create returns: a key added at build level,
+    or anywhere in the item or collection, fails. One build with a COPC copy, one with a
+    class read, so every optional key is written by one of them."""
     for run in ("copc", "classes"):
         (tmp_path / run).mkdir()
     assert _main_with_copc(tmp_path / "copc", monkeypatch, _copc_header())[0] == 0
@@ -1022,7 +1054,13 @@ def test_every_field_the_build_writes_is_a_standard_one_or_declared(tmp_path, mo
                               [{"id": url_to_item_id(PC), "laz": PC,
                                 "full": _full({1: 400, 2: 600})}],
                               {"092/092g/2016": 1}) == 0
+    items, coll = set(), set()
     for run in ("copc", "classes"):
         out = tmp_path / run / "data/build"
-        _fields_check([json.loads(f.read_text()) for f in (out / "items").glob("*.json")],
-                      json.loads((out / "collection.json").read_text()))
+        files = list((out / "items").glob("*.json"))
+        assert files
+        for f in files:
+            items |= set(_paths(json.loads(f.read_text())))
+        coll |= set(_paths(json.loads((out / "collection.json").read_text())))
+    assert items == ITEM_PATHS
+    assert coll == COLLECTION_PATHS
