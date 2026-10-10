@@ -40,12 +40,12 @@ L88. No cache or registration config holds a key: `stacs.toml` requires only the
 - [x] Run `uv run pytest` and confirm the new assertions fail for the right reason.
 
 ## Phase 2: Rename in the build
-- [ ] `scripts/laz_item.py`: the properties, `filename_date`, the LAS version comparison in
+- [x] `scripts/laz_item.py`: the properties, `filename_date`, the LAS version comparison in
       the class read (`las:version`), and the `copc` asset's `extra_fields`. Update the
       docstrings that name the fields.
-- [ ] `scripts/catalogue_build.py`: summaries key `lidarbc:product`.
-- [ ] `uv run pytest` is green. Confirm the guard goes red when one `nge:` key is restored.
-- [ ] Run a `catalogue_build.py --limit` build (to `data/build-limit/`). `grep '"nge:'` over
+- [x] `scripts/catalogue_build.py`: summaries key `lidarbc:product`.
+- [x] `uv run pytest` is green. Confirm the guard goes red when one `nge:` key is restored.
+- [x] Run a `catalogue_build.py --limit` build (to `data/build-limit/`). `grep '"nge:'` over
       it returns nothing, and pystac validation passes.
 
 ## Phase 3: Prose

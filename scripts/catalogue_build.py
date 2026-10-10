@@ -399,8 +399,8 @@ def collection_build(items: list[pystac.Item]) -> pystac.Collection:
         keywords=KEYWORDS,
         extent=pystac.Extent(pystac.SpatialExtent(spatial),
                              pystac.TemporalExtent([[min(starts), max(ends)]])),
-        summaries=pystac.Summaries({"nge:product": sorted({i.properties["nge:product"]
-                                                             for i in items})}),
+        summaries=pystac.Summaries({"lidarbc:product": sorted(
+            {i.properties["lidarbc:product"] for i in items})}),
     )
     c.set_self_href(f"{PATH_S3_STAC}/collection.json")
     for i in items:
