@@ -28,3 +28,4 @@
   cache). Rebuild 07:22 UTC (`logs/20261010_*_catalogue_build_classes.log`). Body diff vs
   the bucket's 9,649 items: exactly the 73 changed, by the class list alone. 135 tests;
   three guard mutations each redden their test.
+- Landing page (README.Rmd → README.md, index.html; cache-only render) and CLAUDE.md source facts updated to the measured result.

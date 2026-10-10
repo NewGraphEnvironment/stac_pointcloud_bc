@@ -45,9 +45,12 @@ treating the repo as a Python package (#9).
   #6). A name is not proof: the build pairs by name, checks each copy's header (point count,
   horizontal CRS, box within 0.05 m), and only then adds it as the `copc` asset. The `laz`
   asset stays the source of record.
-- **Some point clouds are ground-only** (class 2 and nothing else), and the header cannot say
-  so: `092g028_1_1_1` (092g/2016) is one, found by reading points (#10,
-  `research/laz_header_read.md`). Do not assume a tile carries vegetation.
+- **A header cannot say which classes a file holds**, and some files lack what a user would
+  assume. Measured on all 9,649 indexed files (#10, `research/laz_classes.md`): one is
+  ground-only (`092g028_1_1_1`, 092g/2016) and 57 hold no ground at all, 2 of them never
+  classified. Every file a point sample flagged was read whole, and its `laz` asset lists its
+  classes in `classification:classes`; the build refuses a class cache that is missing,
+  short or stale (`CLASSES_READ`). Vegetation here is mostly class 1, not 3–5.
 - **Source URLs are `https://`.** `ngr::ngr_s3_keys_get()` returned `https:/` before ngr
   0.0.3 (ngr#38). Anything that reads a URL list refuses the one-slash form; never
   repair it silently (stac_dem_bc#51).
