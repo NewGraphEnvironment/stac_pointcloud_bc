@@ -852,7 +852,9 @@ def test_a_class_read_applies_only_to_the_file_it_was_read_from():
         other: {"laz": other, "full": _full({2: 1000})},
     }
     problems = catalogue_build.classes_attach(items, {PC: "new"}, records)
-    assert "re-delivered" in problems[PC] and "not in the build" in problems[other]
+    # A read of a file not in the build is not applied, and not a problem here: it leaves
+    # CLASSES_READ short, which main() refuses.
+    assert "re-delivered" in problems[PC] and other not in problems
     assert "classification:classes" not in items[PC].assets[ASSET_LAZ].extra_fields
     failed = {PC: {"id": url_to_item_id(PC), "laz": PC, "error": "OSError: 503"}}
     assert "failed" in catalogue_build.classes_attach(items, {PC: "a"}, failed)[PC]
@@ -922,3 +924,12 @@ def test_a_class_record_naming_no_file_is_refused_with_its_line(tmp_path):
     p.write_text(json.dumps({"id": "x", "error": "OSError: 503"}) + "\n")
     with pytest.raises(ValueError, match="line 1 names no laz file"):
         catalogue_build.classes_records_load(str(p))
+
+
+def test_a_class_read_of_a_file_that_left_the_build_shows_as_a_short_count(tmp_path,
+                                                                             monkeypatch, caplog):
+    gone = PC.replace("019_1_4_1", "019_1_4_2")
+    recs = [{"id": url_to_item_id(gone), "laz": gone, "full": _full({2: 1000})}]
+    assert _main_with_classes(tmp_path, monkeypatch, recs, {"092/092g/2016": 1}) == 1
+    assert "expected {'092/092g/2016': 1} (CLASSES_READ)" in caplog.text
+    assert "not in this build, not applied" in caplog.text

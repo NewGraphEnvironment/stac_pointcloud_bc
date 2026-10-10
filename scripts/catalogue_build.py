@@ -327,15 +327,18 @@ def classes_records_load(path: str) -> dict[str, dict]:
 
 def classes_attach(items: dict[str, pystac.Item], etags: dict[str, str],
                    records: dict[str, dict]) -> dict[str, str]:
-    """Add each whole-file class read to its item (`items` and `etags` keyed by laz url).
-    Returns the problems, keyed by url: a failed read, a read of a file not in the build, or
-    of an older delivery of it (ETag changed), or a read classes_add refuses."""
+    """Add each whole-file class read of a file in the build to its item (`items` and `etags`
+    keyed by laz url). Returns the problems, keyed by url: a failed read, a read of an older
+    delivery (ETag changed), or a read classes_add refuses. A read of a file not in the build
+    is not applied and not a problem here; it leaves CLASSES_READ short, which main() refuses.
+    """
     problems = {}
     for u, r in records.items():
+        if u not in items:
+            continue
         if "error" in r:
-            problems[u] = f"the class read failed: {r['error']}"
-        elif u not in items:
-            problems[u] = "a class read of a file that is not in the build"
+            problems[u] = (f"the class read failed: {r['error']}; re-run "
+                           "laz_classes_probe.py --confirm")
         elif r["full"]["etag"] != etags[u]:
             problems[u] = (f"read at ETag {r['full']['etag']}, listed at {etags[u]}: the file "
                            "was re-delivered; re-run laz_classes_probe.py, then with "
@@ -344,7 +347,8 @@ def classes_attach(items: dict[str, pystac.Item], etags: dict[str, str],
             try:
                 classes_add(items[u], r["full"])
             except ValueError as e:
-                problems[u] = str(e)
+                problems[u] = (f"{e}; remove its line from {CLASSES_FULL} and re-run "
+                               "laz_classes_probe.py --confirm")
     return problems
 
 
@@ -457,8 +461,11 @@ def main() -> int:
         logger.info("%s: %d items with a CanElevation COPC copy", g, n)
 
     records = classes_records_load(f"{out}/{CLASSES_FULL}")
-    if args.limit:  # a slice: only the reads of files in it
-        records = {u: r for u, r in records.items() if u in set(kept)}
+    gone = sorted(set(records) - set(kept))
+    if gone and not args.limit:  # a slice leaves most files out; that is not news
+        logger.warning("%d class reads are of files not in this build, not applied: %s",
+                       len(gone), gone[:5])
+    records = {u: r for u, r in records.items() if u in set(kept)}
     etags = {o["url"]: o["etag"] for o in objs}
     problems = classes_attach(dict(zip(kept, items)), etags, records)
     if problems:
@@ -469,7 +476,10 @@ def main() -> int:
     read = collections.Counter(group(u) for u in records)
     if not args.limit and dict(read) != CLASSES_READ:
         logger.error("whole-file class reads per group %s, expected %s (CLASSES_READ) - "
-                     "not building", dict(sorted(read.items())), CLASSES_READ)
+                     "not building. With no or a partial %s, run laz_classes_probe.py and "
+                     "then with --confirm; if the change is real (files added, re-delivered "
+                     "or gone), record the new counts in CLASSES_READ",
+                     dict(sorted(read.items())), CLASSES_READ, CLASSES_FULL)
         return 1
     for g, n in sorted(read.items()):
         logger.info("%s: %d items read whole for their classes", g, n)

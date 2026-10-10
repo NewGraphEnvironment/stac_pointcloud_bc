@@ -67,6 +67,24 @@ A per-item class sample makes #2's build read ~1.3 MB per file instead of a 64 K
 - Header density <= p5 within mapsheet-year catches 58/58 (488 flagged); p10 971 flagged.
 - Cost: laz sample 2.12 MB / 4.2 s median, 20.4 GB, 72 min at 16 workers for 9,649.
 
+## Code-check enumeration (round 2, 2026-10-10)
+
+Round 2 found a defect inside round 1's fix. The mechanism: **the set the probe works on and the
+set the build checks come from different sources** (`--confirm` read what the samples flag; the
+build checked every record in the cache). Enumerated every way the class cache can stop a build,
+with the remedy each message gives and whether running it clears the state:
+
+| refusal | remedy given | clears? |
+|---|---|---|
+| line names no `laz` (pre-fix error record) | remove line, re-run `--confirm` | yes: re-read if flagged, else count change (row 5) |
+| failed read (latest record per url) | re-run `--confirm` | yes: `confirm_work` includes any record not good now |
+| ETag changed | re-run probe, then `--confirm` | yes: the build updates `headers.jsonl` before refusing, `record_good` compares against it |
+| `classes_add` refuses at the same ETag | remove line, re-run `--confirm` | yes, as row 1 |
+| `CLASSES_READ` mismatch (incl. a file that left the build) | run probe + `--confirm`, or record new counts | yes; the message named no command before round 2's fix |
+
+Records are keyed by item id in the probe and by laz url in the build; `url_to_item_id` is 1:1.
+Accepted: files new to the listing are not sampled until #2 moves the screen into the build.
+
 ## Errors Encountered
 
 | Error | Resolution |

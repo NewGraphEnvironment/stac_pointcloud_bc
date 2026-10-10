@@ -200,6 +200,15 @@ def confirm_ids(recs: dict[str, dict]) -> set[str]:
     return ground_only_ids(recs) | no_ground_ids(recs)
 
 
+def confirm_work(samples: dict[str, dict], full: dict[str, dict],
+                 current: dict[str, str] | None) -> set[str]:
+    """The items to read whole: what the samples flag, and every item already read whole
+    whose record is not good now (failed, or of an older delivery). The build checks every
+    record of a file it keeps, so a record left stale because a newer sample no longer flags
+    its file would otherwise refuse every build with nothing to clear it."""
+    return confirm_ids(samples) | {k for k, r in full.items() if not record_good(r, current)}
+
+
 def item_probe(item: dict, session: requests.Session | None = None) -> dict:
     """The record for one item: its laz sample and, if it has one, its copc sample."""
     laz = laz_url(item)
@@ -235,6 +244,17 @@ def record_etag(rec: dict) -> str | None:
     return (rec.get("laz_sample") or rec.get("full") or {}).get("etag")
 
 
+def record_good(rec: dict, current: dict[str, str] | None) -> bool:
+    """A record that succeeded and, given `current`, was read at the file's ETag now. An
+    ETag missing on either side is not a match: nothing then says the file is the same."""
+    if "error" in rec:
+        return False
+    if current is None:
+        return True
+    now = current.get(rec["id"])
+    return now is not None and record_etag(rec) == now
+
+
 def laz_url(item: dict) -> str:
     return urllib.parse.unquote(item["assets"][ASSET_LAZ]["href"])
 
@@ -249,8 +269,7 @@ def probe_all(items: list[dict], out_path: str, workers: int, probe=item_probe,
     build can name it, and a later good record replaces it.
     """
     cache_tail_repair(out_path)
-    done = {k for k, r in records_load(out_path).items() if "error" not in r
-            and (current is None or record_etag(r) == current.get(k))}
+    done = {k for k, r in records_load(out_path).items() if record_good(r, current)}
     todo = [i for i in items if i["id"] not in done]
     logger.info("%d items recorded, %d to read", len(items) - len(todo), len(todo))
     session = requests.Session()
@@ -434,7 +453,8 @@ def main() -> int:
     current = {i["id"]: etags.get(laz_url(i)) for i in items}
     if args.confirm:
         cache_tail_repair(out)
-        want = confirm_ids(records_load(out))
+        cache_tail_repair(full)
+        want = confirm_work(records_load(out), records_load(full), current)
         items = [i for i in items if i["id"] in want]
         errors = probe_all(items, full, args.workers, probe=full_probe, current=current)
     else:

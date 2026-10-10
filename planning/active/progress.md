@@ -30,3 +30,4 @@
   three guard mutations each redden their test.
 - Landing page (README.Rmd → README.md, index.html; cache-only render) and CLAUDE.md source facts updated to the measured result.
 - /code-check branch round 1: 3 findings (failed full read crashed the build with KeyError; stale-ETag refusal pointed at a no-op re-run; collection description claimed unenforced sample coverage) + research wording. All fixed; 139 tests; both new guards mutation-checked.
+- /code-check round 2: stale whole-file record unclearable (inside round 1's fix) + None==None ETag match. Fixed (confirm_work, record_good, build applies only kept-file records); enumeration of every class-cache refusal and its remedy in findings.md. 142 tests.

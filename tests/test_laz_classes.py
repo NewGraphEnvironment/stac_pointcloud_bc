@@ -19,8 +19,10 @@ from laz_classes_probe import (
     confirm_ids,
     counts_merge,
     ground_only,
+    confirm_work,
     laz_full,
     laz_sample,
+    record_good,
     no_ground,
     probe_all,
     verdicts,
@@ -222,3 +224,21 @@ def test_a_failed_read_names_its_laz_file_so_the_build_can(tmp_path):
     probe_all([_item(0)], str(out), 1, probe=probe)
     rec = lcp.records_load(str(out))["i0"]
     assert rec["laz"] == "https://x.invalid/f0 (2).laz" and "503" in rec["error"]
+
+
+def test_an_etag_missing_on_either_side_is_not_a_match():
+    rec = {"id": "i0", "laz_sample": {}}
+    assert record_good(rec, {"i0": None}) is False
+    assert record_good(rec, {}) is False
+    assert record_good({"id": "i0", "full": {"etag": "a"}}, {}) is False
+    assert record_good({"id": "i0", "full": {"etag": "a"}}, {"i0": "a"}) is True
+
+
+def test_a_stale_whole_file_read_is_read_again_though_no_sample_flags_it_now():
+    """Re-delivered at a new ETag, its new sample finds class 1, so the samples no longer
+    flag it; the build still checks its record, so --confirm must read it again."""
+    samples = {"i0": {"id": "i0", "laz_sample": {"etag": "E2", "samples": {"first": {1: 3, 2: 9}}}}}
+    full = {"i0": {"id": "i0", "full": {"etag": "E1"}},
+            "i1": {"id": "i1", "error": "OSError: 503", "laz": "u1"},
+            "i2": {"id": "i2", "full": {"etag": "E"}}}
+    assert confirm_work(samples, full, {"i0": "E2", "i1": "x", "i2": "E"}) == {"i0", "i1"}
