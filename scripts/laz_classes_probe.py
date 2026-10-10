@@ -2,7 +2,9 @@
 """Sample the ASPRS classes in each built item's point cloud, to find the ground-only ones (#10).
 
 The LAS header carries no class counts, so a file holding ground returns only reads like any
-other to the build. This reads points: for each item in a build (`data/build/items`), the
+other to the build. This reads points: for each file the last build kept
+(`<build>/class_targets.jsonl`, which catalogue_build.py writes before its class check, so
+it exists even when that build refused for want of class reads), the
 `laz` file's first FIRST_POINTS points plus SPREAD_POINTS at each of SPREAD_AT through the
 file (LAZ is chunked, so a seek fetches one chunk, not the file), and where the item has a
 `copc` asset, that COPC's coarse octree levels (COPC_LEVELS), which cover the whole tile.
@@ -42,7 +44,8 @@ from laspy import DecompressionSelection, LazBackend
 import requests
 from tqdm import tqdm
 
-from catalogue_build import cache_tail_repair, headers_load
+from catalogue_build import CLASS_TARGETS, cache_tail_repair
+from laz_item import href_encode
 from laz_item import ASSET_COPC, ASSET_LAZ, key_parse
 from laz_remote import HttpRangeFile
 
@@ -219,13 +222,21 @@ def item_probe(item: dict, session: requests.Session | None = None) -> dict:
     return rec
 
 
-def items_load(d: str) -> list[dict]:
-    out = []
-    for f in sorted(os.listdir(d)):
-        if f.endswith(".json") and f != "collection.json":
-            with open(os.path.join(d, f)) as fh:
-                out.append(json.load(fh))
-    return out
+def targets_load(path: str) -> tuple[list[dict], dict[str, str]]:
+    """The files the last build kept, as item-shaped dicts (`id`, `assets`), and each one's
+    ETag in that build's listing: the same files and the same ETags the build checks."""
+    if not os.path.exists(path):
+        raise SystemExit(f"no {path}: run catalogue_build.py first (it writes this before "
+                         "anything that could refuse for want of class reads)")
+    items, current = [], {}
+    with open(path) as fh:
+        for t in map(json.loads, fh):
+            assets = {ASSET_LAZ: {"href": href_encode(t["laz"])}}
+            if t["copc"]:
+                assets[ASSET_COPC] = {"href": t["copc"]}
+            items.append({"id": t["id"], "assets": assets})
+            current[t["id"]] = t["etag"]
+    return items, current
 
 
 def records_load(path: str) -> dict[str, dict]:
@@ -252,7 +263,7 @@ def record_good(rec: dict, current: dict[str, str] | None) -> bool:
     if current is None:
         return True
     now = current.get(rec["id"])
-    return now is not None and record_etag(rec) == now
+    return bool(now) and record_etag(rec) == now
 
 
 def laz_url(item: dict) -> str:
@@ -426,7 +437,7 @@ def main() -> int:
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     out = args.out or f"{args.build}/classes.jsonl"
-    items = items_load(f"{args.build}/items")
+    items, current = targets_load(f"{args.build}/{CLASS_TARGETS}")
     if args.ids:
         want = {x.strip() for x in open(args.ids) if x.strip()}
         items = [i for i in items if i["id"] in want]
@@ -444,13 +455,6 @@ def main() -> int:
                 headers = {r["url"]: r["header"] for r in map(json.loads, fh)}
         summary(items, records_load(out), records_load(full), headers)
         return 0
-    # The ETag each file has now, from the build's header cache: the build re-reads a header
-    # whose listing ETag changed, so a re-delivery shows here before the class records.
-    hdr_path = f"{args.build}/headers.jsonl"
-    if not os.path.exists(hdr_path):
-        raise SystemExit(f"no {hdr_path}: run catalogue_build.py first")
-    etags = {u: h["etag"] for u, h in headers_load(hdr_path).items()}
-    current = {i["id"]: etags.get(laz_url(i)) for i in items}
     if args.confirm:
         cache_tail_repair(out)
         cache_tail_repair(full)

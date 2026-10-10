@@ -231,6 +231,7 @@ def test_an_etag_missing_on_either_side_is_not_a_match():
     assert record_good(rec, {"i0": None}) is False
     assert record_good(rec, {}) is False
     assert record_good({"id": "i0", "full": {"etag": "a"}}, {}) is False
+    assert record_good({"id": "i0", "full": {"etag": ""}}, {"i0": ""}) is False
     assert record_good({"id": "i0", "full": {"etag": "a"}}, {"i0": "a"}) is True
 
 
@@ -242,3 +243,20 @@ def test_a_stale_whole_file_read_is_read_again_though_no_sample_flags_it_now():
             "i1": {"id": "i1", "error": "OSError: 503", "laz": "u1"},
             "i2": {"id": "i2", "full": {"etag": "E"}}}
     assert confirm_work(samples, full, {"i0": "E2", "i1": "x", "i2": "E"}) == {"i0", "i1"}
+
+
+def test_the_probe_reads_the_files_and_etags_the_build_listed(tmp_path):
+    p = tmp_path / "class_targets.jsonl"
+    p.write_text(
+        json.dumps({"id": "a", "laz": "https://x.invalid/f (2).laz", "etag": "E1",
+                    "copc": "https://c.invalid/f.copc.laz"}) + "\n"
+        + json.dumps({"id": "b", "laz": "https://x.invalid/g.laz", "etag": "E2",
+                      "copc": None}) + "\n")
+    items, current = lcp.targets_load(str(p))
+    assert current == {"a": "E1", "b": "E2"}
+    assert [lcp.laz_url(i) for i in items] == ["https://x.invalid/f (2).laz",
+                                               "https://x.invalid/g.laz"]
+    assert items[0]["assets"]["copc"]["href"] == "https://c.invalid/f.copc.laz"
+    assert "copc" not in items[1]["assets"]
+    with pytest.raises(SystemExit, match="run catalogue_build.py first"):
+        lcp.targets_load(str(tmp_path / "absent.jsonl"))

@@ -933,3 +933,20 @@ def test_a_class_read_of_a_file_that_left_the_build_shows_as_a_short_count(tmp_p
     assert _main_with_classes(tmp_path, monkeypatch, recs, {"092/092g/2016": 1}) == 1
     assert "expected {'092/092g/2016': 1} (CLASSES_READ)" in caplog.text
     assert "not in this build, not applied" in caplog.text
+
+
+def test_a_build_refused_for_want_of_class_reads_has_already_listed_what_to_read(
+        tmp_path, monkeypatch):
+    """A fresh checkout has no class cache, so the build refuses before writing items. The
+    probe reads the targets file, not items, so the refusal must not stop it being written."""
+    assert _main_with_classes(tmp_path, monkeypatch, [], {"092/092g/2016": 1}) == 1
+    assert not (tmp_path / "data/build/items").exists()
+    t = [json.loads(x) for x in
+         (tmp_path / "data/build" / catalogue_build.CLASS_TARGETS).read_text().splitlines()]
+    assert t == [{"id": url_to_item_id(PC), "laz": PC, "etag": "a", "copc": None}]
+
+
+def test_an_empty_listing_etag_matches_no_class_read():
+    items = {PC: item_create(PC, _header(), COLL)}
+    records = {PC: {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000}, etag="")}}
+    assert "re-delivered" in catalogue_build.classes_attach(items, {PC: ""}, records)[PC]

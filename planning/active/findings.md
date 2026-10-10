@@ -85,6 +85,23 @@ with the remedy each message gives and whether running it clears the state:
 Records are keyed by item id in the probe and by laz url in the build; `url_to_item_id` is 1:1.
 Accepted: files new to the listing are not sampled until #2 moves the screen into the build.
 
+**Round 3 named the mechanism behind R1 and R2 (and two more instances): the probe and the
+build derived "which files, at which ETag" from different sources.** The probe read
+`data/build/items` (written only by a successful build) and `headers.jsonl`; the build used
+the live listing. The class guard blocks the build that writes `items/`, so a fresh checkout
+deadlocked (the probe's remedy crashed on a missing `items/`), and a file back in the listing
+but absent from the last `items/` could never be re-read. Fixed at the mechanism: the build
+writes `class_targets.jsonl` (id, laz, listing ETag, COPC) for exactly the files it keeps,
+**before** its class check, and the probe reads that and nothing else. One derivation of the
+file list and the current ETag; an empty ETag matches nothing on either side. The rows above
+now hold for every file the build keeps, not only those in the last `items/`.
+
+Accepted (round 3, fragile, not live): a flagged file whose whole read fails the same way every
+time stops every build. That is the same stance as a header read that fails: a corrupt file is
+a fault for a person to look at. There is no escape hatch for it yet: EXCLUDE records header
+faults only (it checks the header's `mins`), so it cannot exclude a file whose header is fine.
+If it happens, the remedy is a decision, not a command; #2 is where to add one if needed.
+
 ## Errors Encountered
 
 | Error | Resolution |

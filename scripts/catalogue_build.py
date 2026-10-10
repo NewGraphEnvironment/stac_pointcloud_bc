@@ -94,6 +94,11 @@ COPC_PAIRS = {"082/082e/2019": 332, "082/082l/2019": 57, "092/092g/2016": 1155,
 # a build that found it missing or short would drop the lists without a word: anything but
 # these counts is refused, as for COPC_PAIRS. Record the new count when the change is real.
 CLASSES_FULL = "classes_full.jsonl"
+# What the probe reads, written by every build before its class check, refusal or not: the
+# files this build keeps, each with its listing ETag and paired COPC. One derivation of "which
+# files, at which ETag" for both sides, so a build that refuses for want of class reads has
+# already told the probe what to read (review round 3).
+CLASS_TARGETS = "class_targets.jsonl"
 CLASSES_READ = {"082/082e/2018": 32, "082/082k/2017": 1, "082/082l/2018": 17,
                 "082/082l/2019": 19, "092/092g/2016": 2, "092/092h/2016": 2}
 
@@ -310,6 +315,17 @@ def groups_with_untrusted_dates(urls: list[str]) -> set[str]:
     return bad
 
 
+def class_targets_write(path: str, kept: list[str], items: list[pystac.Item],
+                        etags: dict[str, str], pairs: dict[str, dict]) -> None:
+    """One line per file this build keeps: its item id, laz url, listing ETag and paired
+    COPC url (or null). Replaced whole, so a reader never sees a half-written list."""
+    with open(f"{path}.new", "w") as fh:
+        for u, i in zip(kept, items):
+            fh.write(json.dumps({"id": i.id, "laz": u, "etag": etags[u],
+                                 "copc": pairs[u]["url"] if u in pairs else None}) + "\n")
+    os.replace(f"{path}.new", path)
+
+
 def classes_records_load(path: str) -> dict[str, dict]:
     """The whole-file class reads: laz url -> the latest record. Later lines win."""
     out = {}
@@ -339,7 +355,7 @@ def classes_attach(items: dict[str, pystac.Item], etags: dict[str, str],
         if "error" in r:
             problems[u] = (f"the class read failed: {r['error']}; re-run "
                            "laz_classes_probe.py --confirm")
-        elif r["full"]["etag"] != etags[u]:
+        elif not etags[u] or r["full"]["etag"] != etags[u]:
             problems[u] = (f"read at ETag {r['full']['etag']}, listed at {etags[u]}: the file "
                            "was re-delivered; re-run laz_classes_probe.py, then with "
                            "--confirm (each reads again what has a new ETag)")
@@ -460,13 +476,14 @@ def main() -> int:
     for g, n in sorted(collections.Counter(group(u) for u in pairs).items()):
         logger.info("%s: %d items with a CanElevation COPC copy", g, n)
 
+    etags = {o["url"]: o["etag"] for o in objs}
+    class_targets_write(f"{out}/{CLASS_TARGETS}", kept, items, etags, pairs)
     records = classes_records_load(f"{out}/{CLASSES_FULL}")
     gone = sorted(set(records) - set(kept))
     if gone and not args.limit:  # a slice leaves most files out; that is not news
         logger.warning("%d class reads are of files not in this build, not applied: %s",
                        len(gone), gone[:5])
     records = {u: r for u, r in records.items() if u in set(kept)}
-    etags = {o["url"]: o["etag"] for o in objs}
     problems = classes_attach(dict(zip(kept, items)), etags, records)
     if problems:
         for u, e in sorted(problems.items()):
