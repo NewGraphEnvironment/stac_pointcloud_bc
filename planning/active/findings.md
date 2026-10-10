@@ -40,6 +40,22 @@ A per-item class sample makes #2's build read ~1.3 MB per file instead of a 64 K
   written by laspy, which the new tests can reuse with no network.
 
 
+## Sampling design (measured 2026-10-09)
+
+- LidarBC LAZ chunks are 50,000 points (LasZip VLR). `LasReader.seek()` over `HttpRangeFile`
+  fetches only the target chunk: on `092g018_3_3_3` (17.2M points, 71 MB) the first 100k
+  cost 0.44 MB / 0.4 s and each 50k chunk at 25/50/75% 0.39–0.52 MB / ~0.4 s. So the spread
+  reads go on every file, not only those the first points call ground-only; that also
+  measures the first-points estimator directly.
+- COPC on the same tile: levels 0–2 = 1,443,451 points, 11.4 MB, 19.5 s; levels 0–1 =
+  350,192 points, 3.2 MB, 5.5 s. Levels 0–1 already cover the whole tile, so the probe uses
+  them.
+- Smoke (`092g028_1_1_1`, `092g018_3_3_3`): ground-only on all three verdicts for the
+  first, mixed {1, 2} for the second. Matches the #9 observation.
+- "Ground-only" = no class outside {2, 7, 9, 18}. Class 1 counts against it (vegetation left
+  unclassified is still there). The summary tabulates every class set, so the definition's
+  spread is visible.
+
 ## Errors Encountered
 
 | Error | Resolution |

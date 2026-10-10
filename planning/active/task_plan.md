@@ -3,17 +3,19 @@
 **If we do it:** a user knows, before reading a tile, whether it carries vegetation and buildings or ground returns only. **If we never do:** someone builds a canopy model from a search result and gets nothing above the ground for some tiles, with no hint why.
 
 ## Phase 1: Class probe script (tests first)
-- [ ] Tests in `tests/test_laz_classes.py`: tally of a known LAZ (written by laspy with set
+- [x] Tests in `tests/test_laz_classes.py`: tally of a known LAZ (written by laspy with set
   classes) read through the local range server; verdict function on class-count dicts
   (ground-only, mixed, empty sample); spread sample seeks to chunks beyond the first
-- [ ] `scripts/laz_classes_probe.py`: per item, from `data/build/items`
+- [x] `scripts/laz_classes_probe.py`: per item, from `data/build/items`
   - `laz`: first 100k points → class counts, bytes, seconds
-  - where that sample is ground-only: also ~3 chunks spread through the file (`seek`), so a
-    no-COPC verdict is not one strip
-  - `copc` (1,964 items): octree levels 0–2 → class counts, bytes
+  - also one 50k chunk at each of 25/50/75% (`seek`), for **every** file, not only the
+    flagged ones: it costs ~1.9 MB and ~2 s a file, and it measures how often the first
+    points alone mislead (findings, "Sampling design")
+  - `copc` (1,964 items): octree levels 0–1 (not 0–2: 3.2 MB vs 11 MB on a 17M-point
+    tile) → class counts, bytes
   - one jsonl record per item in `data/build/classes.jsonl`, resumable (reuse
     `cache_tail_repair`); every failure recorded, none dropped
-- [ ] Verdict defined as the class set, reported in full; "ground-only" = no point in any class
+- [x] Verdict defined as the class set, reported in full; "ground-only" = no point in any class
   outside {2, 7, 9, 18} (ground, noise, water, high noise), with the distinct class sets
   tabulated so the definition's spread is visible
 
