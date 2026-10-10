@@ -257,15 +257,15 @@ def item_create(url: str, header: dict, collection_href: str,
         start_datetime=when.get("start"),
         end_datetime=when.get("end"),
         properties={
-            "nge:product": parts["product"],
-            "nge:datetime_source": when["source"],
-            "nge:las_version": header["las_version"],
-            "nge:point_format": header["point_format"],
+            "lidarbc:product": parts["product"],
+            "lidarbc:datetime_source": when["source"],
+            "las:version": header["las_version"],
+            "las:point_format": header["point_format"],
         },
         collection=COLLECTION_ID,
     )
     if when["filename_date"]:
-        item.properties["nge:filename_date"] = when["filename_date"]
+        item.properties["lidarbc:filename_date"] = when["filename_date"]
 
     pc = PointcloudExtension.ext(item, add_if_missing=True)
     pc.apply(
@@ -329,9 +329,9 @@ def classes_add(item: pystac.Item, full: dict) -> pystac.Item:
     if full["point_count"] != n or full["points_read"] != n:
         raise ValueError(f"{item.id}: the class read covers {full['points_read']} of "
                          f"{full['point_count']} points, the header {n}")
-    if full["las_version"] != item.properties["nge:las_version"]:
+    if full["las_version"] != item.properties["las:version"]:
         raise ValueError(f"{item.id}: the class read is LAS {full['las_version']}, the "
-                         f"header {item.properties['nge:las_version']}")
+                         f"header {item.properties['las:version']}")
     counts = {int(k): int(v) for k, v in full["classes"].items()}
     ClassificationExtension.ext(asset, add_if_missing=True).classes = [
         Classification.create(value=v, name=asprs_class_name(v, full["las_version"]),
@@ -380,8 +380,8 @@ def copc_asset_add(item: pystac.Item, href: str, copc_header: dict,
                     "to have the same point count and horizontal CRS as the `laz` file and a "
                     f"header box within {COPC_BOX_TOLERANCE_M:g} m of it. Distributed by NRCan "
                     "under the Open Government Licence - Canada.",
-        extra_fields={"nge:las_version": copc_header["las_version"],
-                      "nge:point_format": copc_header["point_format"]},
+        extra_fields={"las:version": copc_header["las_version"],
+                      "las:point_format": copc_header["point_format"]},
     )
     item.add_asset(ASSET_COPC, asset)
     FileExtension.ext(asset, add_if_missing=True).size = copc_header["file_size"]

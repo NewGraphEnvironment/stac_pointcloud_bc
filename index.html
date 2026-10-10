@@ -3497,7 +3497,7 @@ That test cannot see a reclassified re-delivery published under the same
 name. A COPC can also be a different LAS version and point format from
 its source, so the item’s <code>pc:schemas</code> describe the
 <code>laz</code>, and the <code>copc</code> asset carries its own
-<code>nge:las_version</code> and <code>nge:point_format</code>. Which
+<code>las:version</code> and <code>las:point_format</code>. Which
 CanElevation projects republish LidarBC, and how that was measured, is
 in <a href="https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/canelevation_overlap.md"><code>research/canelevation_overlap.md</code></a>.</p>
 <p>Items carry the <a href="https://github.com/stac-extensions/pointcloud">pointcloud</a>, <a href="https://github.com/stac-extensions/projection">projection</a> and
@@ -3506,7 +3506,10 @@ Their dates are the delivery’s <strong>year</strong>
 (<code>start_datetime</code> / <code>end_datetime</code>), because
 several deliveries name files with processing dates rather than
 acquisition dates; the file name’s own date token is kept in
-<code>nge:filename_date</code>.</p>
+<code>lidarbc:filename_date</code>. Releases up to 0.2.0 publish these
+fields with an <code>nge:</code> prefix (<code>nge:las_version</code>,
+<code>nge:point_format</code>, <code>nge:filename_date</code>); the next
+full rebuild renames them (<a href="https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/12">#12</a>).</p>
 </div>
 <div id="what-is-indexed" class="section level2">
 <h2>What is indexed</h2>

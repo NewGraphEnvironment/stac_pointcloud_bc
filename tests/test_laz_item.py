@@ -157,7 +157,7 @@ def test_item_is_valid_stac_and_carries_the_laz_asset():
     assert d["assets"][ASSET_LAZ]["file:size"] == 82_300_000
     assert d["properties"]["pc:count"] == 1000
     assert d["properties"]["proj:code"] == "EPSG:3157"
-    assert d["properties"]["nge:product"] == "pointcloud"
+    assert d["properties"]["lidarbc:product"] == "pointcloud"
     assert [l["href"] for l in d["links"] if l["rel"] == "collection"] == [COLL]
 
 
@@ -239,8 +239,8 @@ def test_a_header_record_of_an_older_shape_is_refused():
 
 def test_the_filename_date_is_recorded_beside_a_path_datetime():
     d = item_create(PC.replace("/2016/", "/2016/"), _header(), COLL).to_dict(include_self_link=False)
-    assert d["properties"]["nge:filename_date"] == "20170713"
-    assert d["properties"]["nge:datetime_source"] == "path"
+    assert d["properties"]["lidarbc:filename_date"] == "20170713"
+    assert d["properties"]["lidarbc:datetime_source"] == "path"
     assert d["properties"]["start_datetime"].startswith("2016-01-01")
 
 
@@ -583,7 +583,7 @@ def test_the_build_applies_delivery_distrust_to_every_file_in_it(tmp_path, monke
     agreeing = json.loads((tmp_path / "data/build/items" /
                            f"{url_to_item_id(objs[0]['url'])}.json").read_text())["properties"]
     assert "start_datetime" in agreeing and agreeing.get("datetime") is None
-    assert agreeing["nge:filename_date"] == "171015"
+    assert agreeing["lidarbc:filename_date"] == "171015"
 
 
 # =============================================================================
@@ -617,8 +617,8 @@ def test_a_copc_copy_is_a_second_asset_and_the_laz_stays_the_source():
     assert copc["type"] == "application/vnd.laszip+copc"
     assert copc["file:size"] == 93_000_000 and copc["roles"] == ["data"]
     # the copy's own format, since the item's pc:schemas describe the LAZ
-    assert copc["nge:las_version"] == "1.4" and copc["nge:point_format"] == 6
-    assert d["properties"]["nge:las_version"] == "1.2"
+    assert copc["las:version"] == "1.4" and copc["las:point_format"] == 6
+    assert d["properties"]["las:version"] == "1.2"
     assert d["assets"][ASSET_LAZ] == item_create(PC, _header(), COLL).to_dict(
         include_self_link=False)["assets"][ASSET_LAZ]
 
@@ -959,3 +959,143 @@ def test_a_class_cache_cut_off_mid_write_is_repaired_not_fatal(tmp_path, monkeyp
     with open(tmp_path / "data/build" / catalogue_build.CLASSES_FULL, "a") as fh:
         fh.write('{"id": "x", "laz": "https://x')  # a --confirm killed mid-line
     assert catalogue_build.main() == 0
+
+
+# =============================================================================
+# Field names (#12)
+# =============================================================================
+
+# Every prefixed key the build may write. A standard extension's prefix covers its own
+# fields; the two custom prefixes name what a field describes: `lidarbc:` LidarBC's paths
+# and file names, `las:` the LAS format, true of the CanElevation copy as of the LAZ.
+PREFIXES_STANDARD = {"pc", "proj", "file", "classification"}
+FIELDS_CUSTOM = {"lidarbc:product", "lidarbc:datetime_source", "lidarbc:filename_date",
+                 "las:version", "las:point_format"}
+
+
+def _keys(x):
+    """Every dict key anywhere in a JSON-shaped value."""
+    if isinstance(x, dict):
+        for k, v in x.items():
+            yield k
+            yield from _keys(v)
+    elif isinstance(x, list):
+        for v in x:
+            yield from _keys(v)
+
+
+# Every key the build writes, by path (`[]` for a list element), from three builds that
+# between them take every branch item_create and main() write through: a COPC copy, a class
+# read, a CRS with no EPSG code (`proj:wkt2`) and a trusted filename date (`datetime`). Pinned whole, so a key added anywhere - an item's top level,
+# a link, a provider - fails here rather than in whichever place a hand-picked check missed.
+ITEM_PATHS = {
+    "assets", "assets.copc", "assets.copc.description", "assets.copc.file:size",
+    "assets.copc.href", "assets.copc.las:point_format", "assets.copc.las:version",
+    "assets.copc.roles", "assets.copc.title", "assets.copc.type", "assets.laz",
+    "assets.laz.classification:classes", "assets.laz.classification:classes[].count",
+    "assets.laz.classification:classes[].name", "assets.laz.classification:classes[].value",
+    "assets.laz.file:size", "assets.laz.href", "assets.laz.roles", "assets.laz.title",
+    "assets.laz.type", "bbox", "collection", "geometry", "geometry.coordinates",
+    "geometry.type", "id", "links", "links[].href", "links[].rel", "links[].type",
+    "properties", "properties.datetime", "properties.end_datetime",
+    "properties.las:point_format", "properties.las:version",
+    "properties.lidarbc:datetime_source", "properties.lidarbc:filename_date",
+    "properties.lidarbc:product", "properties.pc:count", "properties.pc:encoding",
+    "properties.pc:schemas", "properties.pc:schemas[].name", "properties.pc:schemas[].size",
+    "properties.pc:schemas[].type", "properties.pc:type", "properties.proj:bbox",
+    "properties.proj:code", "properties.proj:wkt2", "properties.start_datetime",
+    "stac_extensions", "stac_version", "type",
+}
+COLLECTION_PATHS = {
+    "description", "extent", "extent.spatial", "extent.spatial.bbox", "extent.temporal",
+    "extent.temporal.interval", "id", "keywords", "license", "links", "links[].href",
+    "links[].rel", "links[].title", "links[].type", "providers", "providers[].name",
+    "providers[].roles", "providers[].url", "stac_version", "summaries",
+    "summaries.lidarbc:product", "title", "type",
+}
+
+
+def _paths(x, at=""):
+    """Every dict key anywhere in a JSON-shaped value, as a path from the root."""
+    if isinstance(x, dict):
+        for k, v in x.items():
+            p = f"{at}.{k}" if at else k
+            yield p
+            yield from _paths(v, p)
+    elif isinstance(x, list):
+        for v in x:
+            yield from _paths(v, at + "[]")
+
+
+def test_the_declared_fields_are_the_ones_the_pinned_paths_carry():
+    """FIELDS_CUSTOM and the pinned paths are two statements of one fact; hold them equal."""
+    keys = {p.split(".")[-1].removesuffix("[]") for p in ITEM_PATHS | COLLECTION_PATHS}
+    assert {k for k in keys if ":" in k and k.split(":")[0] not in PREFIXES_STANDARD} == \
+        FIELDS_CUSTOM
+    assert not {k for k in keys if k.startswith("nge:")}
+
+
+def test_every_field_an_item_carries_is_a_standard_one_or_declared():
+    it = laz_item.classes_add(_add(_copc_header()), _full({1: 400, 2: 600}))
+    c = catalogue_build.collection_build([it])
+    keys = set(_keys(it.to_dict(include_self_link=False))) | set(_keys(c.to_dict()))
+    prefixed = {k for k in keys if ":" in k}
+    assert not {k for k in prefixed if k.startswith("nge:")}
+    assert {k for k in prefixed if k.split(":")[0] not in PREFIXES_STANDARD} == FIELDS_CUSTOM
+
+
+def test_every_key_the_build_writes_is_pinned(tmp_path, monkeypatch):
+    """What main() writes, not just what item_create returns: a key added at build level,
+    or anywhere in the item or collection, fails. The three builds take every branch that
+    writes a key; a branch none of them takes is a branch this cannot see."""
+    for run in ("copc", "classes", "branches"):
+        (tmp_path / run).mkdir()
+    assert _main_with_copc(tmp_path / "copc", monkeypatch, _copc_header())[0] == 0
+    assert _main_with_classes(tmp_path / "classes", monkeypatch,
+                              [{"id": url_to_item_id(PC), "laz": PC,
+                                "full": _full({1: 400, 2: 600})}],
+                              {"092/092g/2016": 1}) == 0
+    assert _main_with_branches(tmp_path / "branches", monkeypatch) == 0
+    items, coll = set(), set()
+    for run in ("copc", "classes", "branches"):
+        out = tmp_path / run / "data/build"
+        files = list((out / "items").glob("*.json"))
+        assert files
+        for f in files:
+            items |= set(_paths(json.loads(f.read_text())))
+        coll |= set(_paths(json.loads((out / "collection.json").read_text())))
+    assert items == ITEM_PATHS
+    assert coll == COLLECTION_PATHS
+
+
+# A real 082K/2017 file whose Esri WKT has no EPSG code (197 such files, research/laz_header_read.md),
+# and PC moved to a 2017 directory, where its `_20170713` agrees and is trusted.
+PC_NO_EPSG = f"{PATH_S3}/082/082k/2017/pointcloud/bc_082k005_1_1_3_xyes_8_utm11_180827.laz"
+PC_DATED = PC.replace("/2016/", "/2017/")
+
+
+def _main_with_branches(tmp_path, monkeypatch):
+    objs = [{"url": PC_NO_EPSG, "etag": "a", "size": 1}, {"url": PC_DATED, "etag": "b", "size": 1}]
+    headers = {PC_NO_EPSG: _header((FIXTURES / "crs_esri_utm11_082k.wkt").read_text(),
+                                   mins=(486850.99, 5540035.2, 1895.87),
+                                   maxs=(487464.79, 5541426.46, 2272.88)),
+               PC_DATED: _header()}
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(catalogue_build, "OUT", "data/build")
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
+    monkeypatch.setattr(catalogue_build, "CLASSES_READ", {})
+    monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
+                        (lambda u, session=None: headers[u],))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
+    return catalogue_build.main()
+
+
+def test_the_branch_build_takes_the_branches_it_is_for(tmp_path, monkeypatch):
+    """Otherwise the pinned paths would silently stop covering them."""
+    assert _main_with_branches(tmp_path, monkeypatch) == 0
+    p = {u: json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(u)}.json")
+                       .read_text())["properties"] for u in (PC_NO_EPSG, PC_DATED)}
+    assert p[PC_NO_EPSG].get("proj:code") is None and p[PC_NO_EPSG]["proj:wkt2"]
+    assert p[PC_DATED]["lidarbc:datetime_source"] == "filename" and p[PC_DATED]["datetime"]
