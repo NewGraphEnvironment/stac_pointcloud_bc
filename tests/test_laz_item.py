@@ -993,6 +993,8 @@ def _fields_check(items, collection):
     """Every prefixed key is a standard extension's or declared here, and every declared one
     is written; an unprefixed key on properties or an asset is a core STAC field."""
     keys = set(_keys(collection))
+    # a summaries key is a field name too; a bare one would escape the prefix checks below
+    assert all(":" in k for k in collection.get("summaries", {}))
     for d in items:
         keys |= set(_keys(d))
         assert set(d["properties"]) - {k for k in d["properties"] if ":" in k} \

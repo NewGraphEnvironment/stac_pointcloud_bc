@@ -72,7 +72,7 @@ proposed mapping, standard extension first. Inventory on main, 2026-10-10:
   `collection`, `source`, `stac_url`, `item_hash`), `probe`, `kept`.
 - **stac_uav_bc:** `stream_name`, `watershed_group`, `wsg_code`, `region`, `site_id`,
   `project`, `alias`.
-- **stac_dem_bc:** none today. #55 adds the shared key as `lidarbc:delivery`.
+- **stac_dem_bc:** none today. stac_dem_bc#55 adds the shared key as `lidarbc:delivery`.
 
 The likely standard fit: the **processing** extension. `processing:datetime` would replace
 `produced_datetime`, and `processing:software` (a name → version map) the
