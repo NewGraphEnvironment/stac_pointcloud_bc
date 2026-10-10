@@ -81,17 +81,17 @@ standard home get a prefix naming what they describe: a Freshwater Atlas prefix 
 `wsg_code`/`stream_name`, a landcover-source prefix, and so on. `nge:` stays only where
 NGE genuinely is the subject.
 
-- [ ] File the crate issue: one versioned JSON Schema per custom prefix the family uses
+- [x] File the crate issue: one versioned JSON Schema per custom prefix the family uses
       (`lidarbc`, `las` first, then whatever the sibling migrations settle), at a stable
       URL that items list in `stac_extensions`.
-- [ ] File a migration issue in stac_airphoto_bc, stac_floodplains_bc and stac_uav_bc, each
+- [x] File a migration issue in stac_airphoto_bc, stac_floodplains_bc and stac_uav_bc, each
       linking #12 and the crate issue.
-- [ ] Edit the #12 body: the split decision; "Not in scope" becomes links to the three
+- [x] Edit the #12 body: the split decision; "Not in scope" becomes links to the three
       sibling issues and the crate issue.
-- [ ] Edit the #5 body: `nge:delivery` becomes `lidarbc:delivery`.
-- [ ] Edit the #2 body: `lidarbc:delivery`; blocked on the crate schemas; NEWS names the
+- [x] Edit the #5 body: `nge:delivery` becomes `lidarbc:delivery`.
+- [x] Edit the #2 body: `lidarbc:delivery`; blocked on the crate schemas; NEWS names the
       rename.
-- [ ] Edit the stac_dem_bc#55 body: the key is `lidarbc:delivery`, and the two
+- [x] Edit the stac_dem_bc#55 body: the key is `lidarbc:delivery`, and the two
       collections must agree.
 
 ## Validation
