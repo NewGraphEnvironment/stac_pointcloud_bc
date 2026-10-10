@@ -34,16 +34,26 @@
 - [x] Issue #10 body edited with the result
 
 ## Phase 3: Decision — user's (gate)
-- [ ] Report the numbers with two or three options, recommendation first:
+- [x] Report the numbers with two or three options, recommendation first:
   collection-level note naming ground-only deliveries; item property (`nge:classes` +
   `nge:classes_sample` saying how it was sampled, not `pc:statistics`); or both
-- [ ] Phase 4 tasks fixed by the answer; Phases 1–2 do not depend on it
+- [x] Phase 4 tasks fixed by the answer; Phases 1–2 do not depend on it
+
+  **Decided 2026-10-10 (user):** flagged items only — every item a sample calls ground-only
+  or groundless is read whole and lists its exact classes; field is the standard
+  `classification:classes` on the `laz` asset, not an `nge:` property. The `nge:` prefix
+  itself is questioned: filed #12 (rename to `lidarbc:` before #2).
 
 ## Phase 4: Implement the chosen representation
-- [ ] Tests first, then `laz_item.py` / `catalogue_build.py` (collection description or item
-  property; its own cache, not a `HEADER_VERSION` bump)
-- [ ] Rebuild; `copc_pairs_measure.py --published`-style body diff shows only the intended
+- [x] `laz_item.classes_add` (pure; refuses a read whose point count or LAS version is not
+  the header's), `catalogue_build.classes_attach` keyed by url + ETag, `CLASSES_READ` per
+  group (refuses a missing/short cache), collection description; tests + mutations
+- [x] Rebuild; `copc_pairs_measure.py --published`-style body diff shows only the intended
   change; NEWS entry. Publishing/registration left for the user's go (or folded into #2)
+  (diff against all 9,649 bodies fetched from the bucket: 73 changed == the 73 read whole,
+  nothing beyond the class list and its extension; collection differs in description, plus
+  the release-time version stamp. NEWS is written at release, with publish and verify — not
+  here, since NEWS describes the published catalogue)
 
 ## Validation
 - [ ] Tests pass (`uv run pytest`)

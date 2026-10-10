@@ -160,7 +160,9 @@ def laz_full(url: str, session: requests.Session | None = None) -> dict:
                 returns.update({f"{k // 16}/{k % 16}": int(n) for k, n in zip(u, c)})
     if size != int(r.headers.get("Content-Length", size)):
         raise OSError(f"downloaded {size} bytes of {r.headers['Content-Length']}: {url}")
-    return {"point_count": h.point_count, "points_read": sum(classes.values()),
+    # The build applies a record only to the file it was read from (catalogue_build).
+    return {"etag": r.headers.get("ETag", "").strip('"'),
+            "point_count": h.point_count, "points_read": sum(classes.values()),
             "classes": {int(k): int(classes[k]) for k in sorted(classes)},
             "returns": dict(sorted(returns.items())),
             "system_identifier": h.system_identifier, "generating_software": h.generating_software,

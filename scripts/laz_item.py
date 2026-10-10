@@ -18,6 +18,7 @@ import laspy
 import pystac
 import requests
 from pyproj import CRS, Transformer
+from pystac.extensions.classification import Classification, ClassificationExtension
 from pystac.extensions.file import FileExtension
 from pystac.extensions.pointcloud import PointcloudExtension, Schema, SchemaType
 from pystac.extensions.projection import ProjectionExtension
@@ -293,6 +294,49 @@ def item_create(url: str, header: dict, collection_href: str,
     FileExtension.ext(asset, add_if_missing=True).size = header["file_size"]
     item.add_link(pystac.Link(rel=pystac.RelType.COLLECTION, target=collection_href,
                               media_type=pystac.MediaType.JSON))
+    return item
+
+
+# ASPRS classes by value, as LAS 1.4 R15 names them; LAS 1.0-1.3 gave 8 and 12 other
+# meanings (ASPRS_CLASSES_LAS12). Names follow the classification extension's pattern
+# (^[0-9A-Za-z-_]+$). A value not listed is published as `class_<value>`.
+ASPRS_CLASSES = {
+    0: "never_classified", 1: "unclassified", 2: "ground", 3: "low_vegetation",
+    4: "medium_vegetation", 5: "high_vegetation", 6: "building", 7: "low_noise",
+    9: "water", 10: "rail", 11: "road_surface", 13: "wire_guard", 14: "wire_conductor",
+    15: "transmission_tower", 16: "wire_connector", 17: "bridge_deck", 18: "high_noise",
+}
+ASPRS_CLASSES_LAS12 = {8: "model_key_point", 12: "overlap"}
+
+
+def asprs_class_name(value: int, las_version: str) -> str:
+    if las_version < "1.4" and value in ASPRS_CLASSES_LAS12:
+        return ASPRS_CLASSES_LAS12[value]
+    return ASPRS_CLASSES.get(value, f"class_{value}")
+
+
+def classes_add(item: pystac.Item, full: dict) -> pystac.Item:
+    """List every class in the item's file, with its point count, as the `laz` asset's
+    `classification:classes`. Pure: no I/O.
+
+    `full` is a whole-file read of the `laz` file (laz_classes_probe.laz_full): every point
+    tallied, not a sample, which is the only basis on which the list may claim to be
+    complete. A read whose point count is not the header's, or not the points it tallied,
+    raises rather than publishing classes of some other file.
+    """
+    asset = item.assets[ASSET_LAZ]
+    n = item.properties["pc:count"]
+    if full["point_count"] != n or full["points_read"] != n:
+        raise ValueError(f"{item.id}: the class read covers {full['points_read']} of "
+                         f"{full['point_count']} points, the header {n}")
+    if full["las_version"] != item.properties["nge:las_version"]:
+        raise ValueError(f"{item.id}: the class read is LAS {full['las_version']}, the "
+                         f"header {item.properties['nge:las_version']}")
+    counts = {int(k): int(v) for k, v in full["classes"].items()}
+    ClassificationExtension.ext(asset, add_if_missing=True).classes = [
+        Classification.create(value=v, name=asprs_class_name(v, full["las_version"]),
+                              count=counts[v])
+        for v in sorted(counts)]
     return item
 
 

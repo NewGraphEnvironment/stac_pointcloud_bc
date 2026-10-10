@@ -21,3 +21,10 @@
   `research/laz_classes.md`; every quantified claim re-derived from the records before commit
   (three corrected: 52 non-last returns, not none; 2 not 6; class 4 does appear, in 898).
 - Issue #10 body edited with the result (Result section; plan steps 1-2 marked done). Phase 3 question put to the user.
+- Phase 3 decided by user 2026-10-10: flagged items only, `classification:classes` on the
+  `laz` asset; `nge:` prefix rename filed as #12.
+- Phase 4: `classes_add`, `classes_attach`, `CLASSES_READ`; full reads re-run with ETag
+  (07:16–07:19 UTC; content identical to the first pass, 73/73 ETags match the header
+  cache). Rebuild 07:22 UTC (`logs/20261010_*_catalogue_build_classes.log`). Body diff vs
+  the bucket's 9,649 items: exactly the 73 changed, by the class list alone. 135 tests;
+  three guard mutations each redden their test.

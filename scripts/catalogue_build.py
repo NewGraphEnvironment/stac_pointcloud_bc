@@ -41,6 +41,7 @@ from laz_item import (
     key_parse,
     PATH_S3_STAC,
     canelevation_keys_list,
+    classes_add,
     copc_asset_add,
     header_read,
     item_create,
@@ -86,6 +87,16 @@ CANELEVATION_PROJECTS = {
 COPC_PAIRS = {"082/082e/2019": 332, "082/082l/2019": 57, "092/092g/2016": 1155,
               "092/092h/2016": 420}
 
+# Whole-file class reads (#10), written by `laz_classes_probe.py --confirm` beside the build,
+# for every item a point sample called ground-only or groundless; each such item lists its
+# classes (classification:classes on the `laz` asset). CLASSES_READ is how many per group,
+# measured 2026-10-10 (research/laz_classes.md). The cache is regenerable and gitignored, so
+# a build that found it missing or short would drop the lists without a word: anything but
+# these counts is refused, as for COPC_PAIRS. Record the new count when the change is real.
+CLASSES_FULL = "classes_full.jsonl"
+CLASSES_READ = {"082/082e/2018": 32, "082/082k/2017": 1, "082/082l/2018": 17,
+                "082/082l/2019": 19, "092/092g/2016": 2, "092/092h/2016": 2}
+
 # Files whose header is known to be faulty, excluded by name with the reason. Anything
 # else item_create() refuses fails the build, so a new fault is seen rather than dropped.
 # Each entry records the fault as observed; if the header no longer shows it (the file
@@ -112,7 +123,14 @@ DESCRIPTION = (
     "Riverine_Floodplain_UTM10_2019, Riverine_Floodplain_UTM11_2019, Lower_Mainland_2016). "
     "Where an item's file name is one of them, the item also carries that COPC as its `copc` "
     "asset, checked to have the same point count and horizontal CRS and a header box within "
-    f"{COPC_BOX_TOLERANCE_M:g} m; the `laz` asset stays the source of record."
+    f"{COPC_BOX_TOLERANCE_M:g} m; the `laz` asset stays the source of record. "
+    "A LAS header does not say which classes a file holds. Every file here was sampled "
+    "(its first 100,000 points and a chunk at a quarter, half and three quarters through), "
+    "and each one a sample found to hold only ground, noise and water, or no ground at all, "
+    "was read whole: its `laz` asset lists every class present, with its point count, in "
+    "`classification:classes`. An item without that list was not read whole. Most of the "
+    "listed items hold no ground (class 2) at all, and so give no bare-earth surface; "
+    "vegetation in this collection is mostly unclassified (class 1), not classes 3 to 5."
 )
 PROVIDERS = [
     {"name": "Province of British Columbia", "roles": ["producer", "licensor", "host"],
@@ -293,6 +311,39 @@ def groups_with_untrusted_dates(urls: list[str]) -> set[str]:
     return bad
 
 
+def classes_records_load(path: str) -> dict[str, dict]:
+    """The whole-file class reads: laz url -> the latest record. Later lines win."""
+    out = {}
+    if os.path.exists(path):
+        with open(path) as fh:
+            for line in fh:
+                r = json.loads(line)
+                out[r["laz"]] = r
+    return out
+
+
+def classes_attach(items: dict[str, pystac.Item], etags: dict[str, str],
+                   records: dict[str, dict]) -> dict[str, str]:
+    """Add each whole-file class read to its item (`items` and `etags` keyed by laz url).
+    Returns the problems, keyed by url: a failed read, a read of a file not in the build, or
+    of an older delivery of it (ETag changed), or a read classes_add refuses."""
+    problems = {}
+    for u, r in records.items():
+        if "error" in r:
+            problems[u] = f"the class read failed: {r['error']}"
+        elif u not in items:
+            problems[u] = "a class read of a file that is not in the build"
+        elif r["full"]["etag"] != etags[u]:
+            problems[u] = (f"read at ETag {r['full']['etag']}, listed at {etags[u]}: the file "
+                           "was re-delivered; re-run laz_classes_probe.py --confirm")
+        else:
+            try:
+                classes_add(items[u], r["full"])
+            except ValueError as e:
+                problems[u] = str(e)
+    return problems
+
+
 def item_link_href(item_id: str) -> str:
     """Where an item is published. Only the space is encoded: stacs reads an id back from
     this href by decoding %20, and nothing else (stacs catalogue._href_to_id)."""
@@ -400,6 +451,24 @@ def main() -> int:
         return 1
     for g, n in sorted(collections.Counter(group(u) for u in pairs).items()):
         logger.info("%s: %d items with a CanElevation COPC copy", g, n)
+
+    records = classes_records_load(f"{out}/{CLASSES_FULL}")
+    if args.limit:  # a slice: only the reads of files in it
+        records = {u: r for u, r in records.items() if u in set(kept)}
+    etags = {o["url"]: o["etag"] for o in objs}
+    problems = classes_attach(dict(zip(kept, items)), etags, records)
+    if problems:
+        for u, e in sorted(problems.items()):
+            logger.error("class read: %s: %s", u, e)
+        logger.error("%d class reads cannot be applied - not building", len(problems))
+        return 1
+    read = collections.Counter(group(u) for u in records)
+    if not args.limit and dict(read) != CLASSES_READ:
+        logger.error("whole-file class reads per group %s, expected %s (CLASSES_READ) - "
+                     "not building", dict(sorted(read.items())), CLASSES_READ)
+        return 1
+    for g, n in sorted(read.items()):
+        logger.info("%s: %d items read whole for their classes", g, n)
     ids = [i.id for i in items]
     if len(set(ids)) != len(ids):
         raise RuntimeError("duplicate item ids in the increment")
