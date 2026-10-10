@@ -984,10 +984,43 @@ def _keys(x):
             yield from _keys(v)
 
 
-def test_every_prefixed_field_is_a_standard_one_or_declared():
-    it = laz_item.classes_add(_add(_copc_header()), _full({1: 400, 2: 600}))
-    c = catalogue_build.collection_build([it])
-    keys = set(_keys(it.to_dict(include_self_link=False))) | set(_keys(c.to_dict()))
+# Unprefixed keys STAC itself defines, where the build writes them.
+PROPERTIES_CORE = {"datetime", "start_datetime", "end_datetime"}
+ASSET_CORE = {"href", "type", "roles", "title", "description"}
+
+
+def _fields_check(items, collection):
+    """Every prefixed key is a standard extension's or declared here, and every declared one
+    is written; an unprefixed key on properties or an asset is a core STAC field."""
+    keys = set(_keys(collection))
+    for d in items:
+        keys |= set(_keys(d))
+        assert set(d["properties"]) - {k for k in d["properties"] if ":" in k} \
+            <= PROPERTIES_CORE
+        for a in d["assets"].values():
+            assert {k for k in a if ":" not in k} <= ASSET_CORE
     prefixed = {k for k in keys if ":" in k}
     assert not {k for k in prefixed if k.startswith("nge:")}
     assert {k for k in prefixed if k.split(":")[0] not in PREFIXES_STANDARD} == FIELDS_CUSTOM
+
+
+def test_every_field_an_item_carries_is_a_standard_one_or_declared():
+    it = laz_item.classes_add(_add(_copc_header()), _full({1: 400, 2: 600}))
+    c = catalogue_build.collection_build([it])
+    _fields_check([it.to_dict(include_self_link=False)], c.to_dict())
+
+
+def test_every_field_the_build_writes_is_a_standard_one_or_declared(tmp_path, monkeypatch):
+    """What main() writes, not just what item_create returns: a field added at build level
+    would escape the test above. One build with a COPC copy, one with a class read."""
+    for run in ("copc", "classes"):
+        (tmp_path / run).mkdir()
+    assert _main_with_copc(tmp_path / "copc", monkeypatch, _copc_header())[0] == 0
+    assert _main_with_classes(tmp_path / "classes", monkeypatch,
+                              [{"id": url_to_item_id(PC), "laz": PC,
+                                "full": _full({1: 400, 2: 600})}],
+                              {"092/092g/2016": 1}) == 0
+    for run in ("copc", "classes"):
+        out = tmp_path / run / "data/build"
+        _fields_check([json.loads(f.read_text()) for f in (out / "items").glob("*.json")],
+                      json.loads((out / "collection.json").read_text()))

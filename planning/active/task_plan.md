@@ -42,7 +42,7 @@ L88. No cache or registration config holds a key: `stacs.toml` requires only the
 ## Phase 2: Rename in the build
 - [x] `scripts/laz_item.py`: the properties, `filename_date`, the LAS version comparison in
       the class read (`las:version`), and the `copc` asset's `extra_fields`. Update the
-      docstrings that name the fields.
+      docstrings that name the fields (n/a: none name a key, per the plan review).
 - [x] `scripts/catalogue_build.py`: summaries key `lidarbc:product`.
 - [x] `uv run pytest` is green. Confirm the guard goes red when one `nge:` key is restored.
 - [x] Run a `catalogue_build.py --limit` build (to `data/build-limit/`). `grep '"nge:'` over
@@ -56,6 +56,10 @@ L88. No cache or registration config holds a key: `stacs.toml` requires only the
 - [ ] NEWS.md: the 0.1.0 and 0.2.0 entries stay as they are, because they describe what
       was published. The release that publishes the rename (#2) names old → new. That
       requirement goes into #2's body.
+
+## Phase 3b: Plan-review follow-ups (planning/active/review-plan.md)
+- [x] Guard covers unprefixed keys and what main() writes (COPC and class-read builds)
+- [x] README names the `nge:` spelling of releases up to 0.2.0
 
 ## Phase 4: Migrate the sibling catalogues off nge:, by issue in each repo
 You asked at the gate that the other catalogues' `nge:` fields also move to prefixes that
