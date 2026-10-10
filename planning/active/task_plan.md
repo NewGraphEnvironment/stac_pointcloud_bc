@@ -95,7 +95,7 @@ NGE genuinely is the subject.
       collections must agree.
 
 ## Validation
-- [ ] Tests pass
+- [x] Tests pass
 - [ ] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion

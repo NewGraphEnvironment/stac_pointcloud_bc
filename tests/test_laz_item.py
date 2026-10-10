@@ -984,8 +984,9 @@ def _keys(x):
             yield from _keys(v)
 
 
-# Every key the build writes, by path (`[]` for a list element), from one build with a COPC
-# copy and one with a class read. Pinned whole, so a key added anywhere - an item's top level,
+# Every key the build writes, by path (`[]` for a list element), from three builds that
+# between them take every branch item_create and main() write through: a COPC copy, a class
+# read, a CRS with no EPSG code (`proj:wkt2`) and a trusted filename date (`datetime`). Pinned whole, so a key added anywhere - an item's top level,
 # a link, a provider - fails here rather than in whichever place a hand-picked check missed.
 ITEM_PATHS = {
     "assets", "assets.copc", "assets.copc.description", "assets.copc.file:size",
@@ -1002,8 +1003,8 @@ ITEM_PATHS = {
     "properties.lidarbc:product", "properties.pc:count", "properties.pc:encoding",
     "properties.pc:schemas", "properties.pc:schemas[].name", "properties.pc:schemas[].size",
     "properties.pc:schemas[].type", "properties.pc:type", "properties.proj:bbox",
-    "properties.proj:code", "properties.start_datetime", "stac_extensions", "stac_version",
-    "type",
+    "properties.proj:code", "properties.proj:wkt2", "properties.start_datetime",
+    "stac_extensions", "stac_version", "type",
 }
 COLLECTION_PATHS = {
     "description", "extent", "extent.spatial", "extent.spatial.bbox", "extent.temporal",
@@ -1045,17 +1046,18 @@ def test_every_field_an_item_carries_is_a_standard_one_or_declared():
 
 def test_every_key_the_build_writes_is_pinned(tmp_path, monkeypatch):
     """What main() writes, not just what item_create returns: a key added at build level,
-    or anywhere in the item or collection, fails. One build with a COPC copy, one with a
-    class read, so every optional key is written by one of them."""
-    for run in ("copc", "classes"):
+    or anywhere in the item or collection, fails. The three builds take every branch that
+    writes a key; a branch none of them takes is a branch this cannot see."""
+    for run in ("copc", "classes", "branches"):
         (tmp_path / run).mkdir()
     assert _main_with_copc(tmp_path / "copc", monkeypatch, _copc_header())[0] == 0
     assert _main_with_classes(tmp_path / "classes", monkeypatch,
                               [{"id": url_to_item_id(PC), "laz": PC,
                                 "full": _full({1: 400, 2: 600})}],
                               {"092/092g/2016": 1}) == 0
+    assert _main_with_branches(tmp_path / "branches", monkeypatch) == 0
     items, coll = set(), set()
-    for run in ("copc", "classes"):
+    for run in ("copc", "classes", "branches"):
         out = tmp_path / run / "data/build"
         files = list((out / "items").glob("*.json"))
         assert files
@@ -1064,3 +1066,36 @@ def test_every_key_the_build_writes_is_pinned(tmp_path, monkeypatch):
         coll |= set(_paths(json.loads((out / "collection.json").read_text())))
     assert items == ITEM_PATHS
     assert coll == COLLECTION_PATHS
+
+
+# A real 082K/2017 file whose Esri WKT has no EPSG code (197 such files, research/laz_header_read.md),
+# and PC moved to a 2017 directory, where its `_20170713` agrees and is trusted.
+PC_NO_EPSG = f"{PATH_S3}/082/082k/2017/pointcloud/bc_082k005_1_1_3_xyes_8_utm11_180827.laz"
+PC_DATED = PC.replace("/2016/", "/2017/")
+
+
+def _main_with_branches(tmp_path, monkeypatch):
+    objs = [{"url": PC_NO_EPSG, "etag": "a", "size": 1}, {"url": PC_DATED, "etag": "b", "size": 1}]
+    headers = {PC_NO_EPSG: _header((FIXTURES / "crs_esri_utm11_082k.wkt").read_text(),
+                                   mins=(486850.99, 5540035.2, 1895.87),
+                                   maxs=(487464.79, 5541426.46, 2272.88)),
+               PC_DATED: _header()}
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(catalogue_build, "OUT", "data/build")
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
+    monkeypatch.setattr(catalogue_build, "CLASSES_READ", {})
+    monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
+                        (lambda u, session=None: headers[u],))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
+    return catalogue_build.main()
+
+
+def test_the_branch_build_takes_the_branches_it_is_for(tmp_path, monkeypatch):
+    """Otherwise the pinned paths would silently stop covering them."""
+    assert _main_with_branches(tmp_path, monkeypatch) == 0
+    p = {u: json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(u)}.json")
+                       .read_text())["properties"] for u in (PC_NO_EPSG, PC_DATED)}
+    assert p[PC_NO_EPSG].get("proj:code") is None and p[PC_NO_EPSG]["proj:wkt2"]
+    assert p[PC_DATED]["lidarbc:datetime_source"] == "filename" and p[PC_DATED]["datetime"]
