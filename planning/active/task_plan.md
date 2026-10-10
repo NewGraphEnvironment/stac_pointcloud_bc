@@ -31,7 +31,7 @@
   (new file `research/laz_classes.md`; header-read section points to it)
 - [x] Added in the run: "no ground" verdict (no class 2) confirmed by full read too — the
   sample found 70, more consequential for DEM users than ground-only
-- [ ] Issue #10 body edited with the result
+- [x] Issue #10 body edited with the result
 
 ## Phase 3: Decision — user's (gate)
 - [ ] Report the numbers with two or three options, recommendation first:

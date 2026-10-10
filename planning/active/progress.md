@@ -20,3 +20,4 @@
   07:05–07:08 UTC. Added a "no ground" verdict (70 sampled, 57 confirmed). Research written to
   `research/laz_classes.md`; every quantified claim re-derived from the records before commit
   (three corrected: 52 non-last returns, not none; 2 not 6; class 4 does appear, in 898).
+- Issue #10 body edited with the result (Result section; plan steps 1-2 marked done). Phase 3 question put to the user.
