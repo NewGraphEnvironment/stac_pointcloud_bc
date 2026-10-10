@@ -31,13 +31,13 @@ L160, 242–243, 586, 620–621. Prose: `README.Rmd` L137 and L139, and `researc
 L88. No cache or registration config holds a key: `stacs.toml` requires only the `laz` asset.
 
 ## Phase 1: Tests first
-- [ ] `tests/test_laz_item.py`: change the existing assertions to the new names
+- [x] `tests/test_laz_item.py`: change the existing assertions to the new names
       (`lidarbc:product`, `lidarbc:filename_date`, `lidarbc:datetime_source`, `las:version`,
       `las:point_format`, on the item and on the `copc` asset).
-- [ ] Add a guard test: walk an item built from a fixture, with a `copc` asset and class
+- [x] Add a guard test: walk an item built from a fixture, with a `copc` asset and class
       lists added, and its collection, recursively. No key starts with `nge:`. Every
       non-standard key is one of the declared set.
-- [ ] Run `uv run pytest` and confirm the new assertions fail for the right reason.
+- [x] Run `uv run pytest` and confirm the new assertions fail for the right reason.
 
 ## Phase 2: Rename in the build
 - [ ] `scripts/laz_item.py`: the properties, `filename_date`, the LAS version comparison in

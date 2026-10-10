@@ -157,7 +157,7 @@ def test_item_is_valid_stac_and_carries_the_laz_asset():
     assert d["assets"][ASSET_LAZ]["file:size"] == 82_300_000
     assert d["properties"]["pc:count"] == 1000
     assert d["properties"]["proj:code"] == "EPSG:3157"
-    assert d["properties"]["nge:product"] == "pointcloud"
+    assert d["properties"]["lidarbc:product"] == "pointcloud"
     assert [l["href"] for l in d["links"] if l["rel"] == "collection"] == [COLL]
 
 
@@ -239,8 +239,8 @@ def test_a_header_record_of_an_older_shape_is_refused():
 
 def test_the_filename_date_is_recorded_beside_a_path_datetime():
     d = item_create(PC.replace("/2016/", "/2016/"), _header(), COLL).to_dict(include_self_link=False)
-    assert d["properties"]["nge:filename_date"] == "20170713"
-    assert d["properties"]["nge:datetime_source"] == "path"
+    assert d["properties"]["lidarbc:filename_date"] == "20170713"
+    assert d["properties"]["lidarbc:datetime_source"] == "path"
     assert d["properties"]["start_datetime"].startswith("2016-01-01")
 
 
@@ -583,7 +583,7 @@ def test_the_build_applies_delivery_distrust_to_every_file_in_it(tmp_path, monke
     agreeing = json.loads((tmp_path / "data/build/items" /
                            f"{url_to_item_id(objs[0]['url'])}.json").read_text())["properties"]
     assert "start_datetime" in agreeing and agreeing.get("datetime") is None
-    assert agreeing["nge:filename_date"] == "171015"
+    assert agreeing["lidarbc:filename_date"] == "171015"
 
 
 # =============================================================================
@@ -617,8 +617,8 @@ def test_a_copc_copy_is_a_second_asset_and_the_laz_stays_the_source():
     assert copc["type"] == "application/vnd.laszip+copc"
     assert copc["file:size"] == 93_000_000 and copc["roles"] == ["data"]
     # the copy's own format, since the item's pc:schemas describe the LAZ
-    assert copc["nge:las_version"] == "1.4" and copc["nge:point_format"] == 6
-    assert d["properties"]["nge:las_version"] == "1.2"
+    assert copc["las:version"] == "1.4" and copc["las:point_format"] == 6
+    assert d["properties"]["las:version"] == "1.2"
     assert d["assets"][ASSET_LAZ] == item_create(PC, _header(), COLL).to_dict(
         include_self_link=False)["assets"][ASSET_LAZ]
 
@@ -959,3 +959,35 @@ def test_a_class_cache_cut_off_mid_write_is_repaired_not_fatal(tmp_path, monkeyp
     with open(tmp_path / "data/build" / catalogue_build.CLASSES_FULL, "a") as fh:
         fh.write('{"id": "x", "laz": "https://x')  # a --confirm killed mid-line
     assert catalogue_build.main() == 0
+
+
+# =============================================================================
+# Field names (#12)
+# =============================================================================
+
+# Every prefixed key the build may write. A standard extension's prefix covers its own
+# fields; the two custom prefixes name what a field describes: `lidarbc:` LidarBC's paths
+# and file names, `las:` the LAS format, true of the CanElevation copy as of the LAZ.
+PREFIXES_STANDARD = {"pc", "proj", "file", "classification"}
+FIELDS_CUSTOM = {"lidarbc:product", "lidarbc:datetime_source", "lidarbc:filename_date",
+                 "las:version", "las:point_format"}
+
+
+def _keys(x):
+    """Every dict key anywhere in a JSON-shaped value."""
+    if isinstance(x, dict):
+        for k, v in x.items():
+            yield k
+            yield from _keys(v)
+    elif isinstance(x, list):
+        for v in x:
+            yield from _keys(v)
+
+
+def test_every_prefixed_field_is_a_standard_one_or_declared():
+    it = laz_item.classes_add(_add(_copc_header()), _full({1: 400, 2: 600}))
+    c = catalogue_build.collection_build([it])
+    keys = set(_keys(it.to_dict(include_self_link=False))) | set(_keys(c.to_dict()))
+    prefixed = {k for k in keys if ":" in k}
+    assert not {k for k in prefixed if k.startswith("nge:")}
+    assert {k for k in prefixed if k.split(":")[0] not in PREFIXES_STANDARD} == FIELDS_CUSTOM
