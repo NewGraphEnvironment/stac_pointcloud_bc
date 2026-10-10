@@ -5,9 +5,10 @@ description = "STAC items for LidarBC point clouds (.laz): listing, header read,
 requires-python = ">=3.12"
 dependencies = [
     "pystac>=1.12.0",
-    # Reads the LAS header and VLRs only; lazrs is the LAZ backend, needed to open a
-    # .laz at all even when no points are decompressed.
-    "laspy[lazrs]>=2.5",
+    # The build reads the LAS header and VLRs only; lazrs is the LAZ backend, needed to
+    # open a .laz at all even when no points are decompressed. 2.7: the class probe (#10)
+    # relies on its chunk-table seek and CopcReader.query(level=range).
+    "laspy[lazrs]>=2.7",
     "requests",
     "pyproj",
     "tqdm",

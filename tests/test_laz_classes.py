@@ -15,7 +15,15 @@ import pytest
 from pyproj import CRS
 
 import laz_classes_probe as lcp
-from laz_classes_probe import counts_merge, ground_only, laz_sample, probe_all, verdicts
+from laz_classes_probe import (
+    confirm_ids,
+    counts_merge,
+    ground_only,
+    laz_full,
+    laz_sample,
+    probe_all,
+    verdicts,
+)
 from test_laz_item import _RangeHandler
 
 
@@ -57,6 +65,10 @@ def serve(tmp_path):
     ({2: 5, 7: 1, 9: 3, 18: 1}, True),
     ({1: 1, 2: 5}, False),  # unclassified may be vegetation left unclassified
     ({5: 3}, False),
+    ({9: 4}, False),  # water alone: no ground in it
+    ({7: 1, 18: 2}, False),  # noise alone
+    ({1: 6}, False),  # never classified
+
     ({}, None),
     ({2: 0}, None),  # a class with no points is not a class seen
 ])
@@ -134,3 +146,31 @@ def test_an_interrupted_last_record_is_dropped_and_read_again(tmp_path):
     probe_all([{"id": "i0"}, {"id": "i1"}], str(out), workers=1, probe=probe)
     assert calls == ["i1"]
     assert set(lcp.records_load(str(out))) == {"i0", "i1"}
+
+
+def test_every_item_any_sample_calls_ground_only_is_confirmed_and_no_other():
+    g, m = {2: 9}, {1: 1, 2: 9}
+    recs = {
+        "all_ground": {"laz_sample": {"samples": {"first": g}}},
+        "first_only": {"laz_sample": {"samples": {"first": g, "at_0.5": m}}},
+        "copc_only": {"laz_sample": {"samples": {"first": m}}, "copc_sample": {"classes": g}},
+        "mixed": {"laz_sample": {"samples": {"first": m}}, "copc_sample": {"classes": m}},
+        "failed": {"error": "OSError: x"},
+    }
+    assert confirm_ids(recs) == {"all_ground", "first_only", "copc_only"}
+
+
+def test_a_full_read_tallies_every_point_as_a_local_read_does(serve):
+    classes = np.full(120_000, 2)
+    classes[70_000:70_010] = 1
+    url, path = serve(classes)
+    f = laz_full(url)
+    local = laspy.read(str(path))
+    assert f["points_read"] == f["point_count"] == len(local.points)
+    assert f["classes"] == {1: 10, 2: 119_990}
+    want = {}
+    for rn, nr in zip(np.asarray(local.return_number), np.asarray(local.number_of_returns)):
+        want[f"{rn}/{nr}"] = want.get(f"{rn}/{nr}", 0) + 1
+    assert f["returns"] == dict(sorted(want.items()))
+    assert f["bytes"] == path.stat().st_size
+    assert ground_only(f["classes"]) is False

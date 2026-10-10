@@ -10,3 +10,9 @@
   suite). Mutations checked: removing the seek reddens the spread test; admitting class 1 to
   the ground-only set reddens three. Live smoke on `092g028_1_1_1` / `092g018_3_3_3` agrees
   with #9.
+- Plan review (Plan agent) returned; disposition in `review-plan.md`. Taken: ground-only
+  requires class 2; parallel backend pinned; `--confirm` fully reads every item any sample
+  calls ground-only (makes the count exact); returns and header identity in the full read;
+  density and near-ground-only in the summary; laspy floor 2.7. 118 tests pass.
+- Full sample run started 2026-10-10 05:51 UTC from a frozen copy
+  (`logs/20261010_055107_laz_classes_probe.log`).
