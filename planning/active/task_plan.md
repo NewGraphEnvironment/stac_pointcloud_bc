@@ -49,9 +49,9 @@ L88. No cache or registration config holds a key: `stacs.toml` requires only the
       it returns nothing, and pystac validation passes.
 
 ## Phase 3: Prose
-- [ ] `README.Rmd` L137/L139: the new names. Re-render both targets from the `build`
+- [x] `README.Rmd` L137/L139: the new names. Re-render both targets from the `build`
       chunk with `update_query = FALSE`, which uses the cache only and no network.
-- [ ] `research/laz_header_read.md` L88: the new name, plus a Verified line noting the
+- [x] `research/laz_header_read.md` L88: the new name, plus a Verified line noting the
       rename.
 - [ ] NEWS.md: the 0.1.0 and 0.2.0 entries stay as they are, because they describe what
       was published. The release that publishes the rename (#2) names old → new. That

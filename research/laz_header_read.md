@@ -1,7 +1,8 @@
 # What a LidarBC `.laz` costs to describe, and what `dsm/*.laz` actually is
 
-**Verified:** 2026-10-07 · **Issues:** #1 (from NewGraphEnvironment/stac_dem_bc#35) ·
-**Produced by:** `scripts/laz_header_probe.py` over `scripts/laz_remote.py`; logs
+**Verified:** 2026-10-07 (a field name revised 2026-10-10, #12) · **Issues:** #1 (from
+NewGraphEnvironment/stac_dem_bc#35), #12 · **Produced by:** `scripts/laz_header_probe.py`
+over `scripts/laz_remote.py`; logs
 `logs/20261007_*_header_probe.log`, `logs/20261007_*_classification_probe.log`
 (gitignored; the numbers below are the record).
 
@@ -85,7 +86,8 @@ All 9,650 `pointcloud/` headers read without error. Three things the item code n
   processing date. Trust is per delivery: `082k/2017` also has a `_171015` file whose year agrees
   but whose GPS times do not fall on the 15th. So in any mapsheet-year where some filename date
   disagrees with the directory year, no file's filename date is used. Every item there carries
-  the directory year as a range and keeps the token in `nge:filename_date`.
+  the directory year as a range and keeps the token in `lidarbc:filename_date`
+  (`nge:filename_date` until #12).
 - **GPS time is not a general oracle.** It settled `082k/2017`, but in `082g/2018` the first-chunk
   GPS dates scatter across 2010–2018. Use it only where it is internally consistent.
 - **Footprints are checked against the map sheet named in the key.** All but the excluded file
