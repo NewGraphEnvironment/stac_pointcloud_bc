@@ -3415,8 +3415,12 @@ which here is the water. A <code>laz</code> asset has no spatial index,
 so the same window from it means downloading the whole file; the window
 read is what the <code>copc</code> asset adds. One of these 4 items
 returned ground points only in this window, so trees and buildings
-cannot be measured from it here: a LidarBC delivery is not always the
-full point cloud (<a href="https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/10">#10</a>).</p>
+cannot be measured from it here. A LAS header does not say which classes
+a file holds. Measured over the first increment’s 9,649 files
+(2026-10-10), one holds ground and nothing else and 57 hold no ground at
+all. Every file a point sample flagged was read whole, and its item
+lists its classes, with counts, in the <code>laz</code> asset’s
+<code>classification:classes</code> (<a href="https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_classes.md"><code>research/laz_classes.md</code></a>).</p>
 <pre class="python"><code>client = Client.open(API)
 # Several deliveries can cover one place. Take the earliest item at the mouth that has a
 # copc (ids sort by sheet, then year), and read only its delivery: two flights averaged

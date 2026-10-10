@@ -25,6 +25,8 @@ class HttpRangeFile(io.RawIOBase):
         # No Accept-Ranges check: the objectstore honours ranges (206) without
         # advertising them, measured 2026-10-07. _block() refuses anything but a 206.
         self.size = int(head.headers["Content-Length"])
+        # Which delivery of the file was read: a re-delivered file has a new ETag.
+        self.etag = head.headers.get("ETag", "").strip('"')
         self.pos = 0
         self.bytes_fetched = 0
         self.requests = 0

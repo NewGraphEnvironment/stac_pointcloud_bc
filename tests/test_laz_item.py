@@ -7,6 +7,7 @@ a LAZ written here by laspy -- so the header path is exercised end to end with n
 
 import http.server
 import json
+import os
 import threading
 from datetime import datetime, timezone
 
@@ -39,6 +40,13 @@ def no_live_listing(monkeypatch):
         raise AssertionError("a test reached a live bucket listing")
     monkeypatch.setattr(catalogue_build, "keys_list", refuse)
     monkeypatch.setattr(catalogue_build, "canelevation_keys_list", refuse)
+
+
+@pytest.fixture(autouse=True)
+def no_class_reads(monkeypatch):
+    """main() refuses a build whose class reads are not CLASSES_READ. These builds have none,
+    so expect none; the tests of that wiring set their own."""
+    monkeypatch.setattr(catalogue_build, "CLASSES_READ", {})
 
 
 PC = f"{PATH_S3}/092/092g/2016/pointcloud/bc_092g019_1_4_1_xyes_8_utm10_20170713.laz"
@@ -795,3 +803,159 @@ def test_the_build_checks_the_pair_count_before_writing(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="0 items paired"):
         catalogue_build.main()
     assert not (tmp_path / "data/build/items").exists()
+
+
+# =============================================================================
+# Whole-file class reads (#10)
+# =============================================================================
+
+def _full(classes, n=None, las_version="1.2", etag="a"):
+    """A record as laz_classes_probe.laz_full() returns it."""
+    n = sum(classes.values()) if n is None else n
+    return {"etag": etag, "point_count": n, "points_read": sum(classes.values()),
+            "classes": {str(k): v for k, v in classes.items()}, "las_version": las_version}
+
+
+def test_a_whole_file_read_lists_every_class_with_its_count_on_the_laz_asset():
+    it = laz_item.classes_add(item_create(PC, _header(), COLL), _full({1: 400, 2: 600}))
+    it.validate()
+    d = it.to_dict(include_self_link=False)
+    assert d["assets"][ASSET_LAZ]["classification:classes"] == [
+        {"value": 1, "name": "unclassified", "count": 400},
+        {"value": 2, "name": "ground", "count": 600}]
+    assert any("classification" in e for e in d["stac_extensions"])
+
+
+@pytest.mark.parametrize("full, why", [
+    (_full({2: 999}), "covers 999 of 999 points, the header 1000"),
+    (_full({2: 999}, n=1000), "covers 999 of 1000"),  # a read that stopped short
+    (_full({2: 1000}, las_version="1.4"), "LAS 1.4, the header 1.2"),
+])
+def test_a_class_read_of_other_points_is_refused(full, why):
+    with pytest.raises(ValueError, match=why):
+        laz_item.classes_add(item_create(PC, _header(), COLL), full)
+
+
+@pytest.mark.parametrize("value, version, name", [
+    (8, "1.2", "model_key_point"), (12, "1.3", "overlap"),
+    (8, "1.4", "class_8"), (30, "1.4", "class_30"), (0, "1.2", "never_classified"),
+])
+def test_class_names_follow_the_las_version(value, version, name):
+    assert laz_item.asprs_class_name(value, version) == name
+
+
+def test_a_class_read_applies_only_to_the_file_it_was_read_from():
+    other = PC.replace("019_1_4_1", "019_1_4_2")
+    items = {PC: item_create(PC, _header(), COLL)}
+    records = {
+        PC: {"laz": PC, "full": _full({2: 1000}, etag="old")},
+        other: {"laz": other, "full": _full({2: 1000})},
+    }
+    problems = catalogue_build.classes_attach(items, {PC: "new"}, records)
+    # A read of a file not in the build is not applied, and not a problem here: it leaves
+    # CLASSES_READ short, which main() refuses.
+    assert "re-delivered" in problems[PC] and other not in problems
+    assert "classification:classes" not in items[PC].assets[ASSET_LAZ].extra_fields
+    failed = {PC: {"id": url_to_item_id(PC), "laz": PC, "error": "OSError: 503"}}
+    assert "failed" in catalogue_build.classes_attach(items, {PC: "a"}, failed)[PC]
+
+
+def _main_with_classes(tmp_path, monkeypatch, records, expected):
+    objs = [{"url": PC, "etag": "a", "size": 1}]
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(catalogue_build, "OUT", "data/build")
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
+    monkeypatch.setattr(catalogue_build, "CLASSES_READ", expected)
+    monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
+                        (lambda u, session=None: _header(),))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
+    os.makedirs("data/build", exist_ok=True)
+    with open(f"data/build/{catalogue_build.CLASSES_FULL}", "w") as fh:
+        for r in records:
+            fh.write(json.dumps(r) + "\n")
+    return catalogue_build.main()
+
+
+def test_the_build_lists_the_classes_of_a_file_read_whole(tmp_path, monkeypatch):
+    rc = _main_with_classes(tmp_path, monkeypatch,
+                            [{"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000})}],
+                            {"092/092g/2016": 1})
+    assert rc == 0
+    d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
+    assert d["assets"][ASSET_LAZ]["classification:classes"] == [
+        {"value": 2, "name": "ground", "count": 1000}]
+    c = json.loads((tmp_path / "data/build/collection.json").read_text())
+    assert "classification:classes" in c["description"]
+
+
+def test_a_build_missing_its_class_reads_is_refused(tmp_path, monkeypatch, caplog):
+    """The cache is gitignored; a fresh checkout would otherwise drop every list unseen."""
+    rc = _main_with_classes(tmp_path, monkeypatch, [], {"092/092g/2016": 1})
+    assert rc == 1
+    assert "expected {'092/092g/2016': 1} (CLASSES_READ)" in caplog.text
+    assert not (tmp_path / "data/build/items").exists()
+
+
+def test_a_build_with_a_stale_class_read_is_refused(tmp_path, monkeypatch, caplog):
+    rc = _main_with_classes(
+        tmp_path, monkeypatch,
+        [{"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000}, etag="old")}],
+        {"092/092g/2016": 1})
+    assert rc == 1
+    assert "re-delivered" in caplog.text
+    assert not (tmp_path / "data/build/items").exists()
+
+
+def test_a_failed_class_read_is_refused_by_name_and_a_retry_replaces_it(tmp_path, monkeypatch,
+                                                                         caplog):
+    """The cache as laz_classes_probe.probe_all writes it: a failed read, then (on a re-run)
+    a good one. The failure alone refuses the build by name; the retry lets it through."""
+    err = {"id": url_to_item_id(PC), "error": "OSError: 503", "laz": PC}
+    good = {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000})}
+    assert _main_with_classes(tmp_path, monkeypatch, [err], {"092/092g/2016": 1}) == 1
+    assert "the class read failed: OSError: 503" in caplog.text
+    assert _main_with_classes(tmp_path, monkeypatch, [err, good], {"092/092g/2016": 1}) == 0
+
+
+def test_a_class_record_naming_no_file_is_refused_with_its_line(tmp_path):
+    p = tmp_path / "c.jsonl"
+    p.write_text(json.dumps({"id": "x", "error": "OSError: 503"}) + "\n")
+    with pytest.raises(ValueError, match="line 1 names no laz file"):
+        catalogue_build.classes_records_load(str(p))
+
+
+def test_a_class_read_of_a_file_that_left_the_build_shows_as_a_short_count(tmp_path,
+                                                                             monkeypatch, caplog):
+    gone = PC.replace("019_1_4_1", "019_1_4_2")
+    recs = [{"id": url_to_item_id(gone), "laz": gone, "full": _full({2: 1000})}]
+    assert _main_with_classes(tmp_path, monkeypatch, recs, {"092/092g/2016": 1}) == 1
+    assert "expected {'092/092g/2016': 1} (CLASSES_READ)" in caplog.text
+    assert "not in this build, not applied" in caplog.text
+
+
+def test_a_build_refused_for_want_of_class_reads_has_already_listed_what_to_read(
+        tmp_path, monkeypatch):
+    """A fresh checkout has no class cache, so the build refuses before writing items. The
+    probe reads the targets file, not items, so the refusal must not stop it being written."""
+    assert _main_with_classes(tmp_path, monkeypatch, [], {"092/092g/2016": 1}) == 1
+    assert not (tmp_path / "data/build/items").exists()
+    t = [json.loads(x) for x in
+         (tmp_path / "data/build" / catalogue_build.CLASS_TARGETS).read_text().splitlines()]
+    assert t == [{"id": url_to_item_id(PC), "laz": PC, "etag": "a", "copc": None}]
+
+
+def test_an_empty_listing_etag_matches_no_class_read():
+    items = {PC: item_create(PC, _header(), COLL)}
+    records = {PC: {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000}, etag="")}}
+    assert "no ETag" in catalogue_build.classes_attach(items, {PC: ""}, records)[PC]
+
+
+def test_a_class_cache_cut_off_mid_write_is_repaired_not_fatal(tmp_path, monkeypatch):
+    good = {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000})}
+    rc = _main_with_classes(tmp_path, monkeypatch, [good], {"092/092g/2016": 1})
+    assert rc == 0
+    with open(tmp_path / "data/build" / catalogue_build.CLASSES_FULL, "a") as fh:
+        fh.write('{"id": "x", "laz": "https://x')  # a --confirm killed mid-line
+    assert catalogue_build.main() == 0
