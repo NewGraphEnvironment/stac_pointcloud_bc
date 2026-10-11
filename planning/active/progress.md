@@ -33,3 +33,14 @@
   Fixed: `--classes-record` refuses `--limit`, only adds ids unless `--force`, and records every
   good whole read outside the screen; `classes_check` refuses any such read the list lacks (not
   under `--limit`, whose screen is partial). 248 tests; six mutants, each caught.
+- Review round 3 (`review-round3.md`): three fragile, none affecting today's caches (each
+  measured at zero). Mechanism: the published class lists (every good whole read in the local
+  cache) and the lists an empty `data/build` would publish were assumed equal and compared
+  only outside the screen; and a cached sample was "good" on the laz ETag alone though its
+  flags count the item's COPC. Fixed structurally: `classes_published` (the screened files a
+  current sample flags, plus `CLASSES_REQUIRED`) drives the whole reads, `classes_check` and
+  what `classes_attach` applies, so a cache can only speed a build up. A stale read outside it
+  is neither re-read nor applied. Samples must match the item's COPC (`sample_good`,
+  `probe_all(match_copc=True)`). `--classes-record` records after the reads. Residuals
+  accepted: a COPC re-delivered under the same href, and a cache record whose id disagrees
+  with its URL (0 of 340). 253 tests; 12 mutants over rounds 2 and 3, each caught.

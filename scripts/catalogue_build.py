@@ -43,15 +43,16 @@ from laz_classes_probe import (
     SCREEN_PERCENTILE,
     cache_tail_repair,
     confirm_ids,
-    confirm_work,
     density_screen,
     full_probe,
     item_probe,
     probe_all,
     record_good,
     records_load,
+    sample_good,
 )
 from laz_item import (
+    ASSET_COPC,
     ASSET_LAZ,
     COLLECTION_ID,
     COPC_BOX_TOLERANCE_M,
@@ -123,12 +124,13 @@ with open(COPC_PAIRS_PATH) as _fh:
 COPC_NOT_COPIES_PATH = os.path.join(ROOT, "data", "copc_not_copies.json")
 with open(COPC_NOT_COPIES_PATH) as _fh:
     COPC_NOT_COPIES = json.load(_fh)
-# Item ids outside the density screen that are read whole: those a point sample flagged (the
-# 5% audit's, the first increment's survey of every file) and any other whole read the build
-# publishes. The build reads each whole as it does a screened flag, so their class lists come
-# from this list and not from a local cache (data/build is not committed). A flag or a whole
-# read outside the screen that the list lacks stops the build. `--classes-record` adds them,
-# and drops none unless given --force.
+# Item ids read whole that the screen and a current sample do not derive: flags outside the
+# screen (the 5% audit's), and whole reads made for another reason (the first increment's
+# survey of every file, a research --confirm). The build publishes class lists for exactly
+# these and the screened files a current sample flags (classes_published), and reads each
+# whole, so no list depends on a local cache (data/build is not committed). A flag or a good
+# whole read the list should hold and lacks stops the build. `--classes-record` adds them, and
+# drops none unless given --force.
 CLASSES_REQUIRED_PATH = os.path.join(ROOT, "data", "classes_required.json")
 with open(CLASSES_REQUIRED_PATH) as _fh:
     CLASSES_REQUIRED = json.load(_fh)
@@ -633,26 +635,26 @@ def class_target(item: pystac.Item) -> dict:
 
 def classes_check(screened: set[str], ids: dict[str, str], current: dict[str, str],
                   samples: dict[str, dict], full: dict[str, dict],
-                  required: list[str], unrecorded: bool = True) -> dict[str, str]:
+                  required: list[str], unrecorded: bool = True,
+                  copc: dict[str, str | None] | None = None) -> dict[str, str]:
     """What stops a build publishing class lists it cannot stand behind, by laz url:
-    - a screened file with no good point sample at its current ETag;
-    - a file any good current sample flags (screened or not: earlier samples and audit samples
-      count too) with no good whole-file read at its current ETag;
-    - a file in `required` (CLASSES_REQUIRED) with no good whole-file read at its current ETag;
-    - with `unrecorded`, a file outside the screen that a good sample flags, or that has a good
-      whole read (whose class list the build publishes), and that `required` lacks: its class
-      list would otherwise exist only where this cache is. Off under --limit, whose screen is
-      that of partial groups.
+    - a screened file with no good point sample (current ETag, current COPC: sample_good);
+    - a file any good sample flags (screened or not: audit samples count too), or one in
+      `required` (CLASSES_REQUIRED), with no good whole-file read at its current ETag;
+    - with `unrecorded`, a file a good sample flags outside the screen, or a good whole read
+      outside classes_published(), that `required` lacks: an empty data/build would not
+      reproduce its class list. Off under --limit, whose screen is that of partial groups.
     Derived from the screen and the samples, so a cache that is missing, short or stale is
     refused without a count to keep (#2). `samples` and `full` are keyed by item id."""
     problems = {}
     for u in sorted(screened):
         r = samples.get(ids[u])
-        if r is None or not record_good(r, current):
-            problems[u] = ("no point sample at the current ETag"
+        if r is None or not sample_good(r, current, copc):
+            problems[u] = ("no point sample at the current ETag and COPC"
                            + (f" ({r['error']})" if r and "error" in r else ""))
     by_id = {i: u for u, i in ids.items()}
-    good = {k: r for k, r in samples.items() if k in by_id and record_good(r, current)}
+    inside = {ids[u] for u in screened}
+    good = {k: r for k, r in samples.items() if k in by_id and sample_good(r, current, copc)}
     flagged = confirm_ids(good)
     for k in sorted(flagged | {k for k in required if k in by_id}):
         r = full.get(k)
@@ -660,14 +662,24 @@ def classes_check(screened: set[str], ids: dict[str, str], current: dict[str, st
             why = "flagged by its sample" if k in flagged else f"in {CLASSES_REQUIRED_PATH}"
             problems[by_id[k]] = (f"{why}, with no whole-file read at the current ETag"
                                   + (f" ({r['error']})" if r and "error" in r else ""))
+    published = classes_published(inside, flagged, required, by_id)
     read = {k for k, r in full.items() if k in by_id and record_good(r, current)}
-    for k in sorted((flagged | read) - set(required)) if unrecorded else ():
-        if by_id[k] not in screened:
-            how = "flagged by a sample" if k in flagged else "read whole"
-            problems[by_id[k]] = "; ".join(filter(None, [
-                problems.get(by_id[k]), f"{how} outside the screen and not in "
-                f"{CLASSES_REQUIRED_PATH}; record it with --classes-record"]))
+    for k in sorted(((flagged - inside) | read) - published) if unrecorded else ():
+        how = ("flagged by a sample outside the screen" if k in flagged and k not in inside
+               else "read whole, but neither screened and flagged nor recorded")
+        problems[by_id[k]] = "; ".join(filter(None, [
+            problems.get(by_id[k]), f"{how}, and not in {CLASSES_REQUIRED_PATH}; record it "
+            f"with --classes-record"]))
     return problems
+
+
+def classes_published(inside: set[str], flagged: set[str], required: list[str],
+                      listed) -> set[str]:
+    """The item ids whose class lists a build publishes: the screened files a current sample
+    flags, and the recorded ones still listed. What an empty data/build would publish, so the
+    whole-read step, classes_check and classes_attach all take it from here and a local cache
+    can speed a build up but never add a list (#2)."""
+    return (inside & flagged) | {k for k in required if k in listed}
 
 
 def validate_one(body: dict) -> str | None:
@@ -746,7 +758,8 @@ def main() -> int:
                          "screen that a cached sample flags or that has a cached whole read")
     ap.add_argument("--force", action="store_true",
                     help="with --groups-record, allow a recorded count to fall; with "
-                         "--classes-record, drop recorded ids this cache does not support")
+                         "--classes-record, drop recorded ids no longer listed or now screened and "
+                         "flagged")
     args = ap.parse_args()
     if args.classes_record and args.limit:  # a slice's screen is that of partial groups
         ap.error("--classes-record records the committed list, so it cannot run with --limit")
@@ -857,31 +870,35 @@ def main() -> int:
     targets = {i.id: class_target(i) for i in items}
     sample_path, full_path = f"{out}/{CLASSES_SAMPLE}", f"{out}/{CLASSES_FULL}"
     probe_all([targets[ids[u]] for u in sorted(screened)], sample_path, args.workers,
-              probe=item_probe, current=current)
+              probe=item_probe, current=current, match_copc=True)
     samples = {k: r for k, r in records_load(sample_path).items() if k in current}
     cache_tail_repair(full_path)
-    good = {k: r for k, r in samples.items() if record_good(r, current)}
+    copcs = {i.id: (i.assets[ASSET_COPC].href if ASSET_COPC in i.assets else None)
+             for i in items}
+    inside = {ids[u] for u in screened}
+    flagged = confirm_ids({k: r for k, r in samples.items() if sample_good(r, current, copcs)})
     prior = {k: r for k, r in records_load(full_path).items() if k in current}
     required = CLASSES_REQUIRED
-    if args.classes_record:
-        inside = {ids[u] for u in screened}
-        found = ({k for k in confirm_ids(good) if k not in inside}
-                 | {k for k, r in prior.items() if record_good(r, current) and k not in inside})
+    # Read whole what the build publishes, and every flag outside the screen (refused below
+    # until recorded). A stale read of anything else is left stale and is not applied.
+    want = {k for k in classes_published(inside, flagged, required, current) | flagged
+            if not (k in prior and record_good(prior[k], current))}
+    probe_all([targets[k] for k in sorted(want)], full_path, args.workers, probe=full_probe,
+              current=current)
+    full = {k: r for k, r in records_load(full_path).items() if k in current}
+    if args.classes_record:  # after the reads, so a read made good in this run is recorded
+        found = ((flagged - inside)
+                 | {k for k, r in full.items() if record_good(r, current)} - (inside & flagged))
         dropped = set(CLASSES_REQUIRED) - found
         required = sorted(found if args.force else found | set(CLASSES_REQUIRED))
         with open(f"{CLASSES_REQUIRED_PATH}.new", "w") as fh:
             json.dump(required, fh, indent=1)
             fh.write("\n")
         os.replace(f"{CLASSES_REQUIRED_PATH}.new", CLASSES_REQUIRED_PATH)
-        logger.info("recorded %d ids in %s (%d this cache does not support, %s)", len(required),
+        logger.info("recorded %d ids in %s (%d no longer needed, %s)", len(required),
                     CLASSES_REQUIRED_PATH, len(dropped), "dropped" if args.force else "kept")
-    want = confirm_work(good, prior, current) | {
-        k for k in required if k in current and not (k in prior and record_good(prior[k], current))}
-    probe_all([targets[k] for k in sorted(want)], full_path, args.workers, probe=full_probe,
-              current=current)
-    full = {k: r for k, r in records_load(full_path).items() if k in current}
     problems = classes_check(screened, ids, current, samples, full, required,
-                             unrecorded=not args.limit)
+                             unrecorded=not args.limit, copc=copcs)
     if problems:
         for u, e in sorted(problems.items()):
             logger.error("class read: %s: %s", u, e)
@@ -893,7 +910,8 @@ def main() -> int:
     if gone and not args.limit:  # a slice leaves most files out; that is not news
         logger.warning("%d class reads are of files not in this build, not applied: %s",
                        len(gone), gone[:5])
-    records = {u: r for u, r in records.items() if u in set(kept)}
+    published = classes_published(inside, flagged, required, current)
+    records = {u: r for u, r in records.items() if u in ids and ids[u] in published}
     problems = classes_attach(dict(zip(kept, items)), etags, records)
     if problems:
         for u, e in sorted(problems.items()):
@@ -904,9 +922,7 @@ def main() -> int:
     for g, n in sorted(read.items()):
         logger.info("%s: %d items read whole for their classes", g, n)
     logger.info("classes: %d screened, %d sampled, %d flagged by a sample, %d read whole",
-                len(screened), len(samples),
-                len(confirm_ids({k: r for k, r in samples.items() if record_good(r, current)})),
-                len(records))
+                len(screened), len(samples), len(flagged), len(records))
     bodies = []
     for i in items:
         if ASSET_LAZ not in i.assets:

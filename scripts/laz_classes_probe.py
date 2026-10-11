@@ -304,21 +304,37 @@ def record_good(rec: dict, current: dict[str, str] | None) -> bool:
     return bool(now) and record_etag(rec) == now
 
 
+def item_copc(item: dict) -> str | None:
+    """The href of an item's `copc` asset, or None."""
+    return item["assets"].get(ASSET_COPC, {}).get("href")
+
+
+def sample_good(rec: dict, current: dict[str, str] | None,
+                copc: dict[str, str | None] | None) -> bool:
+    """record_good, and, given `copc` (item id -> its `copc` href now, or None), taken with that
+    same COPC or none: a sample's flags count the COPC's classes, so a pair added or dropped
+    since (a new CanElevation file, copc_not_copies.json) makes it another item's sample. A
+    COPC re-delivered under the same href is not seen, as the pair's header check cannot."""
+    return record_good(rec, current) and (copc is None or rec.get("copc") == copc.get(rec["id"]))
+
+
 def laz_url(item: dict) -> str:
     return urllib.parse.unquote(item["assets"][ASSET_LAZ]["href"])
 
 
 def probe_all(items: list[dict], out_path: str, workers: int, probe=item_probe,
-              current: dict[str, str] | None = None) -> dict:
+              current: dict[str, str] | None = None, match_copc: bool = False) -> dict:
     """Probe every item with no good record in `out_path`, appending each as it lands.
 
     With `current` (item id -> the file's ETag now), a record of another ETag is not good:
     the file was re-delivered, so it is read again. A record from before ETags were kept has
     none, and is read again too. A failed read is recorded with the item's laz url, so the
-    build can name it, and a later good record replaces it.
+    build can name it, and a later good record replaces it. With `match_copc` (point samples),
+    a record taken with another COPC than the item's now is read again too (sample_good).
     """
     cache_tail_repair(out_path)
-    done = {k for k, r in records_load(out_path).items() if record_good(r, current)}
+    copc = {i["id"]: item_copc(i) for i in items} if match_copc else None
+    done = {k for k, r in records_load(out_path).items() if sample_good(r, current, copc)}
     todo = [i for i in items if i["id"] not in done]
     logger.info("%d items recorded, %d to read", len(items) - len(todo), len(todo))
     session = requests.Session()
@@ -544,7 +560,7 @@ def main() -> int:
         with open(ids_path, "w") as fh:
             fh.write("".join(f"{i['id']}\n" for i in pick))
         logger.info("audit: %d items (seed %d) listed in %s", len(pick), args.seed, ids_path)
-        errors = probe_all(pick, out, args.workers, current=current)
+        errors = probe_all(pick, out, args.workers, current=current, match_copc=True)
         cache_tail_repair(full)
         recs = records_load(out)
         want = confirm_ids({i["id"]: recs[i["id"]] for i in pick
@@ -570,7 +586,7 @@ def main() -> int:
         items = [i for i in items if i["id"] in want]
         errors = probe_all(items, full, args.workers, probe=full_probe, current=current)
     else:
-        errors = probe_all(items, out, args.workers, current=current)
+        errors = probe_all(items, out, args.workers, current=current, match_copc=True)
     for k, e in sorted(errors.items()):
         logger.error("%s: %s", k, e)
     logger.info("done: %d items, %d failed", len(items), len(errors))

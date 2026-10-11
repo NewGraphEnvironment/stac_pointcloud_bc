@@ -74,12 +74,16 @@ def _targets_etag(item_id):
 
 
 def _sample(classes):
-    """A point-sample probe returning `classes` (ints) for every item, at its listed ETag."""
+    """A point-sample probe returning `classes` (ints) for every item, at its listed ETag,
+    shaped as item_probe's record (with the `copc` href it was taken with, if any)."""
     def probe(item, session=None):
-        return {"id": item["id"], "laz": urllib.parse.unquote(item["assets"]["laz"]["href"]),
-                "laz_sample": {"etag": _targets_etag(item["id"]), "point_count": 1000,
-                               "samples": {"all": {str(k): v for k, v in classes.items()}},
-                               "bytes": 1, "seconds": 0}}
+        rec = {"id": item["id"], "laz": urllib.parse.unquote(item["assets"]["laz"]["href"]),
+               "laz_sample": {"etag": _targets_etag(item["id"]), "point_count": 1000,
+                              "samples": {"all": {str(k): v for k, v in classes.items()}},
+                              "bytes": 1, "seconds": 0}}
+        if "copc" in item["assets"]:
+            rec["copc"] = item["assets"]["copc"]["href"]
+        return rec
     return probe
 
 
@@ -956,6 +960,19 @@ def test_the_build_carries_the_copc_copy_on_its_item(tmp_path, monkeypatch):
     assert "Lower_Mainland_2016" in c["description"]
 
 
+def test_the_build_samples_again_an_item_sampled_before_its_copc_was_paired(tmp_path,
+                                                                             monkeypatch):
+    """A ground-only sample of the laz alone, at the current ETag: taken before the pair, it
+    is another item's sample, so the build samples again (with the COPC) and goes by that."""
+    os.makedirs(tmp_path / "data/build")
+    (tmp_path / "data/build" / catalogue_build.CLASSES_SAMPLE).write_text(
+        json.dumps({**_rec(url_to_item_id(PC), {"2": 1000}), "laz": PC}) + "\n")
+    rc, ce = _main_with_copc(tmp_path, monkeypatch, _copc_header())
+    assert rc == 0  # the new sample is mixed: nothing to read whole
+    last = (tmp_path / "data/build" / catalogue_build.CLASSES_SAMPLE).read_text().splitlines()
+    assert json.loads(last[-1])["copc"] == ce["url"]
+
+
 def test_the_build_refuses_when_a_copc_header_failed(tmp_path, monkeypatch):
     rc, _ = _main_with_copc(tmp_path, monkeypatch, OSError("boom"))
     assert rc == 1
@@ -1174,7 +1191,7 @@ def test_a_screened_file_whose_sample_fails_is_refused(tmp_path, monkeypatch, ca
     monkeypatch.setattr(catalogue_build, "item_probe", _fails)
     (tmp_path / "data/build" / catalogue_build.CLASSES_SAMPLE).unlink()
     assert catalogue_build.main() == 1
-    assert "no point sample at the current ETag (OSError: 503)" in caplog.text
+    assert "no point sample at the current ETag and COPC (OSError: 503)" in caplog.text
 
 
 def test_a_stale_whole_read_is_read_again(tmp_path, monkeypatch):
@@ -1189,6 +1206,55 @@ def test_a_stale_whole_read_that_cannot_be_redone_is_refused(tmp_path, monkeypat
     stale = {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000}, etag="old")}
     assert _main_with_classes(tmp_path, monkeypatch, [stale], full_probe=_fails) == 1
     assert not (tmp_path / "data/build/items").exists()
+
+
+def test_a_screened_read_its_current_sample_does_not_flag_is_refused_until_recorded(
+        tmp_path, monkeypatch, caplog):
+    """A good whole read of a screened file whose sample no longer flags it (from a research
+    --confirm, say): an empty data/build would not publish its list, so it must be recorded."""
+    read = {"id": url_to_item_id(PC), "laz": PC, "full": _full({1: 600, 2: 400})}
+    assert _main_with_classes(tmp_path, monkeypatch, [read], sampled={1: 5, 2: 5}) == 1
+    assert "neither screened and flagged nor recorded" in caplog.text
+
+
+def test_a_stale_read_of_a_file_its_new_sample_does_not_flag_is_neither_read_nor_applied(
+        tmp_path, monkeypatch):
+    """Re-delivered (#4), and the new sample does not flag it: as from an empty data/build,
+    no whole read and no list."""
+    stale = {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000}, etag="old")}
+    rc = _main_with_classes(tmp_path, monkeypatch, [stale], sampled={1: 5, 2: 5},
+                            full_probe=_fails)
+    assert rc == 0
+    d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
+    assert "classification:classes" not in d["assets"][ASSET_LAZ]
+    assert len((tmp_path / "data/build" / catalogue_build.CLASSES_FULL).read_text()
+               .splitlines()) == 1  # nothing read
+
+
+def test_a_sample_taken_with_another_copc_is_not_good_and_is_taken_again(tmp_path):
+    """A sample's flags count its COPC's classes, so a pair added or dropped since makes it
+    another item's sample."""
+    import laz_classes_probe as lcp
+    rec = _rec("A", {"1": 5, "2": 5})
+    assert lcp.sample_good(rec, {"A": "a"}, {"A": None})
+    assert not lcp.sample_good(rec, {"A": "a"}, {"A": "https://c/A.copc.laz"})
+    assert not lcp.sample_good({**rec, "copc": "https://c/A.copc.laz"}, {"A": "a"}, {"A": None})
+    assert lcp.sample_good(rec, {"A": "a"}, None)  # whole reads take no COPC
+    out = tmp_path / "classes.jsonl"
+    out.write_text(json.dumps(rec) + "\n")
+    item = {"id": "A", "assets": {"laz": {"href": PC}, "copc": {"href": "https://c/A.copc.laz"}}}
+    probed = []
+
+    def probe(i, session=None):
+        probed.append(i["id"])
+        return {**_rec(i["id"], {"2": 5}), "copc": i["assets"]["copc"]["href"]}
+    lcp.probe_all([item], str(out), 1, probe=probe, current={"A": "a"})
+    assert probed == []  # laz ETag alone: the whole-read rule
+    lcp.probe_all([item], str(out), 1, probe=probe, current={"A": "a"}, match_copc=True)
+    assert probed == ["A"]
+    p = catalogue_build.classes_check({PC}, {PC: "A"}, {"A": "a"}, {"A": rec}, {}, [],
+                                      copc={"A": "https://c/A.copc.laz"})
+    assert "no point sample at the current ETag and COPC" in p[PC]
 
 
 def test_a_failed_whole_read_is_retried_on_the_next_run(tmp_path, monkeypatch, caplog):
@@ -1253,7 +1319,7 @@ def test_classes_check_requires_every_whole_read_outside_the_screen_to_be_record
     samples = {"A": _rec("A", {"1": 5, "2": 5})}
     full = {"B": {"id": "B", "full": _full({1: 5, 2: 5})}}
     p = catalogue_build.classes_check({a}, ids, cur, samples, full, [])
-    assert list(p) == [b] and "read whole outside the screen" in p[b]
+    assert list(p) == [b] and "read whole, but neither screened and flagged" in p[b]
     assert catalogue_build.classes_check({a}, ids, cur, samples, full, ["B"]) == {}
     assert catalogue_build.classes_check({a}, ids, cur, samples, full, [], unrecorded=False) == {}
 
@@ -1327,21 +1393,33 @@ def test_a_whole_read_outside_the_screen_must_be_recorded_and_classes_record_rec
         tmp_path, monkeypatch, caplog):
     read = {"id": url_to_item_id(PC), "laz": PC, "full": _full({1: 600, 2: 400})}
     rc, req = _main_with_required(tmp_path, monkeypatch, [], cached_full=[read])
-    assert rc == 1 and "read whole outside the screen" in caplog.text
+    assert rc == 1 and "read whole, but neither screened and flagged" in caplog.text
     rc, req = _main_with_required(tmp_path, monkeypatch, [], argv=["--classes-record"],
                                   cached_full=[read])
     assert rc == 0 and json.loads(req.read_text()) == [url_to_item_id(PC)]
 
 
+def test_classes_record_records_a_screened_read_its_sample_does_not_flag(tmp_path,
+                                                                         monkeypatch, caplog):
+    low = GROUP11[1]  # among the two least dense: screened, and its sample is mixed
+    read = {"id": url_to_item_id(low), "laz": low, "full": _full({1: 6, 2: 5})}  # 11 points
+    rc, req = _main_with_required(tmp_path, monkeypatch, [], cached_full=[read])
+    assert rc == 1 and "neither screened and flagged nor recorded" in caplog.text
+    rc, req = _main_with_required(tmp_path, monkeypatch, [], argv=["--classes-record"],
+                                  cached_full=[read])
+    assert rc == 0 and json.loads(req.read_text()) == [url_to_item_id(low)]
+
+
 def test_classes_record_keeps_a_recorded_id_this_cache_cannot_support_unless_forced(
         tmp_path, monkeypatch):
-    """A fresh cache has no sample and no read of PC: recording from it must not drop PC."""
+    """A fresh cache has no sample and no read of PC: recording reads PC whole first (it is
+    required), so it keeps PC even forced; only an id no longer listed can be dropped."""
     pc = url_to_item_id(PC)
-    rc, req = _main_with_required(tmp_path, monkeypatch, [pc], argv=["--classes-record"])
-    assert rc == 0 and json.loads(req.read_text()) == [pc]
-    rc, req = _main_with_required(tmp_path, monkeypatch, [pc],
+    rc, req = _main_with_required(tmp_path, monkeypatch, [pc, "gone"], argv=["--classes-record"])
+    assert rc == 0 and json.loads(req.read_text()) == sorted([pc, "gone"])
+    rc, req = _main_with_required(tmp_path, monkeypatch, [pc, "gone"],
                                   argv=["--classes-record", "--force"])
-    assert rc == 0 and json.loads(req.read_text()) == []
+    assert rc == 0 and json.loads(req.read_text()) == [pc]
 
 
 def test_a_limit_build_does_not_require_recording_against_its_partial_screen(tmp_path,
