@@ -41,6 +41,18 @@ def window_items(client, crs: str, x: float, y: float) -> tuple[list, tuple]:
     return sorted(search.items(), key=lambda i: i.id), box
 
 
+def flight_year(props: dict) -> str:
+    """The year of an item's delivery: the last part of `lidarbc:delivery`.
+
+    Not a date field: an item dated to one day carries only `datetime`, a range or a year
+    `start_datetime`, and a range's first day is in this year while its last may not be.
+    """
+    year = str(props.get("lidarbc:delivery", "")).rsplit("/", 1)[-1]
+    if not (len(year) == 4 and year.isdigit()):
+        raise ValueError(f"no delivery year in lidarbc:delivery={props.get('lidarbc:delivery')!r}")
+    return year
+
+
 def grid(x, y, v, box, cell, how):
     """Per-cell mean or max of `v` on a grid over `box`; NaN where no point fell."""
     nx = int(round((box[2] - box[0]) / cell))
@@ -98,11 +110,11 @@ def main() -> None:
         if "copc" in i.assets), key=lambda i: i.id)
     if not at_mouth:
         sys.exit("no item with a copc asset covers the mouth")
-    year = at_mouth[0].properties["start_datetime"][:4]
+    year = flight_year(at_mouth[0].properties)
     crs = at_mouth[0].properties["proj:code"]
     x0, y0 = Transformer.from_crs("EPSG:4326", crs, always_xy=True).transform(MOUTH_LON, MOUTH_LAT)
     found, box = window_items(client, crs, x0, y0)
-    items = [i for i in found if i.properties["start_datetime"][:4] == year]
+    items = [i for i in found if flight_year(i.properties) == year]
     if any("copc" not in i.assets for i in items):
         # A laz-only tile would have to be downloaded whole; this demo is the windowed read.
         sys.exit("an item in the window has no copc asset: " +
