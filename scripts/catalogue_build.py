@@ -116,6 +116,13 @@ CANELEVATION_PROJECTS = {
 COPC_PAIRS_PATH = os.path.join(ROOT, "data", "copc_pairs.json")
 with open(COPC_PAIRS_PATH) as _fh:
     COPC_PAIRS = json.load(_fh)
+# CanElevation COPC that share a LidarBC file's name and fail copc_asset_add's header check,
+# recorded with both point counts: those items carry no `copc` asset. 26, all in
+# Vancouver_Island_Sunshine_Coast_2018, each with fewer points than the LidarBC file (found
+# 2026-10-11, #2). A recorded count that no longer matches stops the build for review.
+COPC_NOT_COPIES_PATH = os.path.join(ROOT, "data", "copc_not_copies.json")
+with open(COPC_NOT_COPIES_PATH) as _fh:
+    COPC_NOT_COPIES = json.load(_fh)
 
 # Files whose header is known to be faulty, excluded by name with the reason. Anything
 # else item_create() refuses fails the build, so a new fault is seen rather than dropped.
@@ -422,6 +429,19 @@ def copc_pairs_check(pairs: dict[str, dict]) -> None:
     if new:
         raise RuntimeError(f"groups pairing with CanElevation but not in copc_pairs.json: "
                            f"{', '.join(f'{g} ({n[g]})' for g in new)} - record their counts")
+
+
+def copc_not_copy_check(u: str, copc_url: str, copc_headers: dict, headers: dict) -> None:
+    """A recorded non-copy is left unlinked, provided both files still have the point counts
+    recorded for it; otherwise either side changed and the entry is reviewed, not trusted."""
+    rec = COPC_NOT_COPIES[copc_url]
+    now = (copc_headers[copc_url]["point_count"], headers[u]["point_count"])
+    if now != (rec["copc_points"], rec["laz_points"]):
+        raise RuntimeError(f"copc_not_copies.json records {copc_url} with "
+                           f"{rec['copc_points']} points against the LAZ's {rec['laz_points']}, "
+                           f"but they now read {now[0]} and {now[1]} - review the entry")
+    logger.warning("not linked, recorded in copc_not_copies.json: %s (COPC %d points, LAZ %d)",
+                   copc_url, *now)
 
 
 def headers_load(path: str) -> dict[str, dict]:
@@ -772,7 +792,9 @@ def main() -> int:
         return 1
     mismatched = {}
     for u, i in zip(kept, items):
-        if u in pairs:
+        if u in pairs and pairs[u]["url"] in COPC_NOT_COPIES:
+            copc_not_copy_check(u, pairs.pop(u)["url"], copc_headers, headers)
+        elif u in pairs:
             try:
                 copc_asset_add(i, pairs[u]["url"], copc_headers[pairs[u]["url"]], headers[u])
             except ValueError as e:  # all reported together, then the build refuses

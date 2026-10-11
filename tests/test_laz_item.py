@@ -962,6 +962,43 @@ def test_the_build_reports_every_copc_that_is_not_a_copy_then_refuses(tmp_path, 
     assert not (tmp_path / "data/build/items").exists()
 
 
+def _record_not_copy(monkeypatch, copc_points, laz_points=1000):
+    ce = _ce("bc_092g019_1_4_1_xyes_8_utm10_20170713.copc.laz")
+    monkeypatch.setattr(catalogue_build, "COPC_NOT_COPIES", {ce["url"]: {
+        "item": url_to_item_id(PC), "copc_points": copc_points, "laz_points": laz_points}})
+
+
+def test_a_recorded_non_copy_is_left_unlinked_and_the_build_passes(tmp_path, monkeypatch, caplog):
+    _record_not_copy(monkeypatch, 7)
+    h = _copc_header()
+    h["point_count"] = 7
+    rc, ce = _main_with_copc(tmp_path, monkeypatch, h)
+    assert rc == 0
+    d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
+    assert "copc" not in d["assets"]
+    assert f"not linked, recorded in copc_not_copies.json: {ce['url']}" in caplog.text
+    # nor sampled for classes: the class step reads an item's COPC where it has one
+    (t,) = [json.loads(x) for x in (tmp_path / "data/build" / catalogue_build.CLASS_TARGETS)
+            .read_text().splitlines()]
+    assert t["copc"] is None
+
+
+def test_a_recorded_non_copy_whose_counts_moved_stops_the_build(tmp_path, monkeypatch):
+    _record_not_copy(monkeypatch, 7)
+    h = _copc_header()
+    h["point_count"] = 8
+    with pytest.raises(RuntimeError, match="records .* with 7 points against the LAZ's 1000"):
+        _main_with_copc(tmp_path, monkeypatch, h)
+
+
+def test_the_recorded_non_copies_are_named_and_counted_as_found():
+    assert len(catalogue_build.COPC_NOT_COPIES) == 26
+    for url, rec in catalogue_build.COPC_NOT_COPIES.items():
+        assert "/Vancouver_Island_Sunshine_Coast_2018/" in url
+        assert rec["copc_points"] < rec["laz_points"]
+        assert rec["item"].endswith("-pointcloud-" + url.rsplit("/", 1)[1][:-len(".copc.laz")])
+
+
 def test_a_group_that_pairs_short_fails_the_build(monkeypatch):
     """A rename on either side passes every listing floor and pairs nothing."""
     monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {"082/082e/2019": 332, "082/082l/2019": 57,

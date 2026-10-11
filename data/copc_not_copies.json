@@ -1,0 +1,158 @@
+{
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092b042_1_1_4_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092b-2019-pointcloud-bc_092b042_1_1_4_xyes_8_utm10_2019",
+  "copc_points": 37119948,
+  "laz_points": 41225784,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092b042_1_3_2_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092b-2019-pointcloud-bc_092b042_1_3_2_xyes_8_utm10_2019",
+  "copc_points": 54609178,
+  "laz_points": 60757242,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092b042_2_1_2_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092b-2019-pointcloud-bc_092b042_2_1_2_xyes_8_utm10_2019",
+  "copc_points": 99396412,
+  "laz_points": 101635682,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092b042_2_1_4_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092b-2019-pointcloud-bc_092b042_2_1_4_xyes_8_utm10_2019",
+  "copc_points": 62677131,
+  "laz_points": 63084007,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092b042_2_2_1_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092b-2019-pointcloud-bc_092b042_2_2_1_xyes_8_utm10_2019",
+  "copc_points": 69714392,
+  "laz_points": 70726762,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092b042_2_2_3_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092b-2019-pointcloud-bc_092b042_2_2_3_xyes_8_utm10_2019",
+  "copc_points": 10138118,
+  "laz_points": 10354515,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092b072_3_1_4_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092b-2019-pointcloud-bc_092b072_3_1_4_xyes_8_utm10_2019",
+  "copc_points": 58550000,
+  "laz_points": 115746559,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092c059_3_4_4_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092c-2019-pointcloud-bc_092c059_3_4_4_xyes_8_utm10_2019",
+  "copc_points": 85750000,
+  "laz_points": 86090734,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092c084_1_4_3_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092c-2019-pointcloud-bc_092c084_1_4_3_xyes_8_utm10_2019",
+  "copc_points": 15000000,
+  "laz_points": 15950947,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092c086_3_3_3_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092c-2019-pointcloud-bc_092c086_3_3_3_xyes_8_utm10_2019",
+  "copc_points": 59500000,
+  "laz_points": 142045087,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092c090_2_2_1_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092c-2019-pointcloud-bc_092c090_2_2_1_xyes_8_utm10_2019",
+  "copc_points": 20300000,
+  "laz_points": 130646430,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092c095_4_4_4_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092c-2019-pointcloud-bc_092c095_4_4_4_xyes_8_utm10_2019",
+  "copc_points": 34100000,
+  "laz_points": 53092831,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092e030_4_2_2_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092e-2019-pointcloud-bc_092e030_4_2_2_xyes_8_utm10_2019",
+  "copc_points": 82950000,
+  "laz_points": 96128645,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092e040_1_1_3_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092e-2019-pointcloud-bc_092e040_1_1_3_xyes_8_utm10_2019",
+  "copc_points": 98500000,
+  "laz_points": 190977109,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092f015_2_1_4_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092f-2019-pointcloud-bc_092f015_2_1_4_xyes_8_utm10_2019",
+  "copc_points": 78300000,
+  "laz_points": 86928133,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092f023_3_1_3_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092f-2019-pointcloud-bc_092f023_3_1_3_xyes_8_utm10_2019",
+  "copc_points": 16050000,
+  "laz_points": 40731613,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092f059_1_2_1_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092f-2019-pointcloud-bc_092f059_1_2_1_xyes_8_utm10_2019",
+  "copc_points": 54300000,
+  "laz_points": 78607948,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092f066_4_2_1_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092f-2019-pointcloud-bc_092f066_4_2_1_xyes_8_utm10_2019",
+  "copc_points": 11600000,
+  "laz_points": 13233425,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092f066_4_3_1_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092f-2019-pointcloud-bc_092f066_4_3_1_xyes_8_utm10_2019",
+  "copc_points": 52000000,
+  "laz_points": 78024976,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092g021_1_1_3_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092g-2019-pointcloud-bc_092g021_1_1_3_xyes_8_utm10_2019",
+  "copc_points": 41650000,
+  "laz_points": 181448102,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092l033_2_4_4_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092l-2019-pointcloud-bc_092l033_2_4_4_xyes_8_utm10_2019",
+  "copc_points": 8450000,
+  "laz_points": 93127307,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092l041_2_4_4_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092l-2019-pointcloud-bc_092l041_2_4_4_xyes_8_utm10_2019",
+  "copc_points": 55200000,
+  "laz_points": 120190256,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092l043_1_4_2_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092l-2019-pointcloud-bc_092l043_1_4_2_xyes_8_utm10_2019",
+  "copc_points": 6500000,
+  "laz_points": 16633792,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092l051_4_4_3_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092l-2019-pointcloud-bc_092l051_4_4_3_xyes_8_utm10_2019",
+  "copc_points": 36400000,
+  "laz_points": 68984694,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_092l061_1_2_3_xyes_8_utm10_2019.copc.laz": {
+  "item": "092-092l-2019-pointcloud-bc_092l061_1_2_3_xyes_8_utm10_2019",
+  "copc_points": 11900000,
+  "laz_points": 73483809,
+  "found": "2026-10-11 (#2)"
+ },
+ "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaws.com/pointclouds_nuagespoints/BC/Vancouver_Island_Sunshine_Coast_2018/bc_102i079_3_2_1_xyes_8_utm10_2019.copc.laz": {
+  "item": "102-102i-2019-pointcloud-bc_102i079_3_2_1_xyes_8_utm10_2019",
+  "copc_points": 73750000,
+  "laz_points": 87710095,
+  "found": "2026-10-11 (#2)"
+ }
+}

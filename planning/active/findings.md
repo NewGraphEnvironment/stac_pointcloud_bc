@@ -136,9 +136,20 @@ Branch: `2-index-the-rest-of-pointcloud-laz-165-667`
   082M whose centre is 0.86 m outside the sheet.
 - The build now logs every refused file, not only three examples per class.
 
+## CanElevation name matches that are not copies (2026-10-11)
+
+`logs/20261011_0436_catalogue_build_full.log`: of 13,996 name matches, **26 fail the header check**,
+all in `Vancouver_Island_Sunshine_Coast_2018` (groups `092b/092c/092e/092f/092g/092l/102i` 2019).
+Every one has fewer points than the LidarBC file: 37.1M vs 41.2M, down to 8.45M vs 93.1M. 19 of
+the 26 COPC counts are multiples of 50,000 (58,550,000; 15,000,000; ...), which looks like conversions
+cut short, though that was not measured. Recorded in `data/copc_not_copies.json` with both counts.
+Those items carry no `copc` asset and are not sampled through it. The build refuses if either
+count changes. So 13,970 items carry a `copc` asset.
+
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
 | `ConnectionError: RemoteDisconnected` on a CanElevation listing page, after a 9-min walk | `laz_item.page_get`: 4 attempts with backoff on connection errors, timeouts and 5xx |
 | `CRSError` on 2,008 headers: compound CRS written vertical-first | Read swapped (`compound_reorder`); see the section above |
+| 34 of 12,032 COPC header reads `RemoteDisconnected` on the CanElevation bucket (`logs/20261011_0335_*`) | Transient: re-run, which reads only the uncached 34 (`logs/20261011_0436_*`) |
