@@ -11,6 +11,7 @@ if the two disagree.
 
 import functools
 import re
+import time
 import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -416,6 +417,29 @@ def copc_asset_add(item: pystac.Item, href: str, copc_header: dict,
     return item
 
 
+# A listing is hundreds of pages; one dropped connection or 5xx in a 10-minute walk would
+# otherwise throw the walk away (measured 2026-10-11: RemoteDisconnected on a CanElevation page,
+# #2). A page is re-requested with the same marker, so a retry cannot skip or repeat keys.
+PAGE_ATTEMPTS = 4
+PAGE_BACKOFF_S = 2.0
+
+
+def page_get(s: requests.Session, url: str, params: dict, timeout: float,
+             sleep=time.sleep) -> requests.Response:
+    """One listing page, retried on a connection error, a timeout or a 5xx. Any other status
+    is returned for the caller to refuse; the last failure is raised."""
+    for attempt in range(PAGE_ATTEMPTS):
+        try:
+            r = s.get(url, params=params, timeout=timeout)
+            if r.status_code < 500 or attempt == PAGE_ATTEMPTS - 1:
+                return r
+        except (requests.ConnectionError, requests.Timeout):
+            if attempt == PAGE_ATTEMPTS - 1:
+                raise
+        sleep(PAGE_BACKOFF_S * 2 ** attempt)
+    raise AssertionError("unreachable")
+
+
 def keys_list(prefix: str, session: requests.Session | None = None,
               timeout: float = 60) -> list[dict]:
     """Every object under `prefix` on the objectstore, paged by marker, as
@@ -433,7 +457,7 @@ def keys_list(prefix: str, session: requests.Session | None = None,
         params = {"prefix": prefix}
         if marker:
             params["marker"] = marker
-        r = s.get(PATH_S3, params=params, timeout=timeout)
+        r = page_get(s, PATH_S3, params, timeout)
         if r.status_code != 200:
             raise OSError(f"listing {prefix!r} returned {r.status_code}")
         root = ET.fromstring(r.content)
@@ -466,7 +490,7 @@ def canelevation_keys_list(prefix: str, session: requests.Session | None = None,
         params = {"list-type": "2", "prefix": prefix}
         if token:
             params["continuation-token"] = token
-        r = s.get(CANELEVATION + "/", params=params, timeout=timeout)
+        r = page_get(s, CANELEVATION + "/", params, timeout)
         if r.status_code != 200:
             raise OSError(f"listing {prefix!r} returned {r.status_code}")
         root = ET.fromstring(r.content)

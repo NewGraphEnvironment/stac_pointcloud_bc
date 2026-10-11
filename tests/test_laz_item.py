@@ -43,6 +43,7 @@ def no_live_listing(monkeypatch):
     monkeypatch.setattr(catalogue_build, "keys_list", refuse)
     monkeypatch.setattr(catalogue_build, "canelevation_keys_list", refuse)
     monkeypatch.setattr(catalogue_build, "blocks_list", refuse)
+    monkeypatch.setattr(laz_item, "PAGE_BACKOFF_S", 0)  # a 5xx test retries without waiting
 
 
 @pytest.fixture(autouse=True)
@@ -1507,3 +1508,37 @@ def test_validation_in_a_process_pool_reports_each_invalid_item():
     errs = catalogue_build.validate_all([good] * 600 + [bad], workers=2)
     assert len(errs) == 1 and errs[0].startswith("bad: ")
     assert catalogue_build.validate_all([good, bad], workers=1)[0].startswith("bad: ")
+
+
+class _Flaky:
+    """A session failing `fails` times (an exception or a status) before answering 200."""
+    def __init__(self, fails):
+        self.fails, self.calls = list(fails), 0
+
+    def get(self, url, params=None, timeout=None):
+        self.calls += 1
+        f = self.fails.pop(0) if self.fails else 200
+        if isinstance(f, Exception):
+            raise f
+        r = type("R", (), {})()
+        r.status_code = f
+        return r
+
+
+def test_a_listing_page_is_retried_on_a_dropped_connection_or_5xx():
+    import requests
+    s = _Flaky([requests.ConnectionError("dropped"), 503, requests.Timeout("slow")])
+    assert laz_item.page_get(s, "u", {}, 1, sleep=lambda t: None).status_code == 200
+    assert s.calls == 4
+
+
+def test_a_listing_page_failing_every_attempt_raises_and_a_4xx_is_not_retried():
+    import requests
+    s = _Flaky([requests.ConnectionError("dropped")] * laz_item.PAGE_ATTEMPTS)
+    with pytest.raises(requests.ConnectionError):
+        laz_item.page_get(s, "u", {}, 1, sleep=lambda t: None)
+    s = _Flaky([403])
+    assert laz_item.page_get(s, "u", {}, 1, sleep=lambda t: None).status_code == 403
+    assert s.calls == 1
+    s = _Flaky([503] * laz_item.PAGE_ATTEMPTS)
+    assert laz_item.page_get(s, "u", {}, 1, sleep=lambda t: None).status_code == 503
