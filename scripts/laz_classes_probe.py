@@ -25,6 +25,11 @@ Usage:
     uv run python scripts/laz_classes_probe.py [--build data/build] [--workers 16] [--limit N]
     uv run python scripts/laz_classes_probe.py --confirm [--workers 4]
     uv run python scripts/laz_classes_probe.py --summary
+    uv run python scripts/laz_classes_probe.py --audit 0.05 [--seed 2]
+
+The build (catalogue_build.py) now samples and reads whole by itself, through the functions
+here; this script is for the research runs: the #10 survey, `--summary`, and `--audit`, which
+tests the build's density screen on files it does not pick (#2).
 """
 
 import argparse
@@ -32,7 +37,9 @@ import collections
 import concurrent.futures
 import json
 import logging
+import bisect
 import os
+import random
 import sys
 import tempfile
 import time
@@ -44,12 +51,23 @@ from laspy import DecompressionSelection, LazBackend
 import requests
 from tqdm import tqdm
 
-from catalogue_build import CLASS_TARGETS, cache_tail_repair
 from laz_item import href_encode
 from laz_item import ASSET_COPC, ASSET_LAZ, key_parse
 from laz_remote import HttpRangeFile
 
 logger = logging.getLogger("laz_classes_probe")
+
+# What the build reads points from, written by every build before its class step, refusal or
+# not: the files it keeps, each with its listing ETag and paired COPC. One derivation of "which
+# files, at which ETag" for the build and for this script's research runs (#10, review round 3).
+CLASS_TARGETS = "class_targets.jsonl"
+CLASSES_SAMPLE = "classes.jsonl"
+CLASSES_FULL = "classes_full.jsonl"
+# A file is screened, and its points sampled, when its point density (header point count over
+# header box area) is at or below this percentile of its mapsheet-year: the share of the group
+# strictly less dense than it is at most SCREEN_PERCENTILE %. At 5 this caught all 58 groundless
+# or ground-only files of the first increment; 10 is the margin (research/laz_classes.md, #2).
+SCREEN_PERCENTILE = 10
 
 FIRST_POINTS = 100_000
 # Fractions of the point count to seek to. LidarBC's LAZ chunks are 50,000 points, so each
@@ -72,6 +90,26 @@ GROUND_ONLY_CLASSES = frozenset({GROUND, 7, 9, 18})
 # one seeks inside a chunk by reading point by point, so a silent fall back to it would cost
 # far more than the bytes recorded suggest (plan review, G2).
 BACKEND = LazBackend.LazrsParallel
+
+
+def cache_tail_repair(path: str) -> None:
+    """Cut an interrupted append off the cache.
+
+    Every record is written as one line ending in a newline, so bytes after the last
+    newline are a record a kill cut short. Removing them -- rather than skipping them on
+    read -- matters: the next append would otherwise land after them and leave a
+    malformed line mid-file, which headers_load refuses.
+    """
+    if not os.path.exists(path):
+        return
+    with open(path, "rb+") as fh:
+        data = fh.read()
+        if not data or data.endswith(b"\n"):
+            return
+        keep = data.rfind(b"\n") + 1
+        logger.warning("dropping %d bytes of an interrupted record at the end of %s",
+                       len(data) - keep, path)
+        fh.truncate(keep)
 
 
 def classes_count(points) -> dict[int, int]:
@@ -321,6 +359,52 @@ def density(header: dict) -> float:
     return header["point_count"] / area if area > 0 else float("nan")
 
 
+def density_screen(urls: list[str], headers: dict[str, dict],
+                   percentile: float = SCREEN_PERCENTILE) -> set[str]:
+    """The files at or below `percentile` of point density in their mapsheet-year: those with
+    at most that share of the group strictly less dense. The least dense file of every group is
+    always in, so a group of one or two is screened whole or in part, never skipped."""
+    by_group = collections.defaultdict(list)
+    for u in urls:
+        p = key_parse(u)
+        by_group[f"{p['block']}/{p['sheet']}/{p['year']}"].append(u)
+    out = set()
+    for us in by_group.values():
+        ds = sorted(density(headers[u]) for u in us)
+        for u in us:
+            below = bisect.bisect_left(ds, density(headers[u]))
+            if 100 * below / len(ds) <= percentile:
+                out.add(u)
+    return out
+
+
+def audit_select(items: list[dict], headers: dict[str, dict], fraction: float,
+                 seed: int) -> list[dict]:
+    """A uniform random `fraction` of the items the density screen leaves out, by a seeded draw
+    over ids sorted, so the same build and seed give the same audit (#2)."""
+    urls = {laz_url(i): i for i in items}
+    screened = density_screen(list(urls), headers)
+    pool = sorted((i for u, i in urls.items() if u not in screened), key=lambda i: i["id"])
+    pick = random.Random(seed).sample(pool, round(fraction * len(pool)))
+    return sorted(pick, key=lambda i: i["id"])
+
+
+def audit_report(ids: list[str], samples: dict[str, dict], full: dict[str, dict]) -> dict:
+    """Of the audited items: how many were sampled, flagged, and confirmed ground-only or
+    groundless by a whole read (each a miss of the screen), with the 95% upper bound on the
+    miss rate when none was found (1 - 0.05^(1/n))."""
+    good = {k: samples[k] for k in ids if k in samples and "error" not in samples[k]}
+    flagged = confirm_ids(good)
+    misses = sorted(k for k in flagged if "full" in full.get(k, {})
+                    and (ground_only(full[k]["full"]["classes"])
+                         or no_ground(full[k]["full"]["classes"])))
+    n = len(good)
+    return {"audited": len(ids), "sampled": n, "flagged": len(flagged),
+            "unread": sorted(k for k in flagged if "full" not in full.get(k, {})),
+            "misses": misses,
+            "bound_95": (1 - 0.05 ** (1 / n)) if n and not misses else None}
+
+
 def summary(items: list[dict], recs: dict[str, dict], full: dict[str, dict] | None = None,
             headers: dict[str, dict] | None = None) -> None:
     ids = {i["id"] for i in items}
@@ -430,13 +514,17 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=16)
     ap.add_argument("--limit", type=int)
     ap.add_argument("--ids", help="file of item ids to probe, one per line")
-    ap.add_argument("--full", default=None, help="default <build>/classes_full.jsonl")
+    ap.add_argument("--full", default=None, help=f"default <build>/{CLASSES_FULL}")
     ap.add_argument("--confirm", action="store_true",
                     help="fully read every item any sample calls ground-only")
     ap.add_argument("--summary", action="store_true")
+    ap.add_argument("--audit", type=float, metavar="FRACTION",
+                    help="sample a seeded random FRACTION of the files the density screen "
+                         "leaves out, read whole what flags, and report the screen's misses")
+    ap.add_argument("--seed", type=int, default=2)
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    out = args.out or f"{args.build}/classes.jsonl"
+    out = args.out or f"{args.build}/{CLASSES_SAMPLE}"
     items, current = targets_load(f"{args.build}/{CLASS_TARGETS}")
     if args.ids:
         want = {x.strip() for x in open(args.ids) if x.strip()}
@@ -445,7 +533,27 @@ def main() -> int:
             raise SystemExit(f"{len(want) - len(items)} ids not in the build")
     if args.limit:
         items = items[:args.limit]
-    full = args.full or f"{args.build}/classes_full.jsonl"
+    full = args.full or f"{args.build}/{CLASSES_FULL}"
+    if args.audit:
+        headers = {}
+        with open(f"{args.build}/headers.jsonl") as fh:
+            for r in map(json.loads, fh):
+                headers[r["url"]] = r["header"]
+        pick = audit_select(items, headers, args.audit, args.seed)
+        ids_path = f"{args.build}/classes_audit_ids.txt"
+        with open(ids_path, "w") as fh:
+            fh.write("".join(f"{i['id']}\n" for i in pick))
+        logger.info("audit: %d items (seed %d) listed in %s", len(pick), args.seed, ids_path)
+        errors = probe_all(pick, out, args.workers, current=current)
+        cache_tail_repair(full)
+        recs = records_load(out)
+        want = confirm_ids({i["id"]: recs[i["id"]] for i in pick
+                            if i["id"] in recs and record_good(recs[i["id"]], current)})
+        errors |= probe_all([i for i in pick if i["id"] in want], full, max(1, args.workers // 4),
+                            probe=full_probe, current=current)
+        rep = audit_report([i["id"] for i in pick], records_load(out), records_load(full))
+        print(json.dumps(rep, indent=1))
+        return 1 if errors else 0
     if args.summary:
         cache_tail_repair(out)
         cache_tail_repair(full)

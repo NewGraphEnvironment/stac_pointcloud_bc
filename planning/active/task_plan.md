@@ -4,30 +4,30 @@
 
 ## Phase 1: Whole-bucket listing
 
-- [ ] Replace `INCREMENT` with a walk per block (the `NTS_BLOCKS` prefixes) in `listing()`.
+- [x] Replace `INCREMENT` with a walk per block (the `NTS_BLOCKS` prefixes) in `listing()`.
   - Keep only `<block>/<sheet>/<year>/pointcloud/*.laz`.
   - A key that `key_parse` refuses fails the walk, with the key named.
   - A `.laz` under a block outside `NTS_BLOCKS` is refused.
-- [ ] Record the per-group counts in a committed `data/pointcloud_groups.json`.
+- [x] Record the per-group counts in a committed `data/pointcloud_groups.json`.
   - A recorded group listed under 90% of its count is refused.
   - A new group is logged, not refused, so the monthly update (#4) is not blocked by growth.
   - A `--groups-record` flag rewrites the file.
-- [ ] Tests: a short group is refused, a new group passes, a key off the pattern raises, an
+- [x] Tests: a short group is refused, a new group passes, a key off the pattern raises, an
   unknown block raises. The listing is mocked.
-- [ ] Measure: run the listing once and record the totals and the group count. Check against
+- [x] Measure: run the listing once and record the totals and the group count. Check against
   175,317 and the 9,650 of the increment.
 
 ## Phase 2: Item changes (pure, in `laz_item.py`)
 
-- [ ] `item_create` sets `lidarbc:delivery = "<block>/<sheet>/<year>"` from the key, and
+- [x] `item_create` sets `lidarbc:delivery = "<block>/<sheet>/<year>"` from the key, and
   refuses a value that does not match `^[0-9]{3}/[0-9]{3}[a-p]/[0-9]{4}$`.
-- [ ] Items list both crate schema URLs in `stac_extensions`. The collection lists the
+- [x] Items list both crate schema URLs in `stac_extensions`. The collection lists the
   `lidarbc` one, for `summaries.lidarbc:product`. The URLs are constants in `laz_item.py`.
-- [ ] The build refuses any item or collection that writes a `lidarbc:` or `las:` key
+- [x] The build refuses any item or collection that writes a `lidarbc:` or `las:` key
   without its schema URL. Prove that the guard fires by mutation.
-- [ ] The collection gets a `related` link to stac-elevation-bc, at
-  `https://images.a11s.one/collections/stac-elevation-bc`.
-- [ ] Update `ITEM_PATHS` and `COLLECTION_PATHS` in `tests/test_laz_item.py`, plus
+- [x] The collection gets a `related` link to stac-elevation-bc. Changed at review (G9): the
+  shape stac_dem_bc#55 already writes back, its S3 `collection.json`, before the item links.
+- [x] Update `ITEM_PATHS` and `COLLECTION_PATHS` in `tests/test_laz_item.py`, plus
   `FIELDS_CUSTOM`, and add a test for each branch that writes a key.
 
 ## Phase 3: Class check moves into the build
@@ -39,14 +39,14 @@
   - Any confirmed ground-only or no-ground file above the threshold is a miss. If there are
     misses, widen the screen to the smallest percentile that catches them all, and record it.
   - Write the result into `research/laz_classes.md`.
-- [ ] Build step: select the screen from the headers (the 10th percentile within each
+- [x] Build step: select the screen from the headers (the 10th percentile within each
   mapsheet-year, unless re-measured), then sample those files, then read whole what the
   samples flag. Reuse the probe's functions:
   - `item_probe`, `full_probe`, `probe_all`, `confirm_work`, `record_good`.
   - Also its caches: `classes.jsonl` and `classes_full.jsonl`.
   - `laz_classes_probe.py` stays as the research and `--summary` tool, importing the same
     functions.
-- [ ] Replace the `CLASSES_READ` count pin with a derived check. The build refuses unless:
+- [x] Replace the `CLASSES_READ` count pin with a derived check. The build refuses unless:
   - every screened file has a good sample record at its current ETag, and
   - every file that sample flags has a good whole-file record at its current ETag.
 
@@ -64,7 +64,8 @@
   - If more than a handful share one fault, stop and report rather than listing hundreds of
     entries.
 - [ ] Run validation in a process pool, timed. Record peak memory for about 175k items.
-- [ ] Generalise `copc_pairs_measure.py --published`:
+- [x] Generalise `copc_pairs_measure.py --published` (landed as `scripts/catalogue_compare.py`,
+  which exits 1 on anything unexpected and compares the collection too):
   - map `nge:` to the new names (from #12's table);
   - remove the changes this release expects:
     - the `lidarbc:delivery` key,
@@ -72,6 +73,23 @@
     - `classification:classes`,
     - `copc` assets on new pairs;
   - report any remaining difference, which should be none.
+
+## Added at plan review (planning/active/review-plan.md)
+
+- [x] Listing-time checks before any header read (O1, G10, G11a, A4): every `.laz` parsed,
+  NTS letter, file-name charset, sheet in block, duplicate ids, pairs, date tokens; faults
+  aggregated into one refusal.
+- [x] `item_create` refusals aggregated by fault class (G5); bad date tokens named (G6).
+- [x] `--groups-record` refuses to lower a floor without `--force` (G11b); `COPC_PAIRS` moved to
+  committed `data/copc_pairs.json`, recorded by the same flag (G12).
+- [x] Derived class check covers every flagged sample, screened or not, and runs under
+  `--limit` (G3).
+- [x] Early validation of one item per group; pooled validation of all (O2); CRS transformer
+  cached (O5).
+- [x] `laz_classes_probe.py --audit FRACTION --seed` for the screen audit, with a pass condition
+  (zero confirmed misses) and a 95% bound (G2).
+- [ ] Rewrite the sampling claim in the collection description, CLAUDE.md and NEWS (G4).
+- [ ] Tell stac_dem_bc that `lidarbc/v1.1.0` 404s (A2): comment on stac_dem_bc#55.
 
 ## Phase 5: Full build and documents
 

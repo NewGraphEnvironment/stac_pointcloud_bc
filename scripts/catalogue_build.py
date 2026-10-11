@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Build the stac-pointcloud-bc catalogue for the first increment, locally.
+"""Build the stac-pointcloud-bc catalogue, locally.
 
-Lists `pointcloud/*.laz` in the 11 mapsheet-years whose `dsm/` holds no raster (#1),
-reads each file's LAS header over one range request, and writes item JSON and a
+Lists every `pointcloud/*.laz` on the province's objectstore (#2; the first increment, #1,
+was 11 mapsheet-years), refusing a group listed short of its count in GROUPS, reads each
+file's LAS header over one range request, and writes item JSON and a
 collection.json to `data/build/`. Where NRCan's CanElevation publishes a COPC under a
 file's name (#6), its header is read too (cached in `copc_headers.jsonl`), and if it passes
 laz_item.copc_asset_add's check the item carries it as a second asset. Publishing (s3) and registering (stacs) are separate
@@ -14,6 +15,7 @@ would read as complete.
 
 Usage:
     uv run python scripts/catalogue_build.py [--workers 16] [--limit N]
+    uv run python scripts/catalogue_build.py --groups-record
 """
 
 import argparse
@@ -25,13 +27,30 @@ import os
 import re
 import shutil
 import sys
+import time
 import urllib.parse
 from datetime import datetime, timezone
 
 import pystac
+import pystac.validation
 import requests
 from tqdm import tqdm
 
+from laz_classes_probe import (
+    CLASS_TARGETS,
+    CLASSES_FULL,
+    CLASSES_SAMPLE,
+    SCREEN_PERCENTILE,
+    cache_tail_repair,
+    confirm_ids,
+    confirm_work,
+    density_screen,
+    full_probe,
+    item_probe,
+    probe_all,
+    record_good,
+    records_load,
+)
 from laz_item import (
     ASSET_LAZ,
     COLLECTION_ID,
@@ -40,12 +59,18 @@ from laz_item import (
     date_parse,
     key_parse,
     PATH_S3_STAC,
+    NTS_BLOCKS,
+    PATH_S3,
+    nts_sheet_bounds,
+    url_to_item_id,
+    SCHEMA_LIDARBC,
     canelevation_keys_list,
     classes_add,
     copc_asset_add,
     header_read,
     item_create,
     keys_list,
+    schemas_check,
     url_scheme_check,
 )
 
@@ -53,21 +78,22 @@ logger = logging.getLogger("catalogue_build")
 
 OUT = "data/build"
 
-# The 11 mapsheet-years whose dsm/ directory holds no raster (stac_dem_bc's
-# no_raster_dsm groups), with the pointcloud/*.laz count measured on a full bucket walk
-# 2026-10-06. A listing under 90% of its count is refused as truncated: the dataset has
-# only ever grown.
-INCREMENT = {
-    "082/082e/2018": 1995, "082/082e/2019": 871, "082/082f/2018": 1061,
-    "082/082g/2018": 215, "082/082j/2018": 207, "082/082k/2017": 267,
-    "082/082l/2018": 774, "082/082l/2019": 1352, "092/092g/2016": 1706,
-    "092/092h/2016": 1020, "092/092j/2016": 182,
-}
+# The pointcloud/*.laz count per mapsheet-year (`<block>/<sheet>/<year>`), committed, written
+# by `--groups-record` from a whole-bucket walk. A recorded group listed under 90% of its count
+# is refused as truncated: the dataset has only ever grown, so a shrink that large is a listing
+# that went wrong, not a delivery withdrawn. A group not recorded is logged and built, so new
+# deliveries do not stop the monthly update (#4); record them with the next release.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+GROUPS = os.path.join(ROOT, "data", "pointcloud_groups.json")
+GROUP_FLOOR = 0.9
+# A file name the build will publish: item_link_href encodes only the space (stacs decodes
+# only %20), so anything else that needs encoding would break an item link at register time.
+NAME_OK = re.compile(r"^[A-Za-z0-9_.() -]+$")
 
 # The CanElevation projects that publish COPC under LidarBC file names, with the .laz count
 # measured 2026-10-09 (research/canelevation_overlap.md, #6). Its other BC projects share
 # no file name with LidarBC (and no header, as far as the research could test), and are not
-# listed. A listing under 90% of its count is refused, as for INCREMENT, though not because
+# listed. A listing under 90% of its count is refused, as for GROUPS, though not because
 # the bucket only grows: it has moved once already (FTP to S3). A smaller loss passes here
 # and is caught by COPC_PAIRS, for the groups it records.
 CANELEVATION_ROOT = "pointclouds_nuagespoints"
@@ -78,29 +104,16 @@ CANELEVATION_PROJECTS = {
     "BC/Lower_Mainland_2016": 1714,
 }
 
-# Items with a CanElevation copy per INCREMENT group, measured 2026-10-09 (#6). The listing
-# floors above cannot see a rename on either side, which pairs nothing while every count
-# passes. Pairing is a deterministic join, so there is no slack either way: a group pairing
-# other than this is refused (fewer would drop published `copc` assets without a word; more
-# would publish assets a later shrink back to this count could drop unseen), and so is a
-# group that pairs and is not named here. Record the new count when the change is real.
-COPC_PAIRS = {"082/082e/2019": 332, "082/082l/2019": 57, "092/092g/2016": 1155,
-              "092/092h/2016": 420}
-
-# Whole-file class reads (#10), written by `laz_classes_probe.py --confirm` beside the build,
-# for every item a point sample called ground-only or groundless; each such item lists its
-# classes (classification:classes on the `laz` asset). CLASSES_READ is how many per group,
-# measured 2026-10-10 (research/laz_classes.md). The cache is regenerable and gitignored, so
-# a build that found it missing or short would drop the lists without a word: anything but
-# these counts is refused, as for COPC_PAIRS. Record the new count when the change is real.
-CLASSES_FULL = "classes_full.jsonl"
-# What the probe reads, written by every build before its class check, refusal or not: the
-# files this build keeps, each with its listing ETag and paired COPC. One derivation of "which
-# files, at which ETag" for both sides, so a build that refuses for want of class reads has
-# already told the probe what to read (review round 3).
-CLASS_TARGETS = "class_targets.jsonl"
-CLASSES_READ = {"082/082e/2018": 32, "082/082k/2017": 1, "082/082l/2018": 17,
-                "082/082l/2019": 19, "092/092g/2016": 2, "092/092h/2016": 2}
+# Items with a CanElevation copy per group, committed beside GROUPS and written by the same
+# `--groups-record` (first measured 2026-10-09, #6). The listing floors above cannot see a
+# rename on either side, which pairs nothing while every count passes. Pairing is a
+# deterministic join, so there is no slack either way: a group pairing other than this is
+# refused (fewer would drop published `copc` assets without a word; more would publish assets
+# a later shrink back to this count could drop unseen), and so is a group that pairs and is
+# not recorded. Record the new counts when the change is real.
+COPC_PAIRS_PATH = os.path.join(ROOT, "data", "copc_pairs.json")
+with open(COPC_PAIRS_PATH) as _fh:
+    COPC_PAIRS = json.load(_fh)
 
 # Files whose header is known to be faulty, excluded by name with the reason. Anything
 # else item_create() refuses fails the build, so a new fault is seen rather than dropped.
@@ -145,20 +158,125 @@ PROVIDERS = [
      "url": "https://www.newgraphenvironment.com"},
 ]
 KEYWORDS = ["lidar", "point cloud", "laz", "british columbia", "lidarbc"]
+# The raster products of the same deliveries. The same shape stac-elevation-bc carries back
+# (stac_dem_bc#55): the published collection.json, matched on lidarbc:delivery (#5).
+RELATED_ELEVATION = {
+    "rel": "related",
+    "href": "https://stac-dem-bc.s3.amazonaws.com/collection.json",
+    "type": "application/json",
+    "title": "DEM and DSM rasters from the same LidarBC deliveries (stac-elevation-bc); "
+             "match items on lidarbc:delivery",
+}
+
+
+def blocks_list(session: requests.Session | None = None) -> list[str]:
+    """The NTS block directories at the objectstore's root (`082`, `092`, ...). One that
+    NTS_BLOCKS does not know raises: its keys would fail the sheet check one by one, hours
+    into a build, and skipping it would drop a delivery without a word."""
+    s = session or requests.Session()
+    r = s.get(PATH_S3, params={"delimiter": "/"}, timeout=60)
+    if r.status_code != 200:
+        raise OSError(f"listing the root returned {r.status_code}")
+    if re.search(rb"<IsTruncated>true</IsTruncated>", r.content):
+        raise OSError("the root listing is truncated; page it before trusting it")
+    prefixes = [p.decode() for p in re.findall(rb"<Prefix>([^<]+)</Prefix>", r.content)]
+    blocks = sorted(p.rstrip("/") for p in prefixes if re.fullmatch(r"\d{3}/", p))
+    unknown = [b for b in blocks if b not in NTS_BLOCKS]
+    if unknown:
+        raise RuntimeError(f"block directories with no NTS grid in laz_item.NTS_BLOCKS: "
+                           f"{', '.join(unknown)} - add them before building")
+    if not blocks:
+        raise OSError("the root listing names no block directory")
+    return blocks
+
+
+def group_of(url: str) -> str:
+    p = key_parse(url)
+    return f"{p['block']}/{p['sheet']}/{p['year']}"
+
+
+def pointcloud_select(objs: list[dict]) -> list[dict]:
+    """The `pointcloud/*.laz` objects. Every `.laz` (any case) is parsed, whatever directory
+    it is in, and each fault is collected, so one listing names them all: a key off the
+    <block>/<sheet>/<year>/<product>/<file>.laz pattern, an unknown product directory, an
+    NTS sheet letter the grid does not have, or a file name item links cannot carry."""
+    out, faults, products = [], [], collections.Counter()
+    for o in objs:
+        u = url_scheme_check(o["url"])
+        if not u.lower().endswith(".laz"):
+            continue
+        try:
+            p = key_parse(u)
+            nts_sheet_bounds(p["block"], p["sheet"])
+            if not NAME_OK.match(p["name"]):
+                raise ValueError(f"file name outside {NAME_OK.pattern}: {p['key']}")
+        except ValueError as e:
+            faults.append(str(e))
+            continue
+        products[p["product"]] += 1
+        if p["product"] == "pointcloud":
+            out.append(o)
+    if faults:
+        raise ValueError(f"{len(faults)} .laz keys cannot be placed:\n  " + "\n  ".join(faults))
+    logger.info(".laz by product directory: %s", dict(sorted(products.items())))
+    return out
+
+
+def groups_load(path: str = GROUPS) -> dict[str, int]:
+    with open(path) as fh:
+        return json.load(fh)
+
+
+def groups_count(objs: list[dict]) -> dict[str, int]:
+    return dict(sorted(collections.Counter(group_of(o["url"]) for o in objs).items()))
+
+
+def groups_check(found: dict[str, int], recorded: dict[str, int]) -> None:
+    """Refuse a recorded group listed under GROUP_FLOOR of its count (or not at all); log a
+    group not recorded."""
+    short = {g: (found.get(g, 0), n) for g, n in recorded.items()
+             if found.get(g, 0) < GROUP_FLOOR * n}
+    if short:
+        raise RuntimeError("groups listed under 90% of their recorded pointcloud .laz count - "
+                           "refusing a truncated listing: " + ", ".join(
+                               f"{g}: {f} of {n}" for g, (f, n) in sorted(short.items())))
+    for g in sorted(set(found) - set(recorded)):
+        logger.warning("%s: %d .laz, a group not in %s - built; record it with --groups-record",
+                       g, found[g], GROUPS)
+
+
+def records_write(found: dict[str, int], pairs: dict[str, int], force: bool) -> None:
+    """Write GROUPS and COPC_PAIRS_PATH from this listing. A group whose count would drop below
+    GROUP_FLOOR of its record, or vanish, is refused without `force`: re-recording after a
+    truncated listing would otherwise lower the floor that exists to catch one."""
+    recorded = groups_load() if os.path.exists(GROUPS) else {}
+    for path, new, old in ((GROUPS, found, recorded), (COPC_PAIRS_PATH, pairs, COPC_PAIRS)):
+        lowered = {g: (new.get(g, 0), n) for g, n in old.items() if new.get(g, 0) < n}
+        for g, (f, n) in sorted(lowered.items()):
+            logger.warning("%s: %s from %d to %d", os.path.basename(path), g, n, f)
+        for g in sorted(set(new) - set(old)):
+            logger.info("%s: %s new, %d", os.path.basename(path), g, new[g])
+        steep = {g: v for g, v in lowered.items()
+                 if path == COPC_PAIRS_PATH or v[0] < GROUP_FLOOR * v[1]}
+        if steep and not force:
+            raise RuntimeError(f"recording would lower {len(steep)} counts in {path} "
+                               f"({', '.join(sorted(steep)[:5])}); pass --force if that is real")
+    for path, new in ((GROUPS, found), (COPC_PAIRS_PATH, pairs)):
+        with open(f"{path}.new", "w") as fh:
+            json.dump(dict(sorted(new.items())), fh, indent=1)
+            fh.write("\n")
+        os.replace(f"{path}.new", path)
+        logger.info("recorded %d groups, %d in all, in %s", len(new), sum(new.values()), path)
 
 
 def listing() -> list[dict]:
-    """Every pointcloud/*.laz object in the increment (`{"url", "etag", "size"}`),
-    refusing a short group."""
+    """Every pointcloud/*.laz object on the objectstore (`{"url", "etag", "size"}`), walked
+    one block at a time, sorted by url."""
     s = requests.Session()
     objs = []
-    for group, expected in INCREMENT.items():
-        found = [o for o in keys_list(f"{group}/pointcloud/", session=s)
-                 if url_scheme_check(o["url"]).lower().endswith(".laz")]
-        if len(found) < 0.9 * expected:
-            raise RuntimeError(f"{group}: {len(found)} pointcloud .laz, under 90% of the "
-                               f"{expected} measured 2026-10-06 - refusing a truncated listing")
-        logger.info("%s: %d .laz (measured %d)", group, len(found), expected)
+    for b in blocks_list(s):
+        found = pointcloud_select(keys_list(f"{b}/", session=s))
+        logger.info("block %s: %d pointcloud .laz", b, len(found))
         objs.extend(found)
     return sorted(objs, key=lambda o: o["url"])
 
@@ -210,36 +328,16 @@ def copc_pairs(urls: list[str], copc_objs: list[dict]) -> dict[str, dict]:
 def copc_pairs_check(pairs: dict[str, dict]) -> None:
     """Refuse a group that paired other than COPC_PAIRS records, or paired at all without
     a recorded count."""
-    n = collections.Counter("/".join(key_parse(u)["key"].split("/")[:3]) for u in pairs)
+    n = collections.Counter(group_of(u) for u in pairs)
     for g, expected in COPC_PAIRS.items():
         if n[g] != expected:
             raise RuntimeError(f"{g}: {n[g]} items paired with a CanElevation COPC, not the "
-                               f"{expected} recorded in COPC_PAIRS - a renamed, moved or new "
+                               f"{expected} recorded in copc_pairs.json - a renamed, moved or new "
                                f"file on either side; record the count if the change is real")
     new = sorted(set(n) - set(COPC_PAIRS))
     if new:
-        raise RuntimeError(f"groups pairing with CanElevation but not in COPC_PAIRS: "
+        raise RuntimeError(f"groups pairing with CanElevation but not in copc_pairs.json: "
                            f"{', '.join(f'{g} ({n[g]})' for g in new)} - record their counts")
-
-
-def cache_tail_repair(path: str) -> None:
-    """Cut an interrupted append off the cache.
-
-    Every record is written as one line ending in a newline, so bytes after the last
-    newline are a record a kill cut short. Removing them -- rather than skipping them on
-    read -- matters: the next append would otherwise land after them and leave a
-    malformed line mid-file, which headers_load refuses.
-    """
-    if not os.path.exists(path):
-        return
-    with open(path, "rb+") as fh:
-        data = fh.read()
-        if not data or data.endswith(b"\n"):
-            return
-        keep = data.rfind(b"\n") + 1
-        logger.warning("dropping %d bytes of an interrupted record at the end of %s",
-                       len(data) - keep, path)
-        fh.truncate(keep)
 
 
 def headers_load(path: str) -> dict[str, dict]:
@@ -305,14 +403,41 @@ def exclusions_check(urls: list[str], headers: dict) -> list[str]:
 
 def groups_with_untrusted_dates(urls: list[str]) -> set[str]:
     """Deliveries (mapsheet-years) in which any filename date's year disagrees with the
-    directory. Their filename dates are not used for any file (laz_item.date_parse)."""
-    bad = set()
+    directory. Their filename dates are not used for any file (laz_item.date_parse). A token
+    that is no date at all raises, naming every such file."""
+    bad, faults = set(), []
     for u in urls:
         p = key_parse(u)
-        when = date_parse(p["name"], p["year"])
+        try:
+            when = date_parse(p["name"], p["year"])
+        except ValueError as e:
+            faults.append(f"{p['key']}: {e}")
+            continue
         if when["filename_date"] and when["source"] == "path":
-            bad.add(f"{p['block']}/{p['sheet']}/{p['year']}")
+            bad.add(group_of(u))
+    if faults:
+        raise ValueError(f"{len(faults)} file names carry a date token that is no date:\n  "
+                         + "\n  ".join(faults))
     return bad
+
+
+def items_create(kept: list[str], headers: dict, collection_href: str,
+                 untrusted: set[str]) -> tuple[list[pystac.Item], dict[str, str]]:
+    """item_create for every file, collecting refusals rather than stopping at the first, so
+    one run names every header fault (each is triaged into EXCLUDE or a fix)."""
+    items, faults = [], {}
+    for u in kept:
+        try:
+            items.append(item_create(u, headers[u], collection_href,
+                                     trust_filename_date=group_of(u) not in untrusted))
+        except ValueError as e:
+            faults[u] = str(e)
+    return items, faults
+
+
+def fault_class(message: str) -> str:
+    """A refusal message with its numbers and url removed: what to count faults by."""
+    return re.sub(r"-?\d+(\.\d+)?(e[-+]?\d+)?", "#", message.split(": https://")[0])
 
 
 def class_targets_write(path: str, kept: list[str], items: list[pystac.Item],
@@ -336,7 +461,7 @@ def classes_records_load(path: str) -> dict[str, dict]:
                 if "laz" not in r:
                     raise ValueError(f"{path} line {n} names no laz file ({r.get('id')}): "
                                      "written before failed reads carried one; remove it "
-                                     "and re-run laz_classes_probe.py --confirm")
+                                     "and re-run the build")
                 out[r["laz"]] = r
     return out
 
@@ -346,29 +471,77 @@ def classes_attach(items: dict[str, pystac.Item], etags: dict[str, str],
     """Add each whole-file class read of a file in the build to its item (`items` and `etags`
     keyed by laz url). Returns the problems, keyed by url: a failed read, a read of an older
     delivery (ETag changed), or a read classes_add refuses. A read of a file not in the build
-    is not applied and not a problem here; it leaves CLASSES_READ short, which main() refuses.
+    is not applied and not a problem here: classes_check decides what must have been read.
     """
     problems = {}
     for u, r in records.items():
         if u not in items:
             continue
         if "error" in r:
-            problems[u] = (f"the class read failed: {r['error']}; re-run "
-                           "laz_classes_probe.py --confirm")
+            problems[u] = f"the class read failed: {r['error']}; re-run the build"
         elif not etags[u]:
             problems[u] = ("the listing gives this file no ETag, so no class read can be "
                            "matched to it; look at the listing before building")
         elif r["full"]["etag"] != etags[u]:
             problems[u] = (f"read at ETag {r['full']['etag']}, listed at {etags[u]}: the file "
-                           "was re-delivered; re-run laz_classes_probe.py, then with "
-                           "--confirm (each reads again what has a new ETag)")
+                           "was re-delivered; re-run the build, which reads it again")
         else:
             try:
                 classes_add(items[u], r["full"])
             except ValueError as e:
-                problems[u] = (f"{e}; remove its line from {CLASSES_FULL} and re-run "
-                               "laz_classes_probe.py --confirm")
+                problems[u] = f"{e}; remove its line from {CLASSES_FULL} and re-run the build"
     return problems
+
+
+def class_target(item: pystac.Item) -> dict:
+    """An item in the shape the class probe reads: its id and asset hrefs."""
+    return {"id": item.id, "assets": {k: {"href": a.href} for k, a in item.assets.items()}}
+
+
+def classes_check(screened: set[str], ids: dict[str, str], current: dict[str, str],
+                  samples: dict[str, dict], full: dict[str, dict]) -> dict[str, str]:
+    """What stops a build publishing class lists it cannot stand behind, by laz url:
+    - a screened file with no good point sample at its current ETag;
+    - a file any good current sample flags (screened or not: earlier samples and audit samples
+      count too) with no good whole-file read at its current ETag.
+    Derived from the screen and the samples, so a cache that is missing, short or stale is
+    refused without a count to keep (#2). `samples` and `full` are keyed by item id."""
+    problems = {}
+    for u in sorted(screened):
+        r = samples.get(ids[u])
+        if r is None or not record_good(r, current):
+            problems[u] = ("no point sample at the current ETag"
+                           + (f" ({r['error']})" if r and "error" in r else ""))
+    by_id = {i: u for u, i in ids.items()}
+    good = {k: r for k, r in samples.items() if k in by_id and record_good(r, current)}
+    for k in sorted(confirm_ids(good)):
+        r = full.get(k)
+        if r is None or not record_good(r, current):
+            problems[by_id[k]] = ("flagged by its sample, with no whole-file read at the "
+                                  "current ETag" + (f" ({r['error']})" if r and "error" in r
+                                                    else ""))
+    return problems
+
+
+def validate_one(body: dict) -> str | None:
+    """None if `body` validates (core and every schema in stac_extensions), else the error."""
+    try:
+        pystac.validation.validate_dict(body)
+    except pystac.errors.STACValidationError as e:
+        return f"{body.get('id')}: {str(e)[:1000]}"
+    return None
+
+
+def validate_all(bodies: list[dict], workers: int) -> list[str]:
+    """Validate every body, in a process pool when there are many: at about 40 ms each, 175k
+    items are two hours in one process. Each worker caches the schemas it fetches."""
+    if len(bodies) < 500 or workers < 2:
+        return [e for e in map(validate_one, bodies) if e]
+    t0 = time.monotonic()
+    with concurrent.futures.ProcessPoolExecutor(max_workers=min(workers, os.cpu_count() or 1)) as ex:
+        errs = [e for e in ex.map(validate_one, bodies, chunksize=250) if e]
+    logger.info("validated %d items in %.0f s", len(bodies), time.monotonic() - t0)
+    return errs
 
 
 def item_link_href(item_id: str) -> str:
@@ -401,8 +574,10 @@ def collection_build(items: list[pystac.Item]) -> pystac.Collection:
                              pystac.TemporalExtent([[min(starts), max(ends)]])),
         summaries=pystac.Summaries({"lidarbc:product": sorted(
             {i.properties["lidarbc:product"] for i in items})}),
+        stac_extensions=[SCHEMA_LIDARBC],
     )
     c.set_self_href(f"{PATH_S3_STAC}/collection.json")
+    c.add_link(pystac.Link.from_dict(RELATED_ELEVATION))
     for i in items:
         c.add_link(pystac.Link(rel=pystac.RelType.ITEM, target=item_link_href(i.id),
                                media_type=pystac.MediaType.GEOJSON))
@@ -415,6 +590,11 @@ def main() -> int:
     ap.add_argument("--limit", type=int,
                     help="first N files only (development); written to data/build-limit, "
                          "never data/build, so a partial build cannot be published")
+    ap.add_argument("--groups-record", action="store_true",
+                    help="write the listing's per-group .laz and COPC pair counts to "
+                         "data/pointcloud_groups.json and data/copc_pairs.json, and stop")
+    ap.add_argument("--force", action="store_true",
+                    help="with --groups-record, allow a recorded count to fall")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     # A local, not a reassigned module global: a second main() in one process (a test)
@@ -423,12 +603,29 @@ def main() -> int:
 
     os.makedirs(out, exist_ok=True)
     objs = listing()
+    found = groups_count(objs)
+    if not args.groups_record:
+        groups_check(found, groups_load())
     # Listed before any header is read, so a short CanElevation listing fails fast.
     copc_objs = copc_listing()
+    # Everything that needs only the listing is checked here, before hours of header reads:
+    # group floors, COPC pairs, date tokens and item ids.
+    named = [o["url"] for o in objs if o["url"] not in EXCLUDE]
+    pairs = copc_pairs(named, copc_objs)
+    if args.groups_record:
+        records_write(found, dict(collections.Counter(group_of(u) for u in pairs)), args.force)
+        return 0
+    copc_pairs_check(pairs)
+    untrusted = groups_with_untrusted_dates(named)
+    ids = collections.Counter(url_to_item_id(u) for u in named)
+    if any(n > 1 for n in ids.values()):
+        raise RuntimeError(f"duplicate item ids: {sorted(k for k, n in ids.items() if n > 1)[:5]}")
+    for g in sorted(untrusted):
+        logger.info("filename dates not used in %s: some disagree with its year", g)
     if args.limit:
         objs = objs[: args.limit]
     urls = [o["url"] for o in objs]
-    logger.info("%d files in the increment", len(urls))
+    logger.info("%d pointcloud .laz in %d groups", len(urls), len(found))
 
     headers, errors = headers_fetch(objs, f"{out}/headers.jsonl", args.workers)
     if errors:
@@ -440,21 +637,31 @@ def main() -> int:
 
     collection_href = f"{PATH_S3_STAC}/collection.json"
     excluded = exclusions_check(urls, headers)
-    untrusted = groups_with_untrusted_dates(urls)
-    for g in sorted(untrusted):
-        logger.info("filename dates not used in %s: some disagree with its year", g)
-
-    def group(u):
-        p = key_parse(u)
-        return f"{p['block']}/{p['sheet']}/{p['year']}"
     kept = [u for u in urls if u not in excluded]
-    items = [item_create(u, headers[u], collection_href,
-                         trust_filename_date=group(u) not in untrusted)
-             for u in kept]
-
-    pairs = copc_pairs(kept, copc_objs)
-    if not args.limit:  # a limited build is a slice, and is never published
-        copc_pairs_check(pairs)
+    items, faults = items_create(kept, headers, collection_href, untrusted)
+    if faults:
+        by_class = collections.defaultdict(list)
+        for u, e in sorted(faults.items()):
+            by_class[fault_class(e)].append(e)
+        for cls, es in sorted(by_class.items(), key=lambda x: -len(x[1])):
+            logger.error("%d files: %s; e.g. %s", len(es), cls, " | ".join(es[:3]))
+        logger.error("%d of %d files refused by item_create - not building; triage each into "
+                     "EXCLUDE or a fix", len(faults), len(kept))
+        return 1
+    pairs = {u: o for u, o in pairs.items() if u in set(kept)}
+    # One item per group through the full validator now, an hour before the class step ends:
+    # the first meeting of real items with the crate schemas should not be the last step.
+    first = {}
+    for u, i in zip(kept, items):
+        first.setdefault(group_of(u), i)
+    invalid = validate_all([i.to_dict(include_self_link=False) for i in first.values()],
+                           args.workers)
+    if invalid:
+        for e in invalid[:20]:
+            logger.error("invalid: %s", e)
+        logger.error("%d of %d sample items fail STAC validation - not building", len(invalid),
+                     len(first))
+        return 1
     copc_headers, errors = headers_fetch(list(pairs.values()), f"{out}/copc_headers.jsonl",
                                          args.workers)
     if errors:
@@ -476,13 +683,39 @@ def main() -> int:
         logger.error("%d of %d CanElevation name matches are not copies - not building",
                      len(mismatched), len(pairs))
         return 1
-    for g, n in sorted(collections.Counter(group(u) for u in pairs).items()):
+    for g, n in sorted(collections.Counter(group_of(u) for u in pairs).items()):
         logger.info("%s: %d items with a CanElevation COPC copy", g, n)
 
     etags = {o["url"]: o["etag"] for o in objs}
     class_targets_write(f"{out}/{CLASS_TARGETS}", kept, items, etags, pairs)
-    cache_tail_repair(f"{out}/{CLASSES_FULL}")  # a --confirm killed mid-write
-    records = classes_records_load(f"{out}/{CLASSES_FULL}")
+    # Point classes (#10): sample the low-density tail, read whole what a sample flags, and list
+    # the classes of every file read whole. Each step reads only what its cache lacks at the
+    # file's current ETag, so a re-run retries failures and nothing else.
+    ids = {u: i.id for u, i in zip(kept, items)}
+    current = {i.id: etags[u] for u, i in zip(kept, items)}
+    screened = density_screen(kept, headers)
+    logger.info("%d of %d files screened (density at or below the %g percentile of their "
+                "mapsheet-year)", len(screened), len(kept), SCREEN_PERCENTILE)
+    targets = {i.id: class_target(i) for i in items}
+    sample_path, full_path = f"{out}/{CLASSES_SAMPLE}", f"{out}/{CLASSES_FULL}"
+    probe_all([targets[ids[u]] for u in sorted(screened)], sample_path, args.workers,
+              probe=item_probe, current=current)
+    samples = {k: r for k, r in records_load(sample_path).items() if k in current}
+    cache_tail_repair(full_path)
+    want = confirm_work({k: r for k, r in samples.items() if record_good(r, current)},
+                        {k: r for k, r in records_load(full_path).items() if k in current},
+                        current)
+    probe_all([targets[k] for k in sorted(want)], full_path, args.workers, probe=full_probe,
+              current=current)
+    full = {k: r for k, r in records_load(full_path).items() if k in current}
+    problems = classes_check(screened, ids, current, samples, full)
+    if problems:
+        for u, e in sorted(problems.items()):
+            logger.error("class read: %s: %s", u, e)
+        logger.error("%d files lack the class reads the screen requires - not building; "
+                     "re-run to retry them", len(problems))
+        return 1
+    records = classes_records_load(full_path)
     gone = sorted(set(records) - set(kept))
     if gone and not args.limit:  # a slice leaves most files out; that is not news
         logger.warning("%d class reads are of files not in this build, not applied: %s",
@@ -494,25 +727,29 @@ def main() -> int:
             logger.error("class read: %s: %s", u, e)
         logger.error("%d class reads cannot be applied - not building", len(problems))
         return 1
-    read = collections.Counter(group(u) for u in records)
-    if not args.limit and dict(read) != CLASSES_READ:
-        logger.error("whole-file class reads per group %s, expected %s (CLASSES_READ) - "
-                     "not building. With no or a partial %s, run laz_classes_probe.py and "
-                     "then with --confirm; if the change is real (files added, re-delivered "
-                     "or gone), record the new counts in CLASSES_READ",
-                     dict(sorted(read.items())), CLASSES_READ, CLASSES_FULL)
-        return 1
+    read = collections.Counter(group_of(u) for u in records)
     for g, n in sorted(read.items()):
         logger.info("%s: %d items read whole for their classes", g, n)
-    ids = [i.id for i in items]
-    if len(set(ids)) != len(ids):
-        raise RuntimeError("duplicate item ids in the increment")
+    logger.info("classes: %d screened, %d sampled, %d flagged by a sample, %d read whole",
+                len(screened), len(samples),
+                len(confirm_ids({k: r for k, r in samples.items() if record_good(r, current)})),
+                len(records))
+    bodies = []
     for i in items:
         if ASSET_LAZ not in i.assets:
             raise RuntimeError(f"{i.id} has no {ASSET_LAZ!r} asset")
-        i.validate()
+        d = i.to_dict(include_self_link=False)
+        schemas_check(d)
+        bodies.append(d)
+    invalid = validate_all(bodies, args.workers)
+    if invalid:
+        for e in invalid[:20]:
+            logger.error("invalid: %s", e)
+        logger.error("%d of %d items fail STAC validation - not building", len(invalid), len(bodies))
+        return 1
 
     c = collection_build(items)
+    schemas_check(c.to_dict())
     c.validate()
 
     # Everything is built and validated before anything on disk changes. The new set is
@@ -521,9 +758,9 @@ def main() -> int:
     stage = f"{out}/items.new"
     shutil.rmtree(stage, ignore_errors=True)
     os.makedirs(stage)
-    for i in items:
-        with open(f"{stage}/{i.id}.json", "w") as fh:
-            json.dump(i.to_dict(include_self_link=False), fh)
+    for d in bodies:
+        with open(f"{stage}/{d['id']}.json", "w") as fh:
+            json.dump(d, fh)
     with open(f"{out}/collection.json.new", "w") as fh:
         json.dump(c.to_dict(include_self_link=True), fh, indent=1)
     old = f"{out}/items.old"

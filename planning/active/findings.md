@@ -50,8 +50,8 @@ re-registration where three changes that are merged but not yet published land t
 - stac_dem_bc's `urls_list.txt` shows only blocks 082, 083, 092, 093, 094, 102, 103 and 104.
   Those are exactly `NTS_BLOCKS`, so the sheet check should hold. Phase 1 confirms it on the
   `.laz` listing itself.
-- `data/build` no longer holds `headers.jsonl`, so every header is read cold. At 16 workers
-  that is about 30 min.
+- ~~`data/build` no longer holds `headers.jsonl`~~ — wrong (plan review A1): it holds 9,650 at
+  `HEADER_VERSION` 2, so about 165.6k headers remain to read.
 - Validation at about 0.1 s per item is about 5 h if run serially. It needs a process pool.
 - `copc_pairs_measure.py --published` assumes that the only difference is the `copc` asset.
   That no longer holds.
@@ -71,6 +71,36 @@ Branch: `2-index-the-rest-of-pointcloud-laz-165-667`
 - `stacs verify` reports IN SYNC after the publish.
 - A filter on `lidarbc:delivery` returns items from both collections, once stac_dem_bc#55 has
   published. Otherwise this is noted as pending in #5.
+
+## Whole-bucket walk (2026-10-10 23:35Z, scratchpad walk of the 8 block prefixes)
+
+- The root's directories: the 8 NTS blocks (082 083 092 093 094 102 103 104), plus `albers10k2m`,
+  `index`, `intensity_plots`, `metadata`, `monthly_bulletin`, `temp`, `test`, `transfer_summary`.
+  `blocks_list` keeps the three-digit ones and refuses one `NTS_BLOCKS` lacks.
+- 409,449 keys under the blocks; 181,669 `.laz` (2026-10-06: 181,708); **175,278 under
+  `pointcloud/`** (2026-10-06: 175,317, so 39 fewer). The 11 first-increment groups are unchanged
+  (9,650 in all, each equal to its `INCREMENT` count). Where the 39 went was not measured: the
+  2026-10-06 walk kept no per-group record. From now on `data/pointcloud_groups.json` is that record.
+- Every `.laz` parses: no key off the pattern, no product directory but `pointcloud`/`dsm`, no
+  sheet letter outside A–P, no file name outside `[A-Za-z0-9_.() -]`, no duplicate id.
+- **233 mapsheet-years**, from 2012 to 2026. Smallest: `094/094o/2026` 1 file; `092/092i/2017`,
+  `093/093c/2019`, `103/103j/2021` 2 each.
+- 145 file names carry a ` (2)` copy marker (the increment's handling already covers them).
+
+### Dates (issue: "re-check which deliveries mix naming styles")
+
+- **42 deliveries are untrusted** (some filename date's year disagrees with the directory), up
+  from the increment's 4 (`082k/2017`, `092g/092h/092j 2016`, all still there). Most of the new
+  ones are 2023/2024 directories.
+- Token length per delivery: 125 deliveries name only `yyyy`, 94 only `yyyymmdd`, 3 only
+  `yymmdd`; **11 mix styles**: `082f/2017` (6-digit 1,709, 4-digit 1,063); seven 2019/2021
+  deliveries mixing `yyyy` with no token (`092b`, `092c`, `092f`, `092g`, `092k`, `092l` 2019,
+  `092i/2021`); `092h/2016` and `093c/2023` (8-digit plus a few with none, both untrusted anyway);
+  `092p/2017` (8-digit 208, none 127).
+- Decision (mechanism, not a stored-data fork): a trusted delivery that mixes a day token with no
+  token keeps each file's own precision: a day `datetime` where the file names one, the year
+  range where it names none. Each item says which in `lidarbc:datetime_source`. Only `092p/2017`
+  is in that case.
 
 ## Errors Encountered
 

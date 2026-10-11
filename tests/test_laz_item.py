@@ -9,10 +9,12 @@ import http.server
 import json
 import os
 import threading
+import urllib.parse
 from datetime import datetime, timezone
 
 import laspy
 import numpy as np
+import pystac
 import pytest
 from pyproj import CRS
 
@@ -40,13 +42,55 @@ def no_live_listing(monkeypatch):
         raise AssertionError("a test reached a live bucket listing")
     monkeypatch.setattr(catalogue_build, "keys_list", refuse)
     monkeypatch.setattr(catalogue_build, "canelevation_keys_list", refuse)
+    monkeypatch.setattr(catalogue_build, "blocks_list", refuse)
 
 
 @pytest.fixture(autouse=True)
-def no_class_reads(monkeypatch):
-    """main() refuses a build whose class reads are not CLASSES_READ. These builds have none,
-    so expect none; the tests of that wiring set their own."""
-    monkeypatch.setattr(catalogue_build, "CLASSES_READ", {})
+def no_recorded_pairs(monkeypatch):
+    """main() checks COPC pairs against data/copc_pairs.json before reading a header. These
+    builds pair nothing unless they say so."""
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
+
+
+@pytest.fixture(autouse=True)
+def no_recorded_groups(monkeypatch):
+    """main() checks the listing against the committed GROUPS file. These builds list a
+    handful of files, so record none; the tests of that check pass their own."""
+    monkeypatch.setattr(catalogue_build, "groups_load", lambda path=None: {})
+
+
+def _targets_etag(item_id):
+    """The ETag the build listed for an item, from the targets file it writes before its class
+    step: what a real sample would read back from the file."""
+    for d in ("data/build", "data/build-limit"):
+        p = f"{d}/{catalogue_build.CLASS_TARGETS}"
+        if os.path.exists(p):
+            for t in map(json.loads, open(p)):
+                if t["id"] == item_id:
+                    return t["etag"]
+    raise AssertionError(f"{item_id} is not a class target")
+
+
+def _sample(classes):
+    """A point-sample probe returning `classes` (ints) for every item, at its listed ETag."""
+    def probe(item, session=None):
+        return {"id": item["id"], "laz": urllib.parse.unquote(item["assets"]["laz"]["href"]),
+                "laz_sample": {"etag": _targets_etag(item["id"]), "point_count": 1000,
+                               "samples": {"all": {str(k): v for k, v in classes.items()}},
+                               "bytes": 1, "seconds": 0}}
+    return probe
+
+
+@pytest.fixture(autouse=True)
+def point_reads(monkeypatch):
+    """main() samples the points of every screened file and reads whole what a sample flags.
+    These builds sample a mixed tile, which flags nothing; a whole read is a test failure. The
+    tests of that wiring set their own."""
+    monkeypatch.setattr(catalogue_build, "item_probe", _sample({1: 400, 2: 600}))
+
+    def refuse(*a, **k):
+        raise AssertionError("a test reached a whole-file read")
+    monkeypatch.setattr(catalogue_build, "full_probe", refuse)
 
 
 PC = f"{PATH_S3}/092/092g/2016/pointcloud/bc_092g019_1_4_1_xyes_8_utm10_20170713.laz"
@@ -377,13 +421,145 @@ def test_a_failed_listing_raises_rather_than_reading_as_empty():
         keys_list("a/", session=_Session([""], status=503))
 
 
-def test_the_build_refuses_a_group_listed_short(monkeypatch):
-    def short(prefix, session=None):
-        n = 10 if prefix.startswith("092/092j/2016") else 5000
-        return [{"url": f"{PATH_S3}/{prefix}f{i}.laz", "etag": "e", "size": 1} for i in range(n)]
-    monkeypatch.setattr(catalogue_build, "keys_list", short)
-    with pytest.raises(RuntimeError, match="092/092j/2016: 10 pointcloud .laz"):
-        catalogue_build.listing()
+def _listed(keys):
+    return [{"url": f"{PATH_S3}/{k}", "etag": "e", "size": 1} for k in keys]
+
+
+def test_the_build_refuses_a_group_listed_short():
+    found = {"092/092g/2016": 1000, "092/092j/2016": 10}
+    with pytest.raises(RuntimeError, match="092/092j/2016: 10 of 182"):
+        catalogue_build.groups_check(found, {"092/092g/2016": 1000, "092/092j/2016": 182})
+
+
+def test_a_recorded_group_not_listed_at_all_is_refused():
+    with pytest.raises(RuntimeError, match="092/092j/2016: 0 of 182"):
+        catalogue_build.groups_check({"092/092g/2016": 5}, {"092/092j/2016": 182})
+
+
+def test_a_group_at_the_floor_passes_and_a_new_group_is_built_and_logged(caplog):
+    catalogue_build.groups_check({"092/092j/2016": 90, "093/093a/2020": 7},
+                                 {"092/092j/2016": 100})
+    assert "093/093a/2020: 7 .laz, a group not in" in caplog.text
+
+
+def test_the_listing_keeps_only_pointcloud_laz():
+    objs = _listed(["092/092g/2016/pointcloud/a_2016.laz", "092/092g/2016/dsm/a_2016.laz",
+                  "092/092g/2016/dem/a_2016.tif", "092/092g/2016/pointcloud/readme.txt"])
+    assert [o["url"].rsplit("/", 2)[-2] for o in catalogue_build.pointcloud_select(objs)] == \
+        ["pointcloud"]
+
+
+@pytest.mark.parametrize("key", ["092/092g/2016/pointcloud/sub/a_2016.laz",
+                                 "092/092g/2016/pointcloud/a_2016.LAZ"])
+def test_a_pointcloud_laz_off_the_key_pattern_fails_the_listing(key):
+    with pytest.raises(ValueError, match="key is not"):
+        catalogue_build.pointcloud_select(_listed([key]))
+
+
+def test_the_listing_walks_every_block_the_root_names(monkeypatch):
+    walked = []
+
+    def keys(prefix, session=None):
+        walked.append(prefix)
+        return _listed([f"{prefix}{prefix[:3]}a/2020/pointcloud/x_2020.laz"])
+    monkeypatch.setattr(catalogue_build, "blocks_list", lambda s=None: ["092", "093"])
+    monkeypatch.setattr(catalogue_build, "keys_list", keys)
+    assert walked == [] and len(catalogue_build.listing()) == 2
+    assert walked == ["092/", "093/"]
+
+
+# The real lister, taken before the autouse fixture replaces it; given a session it reaches
+# nothing but that session.
+blocks_list = catalogue_build.blocks_list
+
+
+class _Root:
+    def __init__(self, prefixes, truncated=False, status=200):
+        body = "".join(f"<CommonPrefixes><Prefix>{p}</Prefix></CommonPrefixes>" for p in prefixes)
+        self.content = (f"<ListBucketResult><Prefix></Prefix><IsTruncated>"
+                        f"{str(truncated).lower()}</IsTruncated>{body}</ListBucketResult>").encode()
+        self.status_code = status
+
+    def get(self, url, params=None, timeout=None):
+        assert params == {"delimiter": "/"}
+        return self
+
+
+def test_blocks_are_the_three_digit_root_directories():
+    s = _Root(["082/", "092/", "albers10k2m/", "index/", "test/"])
+    assert blocks_list(s) == ["082", "092"]
+
+
+@pytest.mark.parametrize("root, err, match", [
+    (_Root(["082/", "105/"]), RuntimeError, "no NTS grid in laz_item.NTS_BLOCKS: 105"),
+    (_Root(["082/"], truncated=True), OSError, "truncated"),
+    (_Root(["082/"], status=503), OSError, "returned 503"),
+    (_Root(["albers10k2m/"]), OSError, "names no block"),
+])
+def test_a_root_listing_that_cannot_be_trusted_raises(root, err, match):
+    with pytest.raises(err, match=match):
+        blocks_list(root)
+
+
+def test_groups_record_writes_the_counts_and_builds_nothing(tmp_path, monkeypatch):
+    objs = _listed(["092/092g/2016/pointcloud/a_2016.laz", "092/092g/2016/pointcloud/b_2016.laz",
+                  "093/093a/2020/pointcloud/c_2020.laz"])
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(catalogue_build, "GROUPS", str(tmp_path / "groups.json"))
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS_PATH", str(tmp_path / "pairs.json"))
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [_ce("c_2020.copc.laz")])
+    monkeypatch.setattr(catalogue_build, "headers_fetch",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("built")))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--groups-record"])
+    assert catalogue_build.main() == 0
+    assert json.loads((tmp_path / "groups.json").read_text()) == \
+        {"092/092g/2016": 2, "093/093a/2020": 1}
+    assert json.loads((tmp_path / "pairs.json").read_text()) == {"093/093a/2020": 1}
+
+
+@pytest.mark.parametrize("found, force, refused", [
+    ({"092/092g/2016": 80}, False, True),      # under the floor
+    ({"092/092g/2016": 95}, False, False),     # a fall within the floor is logged
+    ({}, False, True),                         # a group gone
+    ({"092/092g/2016": 80}, True, False),
+])
+def test_recording_refuses_to_lower_a_floor_without_force(tmp_path, monkeypatch, found, force,
+                                                          refused):
+    g = tmp_path / "groups.json"
+    g.write_text(json.dumps({"092/092g/2016": 100}))
+    monkeypatch.setattr(catalogue_build, "GROUPS", str(g))
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS_PATH", str(tmp_path / "pairs.json"))
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
+    monkeypatch.setattr(catalogue_build, "groups_load", lambda path=None: json.loads(g.read_text()))
+    if refused:
+        with pytest.raises(RuntimeError, match="would lower 1 counts"):
+            catalogue_build.records_write(found, {}, force)
+        assert json.loads(g.read_text()) == {"092/092g/2016": 100}
+    else:
+        catalogue_build.records_write(found, {}, force)
+        assert json.loads(g.read_text()) == found
+
+
+def test_recording_refuses_any_fall_in_copc_pairs_without_force(tmp_path, monkeypatch):
+    monkeypatch.setattr(catalogue_build, "GROUPS", str(tmp_path / "groups.json"))
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS_PATH", str(tmp_path / "pairs.json"))
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {"092/092g/2016": 100})
+    with pytest.raises(RuntimeError, match="pairs.json"):
+        catalogue_build.records_write({}, {"092/092g/2016": 99}, False)
+
+
+def test_the_build_checks_groups_before_reading_anything(tmp_path, monkeypatch):
+    objs = _listed(["092/092g/2016/pointcloud/a_2016.laz"])
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "groups_load", lambda path=None: {"092/092g/2016": 5})
+    monkeypatch.setattr(catalogue_build, "copc_listing",
+                        lambda: (_ for _ in ()).throw(AssertionError("read on")))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
+    with pytest.raises(RuntimeError, match="092/092g/2016: 1 of 5"):
+        catalogue_build.main()
 
 
 def test_item_link_hrefs_encode_only_the_space_stacs_decodes():
@@ -739,6 +915,7 @@ def _main_with_copc(tmp_path, monkeypatch, copc_header):
     monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [ce])
     monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {"092/092g/2016": 1})
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__", (read,))
+    monkeypatch.setattr(catalogue_build, "item_probe", _sample({1: 400, 2: 600}))
     monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
     return catalogue_build.main(), ce
 
@@ -770,8 +947,10 @@ def test_the_build_reports_every_copc_that_is_not_a_copy_then_refuses(tmp_path, 
     assert not (tmp_path / "data/build/items").exists()
 
 
-def test_a_group_that_pairs_short_fails_the_build():
+def test_a_group_that_pairs_short_fails_the_build(monkeypatch):
     """A rename on either side passes every listing floor and pairs nothing."""
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {"082/082e/2019": 332, "082/082l/2019": 57,
+                                                        "092/092g/2016": 1155, "092/092h/2016": 420})
     base = f"{PATH_S3}/092/092g/2016/pointcloud/"
     full = {f"{base}f{i}.laz": {} for i in range(1155)}
     other = {f"{PATH_S3}/{g}/pointcloud/f{i}.laz": {}
@@ -785,7 +964,7 @@ def test_a_group_that_pairs_short_fails_the_build():
     with pytest.raises(RuntimeError, match="092/092g/2016: 1156 items paired"):
         catalogue_build.copc_pairs_check(extra)
     unrecorded = full | other | {f"{PATH_S3}/082/082f/2018/pointcloud/f.laz": {}}
-    with pytest.raises(RuntimeError, match=r"not in COPC_PAIRS: 082/082f/2018 \(1\)"):
+    with pytest.raises(RuntimeError, match=r"not in copc_pairs.json: 082/082f/2018 \(1\)"):
         catalogue_build.copc_pairs_check(unrecorded)
 
 
@@ -852,22 +1031,27 @@ def test_a_class_read_applies_only_to_the_file_it_was_read_from():
         other: {"laz": other, "full": _full({2: 1000})},
     }
     problems = catalogue_build.classes_attach(items, {PC: "new"}, records)
-    # A read of a file not in the build is not applied, and not a problem here: it leaves
-    # CLASSES_READ short, which main() refuses.
+    # A read of a file not in the build is not applied, and not a problem here:
+    # classes_check decides what must have been read.
     assert "re-delivered" in problems[PC] and other not in problems
     assert "classification:classes" not in items[PC].assets[ASSET_LAZ].extra_fields
     failed = {PC: {"id": url_to_item_id(PC), "laz": PC, "error": "OSError: 503"}}
     assert "failed" in catalogue_build.classes_attach(items, {PC: "a"}, failed)[PC]
 
 
-def _main_with_classes(tmp_path, monkeypatch, records, expected):
+def _main_with_classes(tmp_path, monkeypatch, records, sampled=None, full_probe=None):
+    """main() over PC with `records` already in the whole-read cache; its sample holds
+    `sampled` (ground only, which flags it, by default) and a whole read returns `full_probe`'s
+    record (refused by default)."""
     objs = [{"url": PC, "etag": "a", "size": 1}]
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(catalogue_build, "OUT", "data/build")
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
     monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
     monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
-    monkeypatch.setattr(catalogue_build, "CLASSES_READ", expected)
+    monkeypatch.setattr(catalogue_build, "item_probe", _sample(sampled or {2: 1000}))
+    if full_probe:
+        monkeypatch.setattr(catalogue_build, "full_probe", full_probe)
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
                         (lambda u, session=None: _header(),))
     monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
@@ -878,10 +1062,19 @@ def _main_with_classes(tmp_path, monkeypatch, records, expected):
     return catalogue_build.main()
 
 
+def _whole(classes, etag="a"):
+    def probe(item, session=None):
+        return {"id": item["id"], "laz": PC, "full": _full(classes, etag=etag)}
+    return probe
+
+
+def _fails(item, session=None):
+    raise OSError("503")
+
+
 def test_the_build_lists_the_classes_of_a_file_read_whole(tmp_path, monkeypatch):
     rc = _main_with_classes(tmp_path, monkeypatch,
-                            [{"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000})}],
-                            {"092/092g/2016": 1})
+                            [{"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000})}])
     assert rc == 0
     d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
     assert d["assets"][ASSET_LAZ]["classification:classes"] == [
@@ -890,33 +1083,110 @@ def test_the_build_lists_the_classes_of_a_file_read_whole(tmp_path, monkeypatch)
     assert "classification:classes" in c["description"]
 
 
-def test_a_build_missing_its_class_reads_is_refused(tmp_path, monkeypatch, caplog):
-    """The cache is gitignored; a fresh checkout would otherwise drop every list unseen."""
-    rc = _main_with_classes(tmp_path, monkeypatch, [], {"092/092g/2016": 1})
+def test_the_build_samples_then_reads_whole_what_the_sample_flags(tmp_path, monkeypatch):
+    """A fresh checkout: no cache at all. The build samples, the sample flags, it reads whole."""
+    rc = _main_with_classes(tmp_path, monkeypatch, [], full_probe=_whole({2: 1000}))
+    assert rc == 0
+    d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
+    assert d["assets"][ASSET_LAZ]["classification:classes"][0]["count"] == 1000
+    assert (tmp_path / "data/build" / catalogue_build.CLASSES_SAMPLE).exists()
+
+
+def test_a_mixed_sample_reads_nothing_whole_and_lists_nothing(tmp_path, monkeypatch):
+    assert _main_with_classes(tmp_path, monkeypatch, [], sampled={1: 5, 2: 5}) == 0
+    d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
+    assert "classification:classes" not in d["assets"][ASSET_LAZ]
+
+
+def test_a_flagged_file_whose_whole_read_fails_is_refused(tmp_path, monkeypatch, caplog):
+    rc = _main_with_classes(tmp_path, monkeypatch, [], full_probe=_fails)
     assert rc == 1
-    assert "expected {'092/092g/2016': 1} (CLASSES_READ)" in caplog.text
+    assert "flagged by its sample, with no whole-file read at the current ETag" in caplog.text
+    assert "OSError: 503" in caplog.text
     assert not (tmp_path / "data/build/items").exists()
 
 
-def test_a_build_with_a_stale_class_read_is_refused(tmp_path, monkeypatch, caplog):
-    rc = _main_with_classes(
-        tmp_path, monkeypatch,
-        [{"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000}, etag="old")}],
-        {"092/092g/2016": 1})
-    assert rc == 1
-    assert "re-delivered" in caplog.text
+def test_a_screened_file_whose_sample_fails_is_refused(tmp_path, monkeypatch, caplog):
+    assert _main_with_classes(tmp_path, monkeypatch, [], sampled={1: 5, 2: 5}) == 0
+    monkeypatch.setattr(catalogue_build, "item_probe", _fails)
+    (tmp_path / "data/build" / catalogue_build.CLASSES_SAMPLE).unlink()
+    assert catalogue_build.main() == 1
+    assert "no point sample at the current ETag (OSError: 503)" in caplog.text
+
+
+def test_a_stale_whole_read_is_read_again(tmp_path, monkeypatch):
+    stale = {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 7}, etag="old")}
+    rc = _main_with_classes(tmp_path, monkeypatch, [stale], full_probe=_whole({2: 1000}))
+    assert rc == 0
+    d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
+    assert d["assets"][ASSET_LAZ]["classification:classes"][0]["count"] == 1000
+
+
+def test_a_stale_whole_read_that_cannot_be_redone_is_refused(tmp_path, monkeypatch, caplog):
+    stale = {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000}, etag="old")}
+    assert _main_with_classes(tmp_path, monkeypatch, [stale], full_probe=_fails) == 1
     assert not (tmp_path / "data/build/items").exists()
 
 
-def test_a_failed_class_read_is_refused_by_name_and_a_retry_replaces_it(tmp_path, monkeypatch,
-                                                                         caplog):
-    """The cache as laz_classes_probe.probe_all writes it: a failed read, then (on a re-run)
-    a good one. The failure alone refuses the build by name; the retry lets it through."""
+def test_a_failed_whole_read_is_retried_on_the_next_run(tmp_path, monkeypatch, caplog):
     err = {"id": url_to_item_id(PC), "error": "OSError: 503", "laz": PC}
+    assert _main_with_classes(tmp_path, monkeypatch, [err], full_probe=_fails) == 1
+    assert _main_with_classes(tmp_path, monkeypatch, [err], full_probe=_whole({2: 1000})) == 0
+
+
+def test_a_class_read_of_a_file_that_left_the_build_is_not_applied(tmp_path, monkeypatch,
+                                                                   caplog):
+    gone = PC.replace("019_1_4_1", "019_1_4_2")
+    recs = [{"id": url_to_item_id(gone), "laz": gone, "full": _full({2: 1000})}]
+    assert _main_with_classes(tmp_path, monkeypatch, recs, sampled={1: 5, 2: 5}) == 0
+    assert "not in this build, not applied" in caplog.text
+
+
+def test_a_class_cache_cut_off_mid_write_is_repaired_not_fatal(tmp_path, monkeypatch):
     good = {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000})}
-    assert _main_with_classes(tmp_path, monkeypatch, [err], {"092/092g/2016": 1}) == 1
-    assert "the class read failed: OSError: 503" in caplog.text
-    assert _main_with_classes(tmp_path, monkeypatch, [err, good], {"092/092g/2016": 1}) == 0
+    assert _main_with_classes(tmp_path, monkeypatch, [good]) == 0
+    for f in (catalogue_build.CLASSES_FULL, catalogue_build.CLASSES_SAMPLE):
+        with open(tmp_path / "data/build" / f, "a") as fh:
+            fh.write('{"id": "x", "laz": "https://x')  # a read killed mid-line
+    assert catalogue_build.main() == 0
+
+
+def _rec(k, classes, etag="a"):
+    return {"id": k, "laz_sample": {"etag": etag, "samples": {"all": classes}}}
+
+
+def test_classes_check_requires_a_whole_read_for_every_flagged_sample_screened_or_not():
+    """An audit or #10 sample outside the screen that flags still needs its whole read."""
+    a, b = PC, PC.replace("019_1_4_1", "019_1_4_2")
+    ids = {a: "A", b: "B"}
+    cur = {"A": "a", "B": "a"}
+    samples = {"A": _rec("A", {"1": 5, "2": 5}), "B": _rec("B", {"1": 5})}
+    p = catalogue_build.classes_check({a}, ids, cur, samples, {})
+    assert list(p) == [b] and "flagged by its sample" in p[b]
+    full = {"B": {"id": "B", "full": _full({1: 5})}}
+    assert catalogue_build.classes_check({a}, ids, cur, samples, full) == {}
+
+
+@pytest.mark.parametrize("sample, why", [
+    (None, "no point sample"), (_rec("A", {"1": 5, "2": 5}, etag="old"), "no point sample"),
+    ({"id": "A", "error": "OSError: x"}, "(OSError: x)")])
+def test_classes_check_requires_a_current_sample_of_every_screened_file(sample, why):
+    samples = {"A": sample} if sample else {}
+    p = catalogue_build.classes_check({PC}, {PC: "A"}, {"A": "a"}, samples, {})
+    assert why in p[PC]
+
+
+def test_the_screen_is_the_research_percentile_within_each_group():
+    """Share of the group strictly less dense <= 10%: in a group of 10 the two least dense,
+    ties included; a group of one is always screened."""
+    g1 = [f"{PATH_S3}/092/092g/2016/pointcloud/f{i}_2016.laz" for i in range(10)]
+    g2 = [f"{PATH_S3}/093/093a/2020/pointcloud/solo_2020.laz"]
+    pts = {u: 100 * (i + 1) for i, u in enumerate(g1)}
+    pts[g1[2]] = 200  # ties the second least dense
+    pts[g2[0]] = 10 ** 9
+    headers = {u: {"point_count": n, "mins": [0, 0, 0], "maxs": [10, 10, 1]}
+               for u, n in pts.items()}
+    assert catalogue_build.density_screen(g1 + g2, headers) == {g1[0], g1[1], g1[2], g2[0]}
 
 
 def test_a_class_record_naming_no_file_is_refused_with_its_line(tmp_path):
@@ -926,39 +1196,19 @@ def test_a_class_record_naming_no_file_is_refused_with_its_line(tmp_path):
         catalogue_build.classes_records_load(str(p))
 
 
-def test_a_class_read_of_a_file_that_left_the_build_shows_as_a_short_count(tmp_path,
-                                                                             monkeypatch, caplog):
-    gone = PC.replace("019_1_4_1", "019_1_4_2")
-    recs = [{"id": url_to_item_id(gone), "laz": gone, "full": _full({2: 1000})}]
-    assert _main_with_classes(tmp_path, monkeypatch, recs, {"092/092g/2016": 1}) == 1
-    assert "expected {'092/092g/2016': 1} (CLASSES_READ)" in caplog.text
-    assert "not in this build, not applied" in caplog.text
-
-
 def test_a_build_refused_for_want_of_class_reads_has_already_listed_what_to_read(
         tmp_path, monkeypatch):
-    """A fresh checkout has no class cache, so the build refuses before writing items. The
-    probe reads the targets file, not items, so the refusal must not stop it being written."""
-    assert _main_with_classes(tmp_path, monkeypatch, [], {"092/092g/2016": 1}) == 1
+    """The probe's research runs read the targets file, so a refusal must not stop it."""
+    assert _main_with_classes(tmp_path, monkeypatch, [], full_probe=_fails) == 1
     assert not (tmp_path / "data/build/items").exists()
     t = [json.loads(x) for x in
          (tmp_path / "data/build" / catalogue_build.CLASS_TARGETS).read_text().splitlines()]
     assert t == [{"id": url_to_item_id(PC), "laz": PC, "etag": "a", "copc": None}]
 
-
 def test_an_empty_listing_etag_matches_no_class_read():
     items = {PC: item_create(PC, _header(), COLL)}
     records = {PC: {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000}, etag="")}}
     assert "no ETag" in catalogue_build.classes_attach(items, {PC: ""}, records)[PC]
-
-
-def test_a_class_cache_cut_off_mid_write_is_repaired_not_fatal(tmp_path, monkeypatch):
-    good = {"id": url_to_item_id(PC), "laz": PC, "full": _full({2: 1000})}
-    rc = _main_with_classes(tmp_path, monkeypatch, [good], {"092/092g/2016": 1})
-    assert rc == 0
-    with open(tmp_path / "data/build" / catalogue_build.CLASSES_FULL, "a") as fh:
-        fh.write('{"id": "x", "laz": "https://x')  # a --confirm killed mid-line
-    assert catalogue_build.main() == 0
 
 
 # =============================================================================
@@ -969,8 +1219,8 @@ def test_a_class_cache_cut_off_mid_write_is_repaired_not_fatal(tmp_path, monkeyp
 # fields; the two custom prefixes name what a field describes: `lidarbc:` LidarBC's paths
 # and file names, `las:` the LAS format, true of the CanElevation copy as of the LAZ.
 PREFIXES_STANDARD = {"pc", "proj", "file", "classification"}
-FIELDS_CUSTOM = {"lidarbc:product", "lidarbc:datetime_source", "lidarbc:filename_date",
-                 "las:version", "las:point_format"}
+FIELDS_CUSTOM = {"lidarbc:product", "lidarbc:delivery", "lidarbc:datetime_source",
+                 "lidarbc:filename_date", "las:version", "las:point_format"}
 
 
 def _keys(x):
@@ -999,7 +1249,8 @@ ITEM_PATHS = {
     "geometry.type", "id", "links", "links[].href", "links[].rel", "links[].type",
     "properties", "properties.datetime", "properties.end_datetime",
     "properties.las:point_format", "properties.las:version",
-    "properties.lidarbc:datetime_source", "properties.lidarbc:filename_date",
+    "properties.lidarbc:datetime_source", "properties.lidarbc:delivery",
+    "properties.lidarbc:filename_date",
     "properties.lidarbc:product", "properties.pc:count", "properties.pc:encoding",
     "properties.pc:schemas", "properties.pc:schemas[].name", "properties.pc:schemas[].size",
     "properties.pc:schemas[].type", "properties.pc:type", "properties.proj:bbox",
@@ -1010,7 +1261,7 @@ COLLECTION_PATHS = {
     "description", "extent", "extent.spatial", "extent.spatial.bbox", "extent.temporal",
     "extent.temporal.interval", "id", "keywords", "license", "links", "links[].href",
     "links[].rel", "links[].title", "links[].type", "providers", "providers[].name",
-    "providers[].roles", "providers[].url", "stac_version", "summaries",
+    "providers[].roles", "providers[].url", "stac_extensions", "stac_version", "summaries",
     "summaries.lidarbc:product", "title", "type",
 }
 
@@ -1053,8 +1304,7 @@ def test_every_key_the_build_writes_is_pinned(tmp_path, monkeypatch):
     assert _main_with_copc(tmp_path / "copc", monkeypatch, _copc_header())[0] == 0
     assert _main_with_classes(tmp_path / "classes", monkeypatch,
                               [{"id": url_to_item_id(PC), "laz": PC,
-                                "full": _full({1: 400, 2: 600})}],
-                              {"092/092g/2016": 1}) == 0
+                                "full": _full({1: 400, 2: 600})}]) == 0
     assert _main_with_branches(tmp_path / "branches", monkeypatch) == 0
     items, coll = set(), set()
     for run in ("copc", "classes", "branches"):
@@ -1085,9 +1335,9 @@ def _main_with_branches(tmp_path, monkeypatch):
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
     monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
     monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
-    monkeypatch.setattr(catalogue_build, "CLASSES_READ", {})
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
                         (lambda u, session=None: headers[u],))
+    monkeypatch.setattr(catalogue_build, "item_probe", _sample({1: 400, 2: 600}))
     monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
     return catalogue_build.main()
 
@@ -1099,3 +1349,161 @@ def test_the_branch_build_takes_the_branches_it_is_for(tmp_path, monkeypatch):
                        .read_text())["properties"] for u in (PC_NO_EPSG, PC_DATED)}
     assert p[PC_NO_EPSG].get("proj:code") is None and p[PC_NO_EPSG]["proj:wkt2"]
     assert p[PC_DATED]["lidarbc:datetime_source"] == "filename" and p[PC_DATED]["datetime"]
+
+
+# =============================================================================
+# Delivery key, field schemas, related collection (#2, #5, crate#23)
+# =============================================================================
+
+def test_every_item_carries_its_delivery_from_the_key():
+    it = item_create(PC, _header(), COLL)
+    assert it.properties["lidarbc:delivery"] == "092/092g/2016"
+    assert it.id.startswith(it.properties["lidarbc:delivery"].replace("/", "-") + "-")
+
+
+def test_a_delivery_off_the_shared_pattern_is_refused(monkeypatch):
+    real = laz_item.key_parse
+    monkeypatch.setattr(laz_item, "key_parse", lambda u: {**real(u), "sheet": "092z"})
+    with pytest.raises(ValueError, match="delivery '092/092z/2016'"):
+        item_create(PC, _header(), COLL)
+
+
+def test_items_and_the_collection_name_the_schemas_of_their_custom_fields():
+    it = item_create(PC, _header(), COLL)
+    assert {laz_item.SCHEMA_LIDARBC, laz_item.SCHEMA_LAS} <= set(it.stac_extensions)
+    c = catalogue_build.collection_build([it])
+    assert c.stac_extensions == [laz_item.SCHEMA_LIDARBC]
+    laz_item.schemas_check(it.to_dict())
+    laz_item.schemas_check(c.to_dict())
+
+
+@pytest.mark.parametrize("drop, prefix", [(laz_item.SCHEMA_LIDARBC, "lidarbc:"),
+                                          (laz_item.SCHEMA_LAS, "las:")])
+def test_a_custom_field_without_its_schema_is_refused(drop, prefix):
+    d = item_create(PC, _header(), COLL).to_dict()
+    d["stac_extensions"].remove(drop)
+    with pytest.raises(ValueError, match=f"writes {prefix} keys without the schema"):
+        laz_item.schemas_check(d)
+
+
+def test_a_las_field_only_on_an_asset_still_needs_its_schema():
+    d = _add(_copc_header()).to_dict()
+    d["properties"] = {k: v for k, v in d["properties"].items() if not k.startswith("las:")}
+    d["stac_extensions"].remove(laz_item.SCHEMA_LAS)
+    with pytest.raises(ValueError, match="writes las: keys"):
+        laz_item.schemas_check(d)
+
+
+def test_the_schemas_reject_a_value_off_their_pattern():
+    """The schema URLs are not decoration: validation fetches them and checks the values."""
+    it = item_create(PC, _header(), COLL)
+    it.properties["lidarbc:delivery"] = "092/092G/2016"
+    with pytest.raises(pystac.errors.STACValidationError):
+        it.validate()
+
+
+def test_the_collection_links_stac_elevation_bc_once():
+    c = catalogue_build.collection_build([item_create(PC, _header(), COLL)]).to_dict()
+    rel = [l for l in c["links"] if l["rel"] == "related"]
+    assert rel == [catalogue_build.RELATED_ELEVATION]
+
+
+@pytest.mark.parametrize("drop", [laz_item.SCHEMA_LIDARBC, laz_item.SCHEMA_LAS])
+def test_the_build_refuses_an_item_missing_a_schema_it_needs(tmp_path, monkeypatch, drop):
+    """main() checks what it writes, not only what item_create returns: a copc asset added at
+    build level carries `las:` keys too."""
+    real = catalogue_build.item_create
+
+    def dropping(*a, **k):
+        it = real(*a, **k)
+        it.stac_extensions.remove(drop)
+        return it
+    monkeypatch.setattr(catalogue_build, "item_create", dropping)
+    with pytest.raises(ValueError, match="without the schema"):
+        _main_with_copc(tmp_path, monkeypatch, _copc_header())
+    assert not (tmp_path / "data/build/items").exists()
+
+
+# =============================================================================
+# Listing-time checks and aggregated refusals (#2 plan review: G5, G6, G10, A4, O1)
+# =============================================================================
+
+@pytest.mark.parametrize("name", ["bc_092g019_1_4_1_xyes#8_2016.laz", "bc_092g019_é_2016.laz",
+                                  "bc_092g019_1+4_2016.laz"])
+def test_a_file_name_item_links_cannot_carry_is_refused_at_listing(name):
+    with pytest.raises(ValueError, match="file name outside"):
+        catalogue_build.pointcloud_select(_listed([f"092/092g/2016/pointcloud/{name}"]))
+
+
+def test_a_copy_marker_name_passes_the_listing():
+    assert catalogue_build.pointcloud_select(
+        _listed(["082/082l/2018/pointcloud/bc_082l024_2_4_3_xyes_12_utm11_2018 (2).laz"]))
+
+
+def test_every_listing_fault_is_named_in_one_refusal():
+    keys = ["092/082e/2016/pointcloud/a_2016.laz", "092/092z/2016/pointcloud/b_2016.laz",
+            "092/092g/2016/PointCloud/c_2016.laz", "092/092g/2016/pointcloud/d#_2016.laz"]
+    with pytest.raises(ValueError, match="4 .laz keys cannot be placed") as e:
+        catalogue_build.pointcloud_select(_listed(keys))
+    for why in ("sheet 082e is not in block 092", "'092z' is not an NTS 1:250k sheet letter",
+                "key is not", "file name outside"):
+        assert why in str(e.value)
+
+
+def test_a_sheet_outside_its_block_is_refused_by_key_parse():
+    with pytest.raises(ValueError, match="sheet 082e is not in block 092"):
+        key_parse(f"{PATH_S3}/092/082e/2016/pointcloud/a_2016.laz")
+
+
+def test_a_date_token_that_is_no_date_names_every_file():
+    urls = [f"{PATH_S3}/092/092g/2016/pointcloud/a_20161301.laz",
+            f"{PATH_S3}/092/092g/2016/pointcloud/b_20163201.laz",
+            f"{PATH_S3}/092/092g/2016/pointcloud/c_2016.laz"]
+    with pytest.raises(ValueError, match="2 file names carry a date token that is no date") as e:
+        catalogue_build.groups_with_untrusted_dates(urls)
+    assert "a_20161301.laz" in str(e.value) and "b_20163201.laz" in str(e.value)
+
+
+def test_every_item_fault_is_collected_not_only_the_first():
+    a, b, c = PC, PC.replace("019_1_4_1", "019_1_4_2"), PC.replace("019_1_4_1", "019_1_4_3")
+    headers = {a: _header(mins=(0, 0, 0)), b: _header(mins=(1, 1, 1)), c: _header()}
+    items, faults = catalogue_build.items_create([a, b, c], headers, COLL, set())
+    assert [i.id for i in items] == [url_to_item_id(c)] and set(faults) == {a, b}
+    assert len({catalogue_build.fault_class(e) for e in faults.values()}) == 1
+
+
+def test_the_build_reports_item_faults_by_class_and_writes_nothing(tmp_path, monkeypatch, caplog):
+    objs = [{"url": u, "etag": "a", "size": 1}
+            for u in (PC, PC.replace("019_1_4_1", "019_1_4_2"))]
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
+    monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__",
+                        (lambda u, session=None: _header(mins=(0, 0, 0)),))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
+    assert catalogue_build.main() == 1
+    assert "2 files: implausible header box" in caplog.text
+    assert not (tmp_path / "data/build/items").exists()
+
+
+def test_duplicate_ids_are_refused_before_any_header_is_read(tmp_path, monkeypatch):
+    objs = [{"url": u, "etag": "a", "size": 1}
+            for u in (PC, PC.replace("019_1_4_1", "019_1_4_2"))]
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
+    monkeypatch.setattr(catalogue_build, "url_to_item_id", lambda u: "same")
+    monkeypatch.setattr(catalogue_build, "headers_fetch",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("read")))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1"])
+    with pytest.raises(RuntimeError, match="duplicate item ids"):
+        catalogue_build.main()
+
+
+def test_validation_in_a_process_pool_reports_each_invalid_item():
+    good = item_create(PC, _header(), COLL).to_dict(include_self_link=False)
+    bad = json.loads(json.dumps(good))
+    bad["id"], bad["properties"]["lidarbc:delivery"] = "bad", "092/092G/2016"
+    errs = catalogue_build.validate_all([good] * 600 + [bad], workers=2)
+    assert len(errs) == 1 and errs[0].startswith("bad: ")
+    assert catalogue_build.validate_all([good, bad], workers=1)[0].startswith("bad: ")

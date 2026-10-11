@@ -6,12 +6,10 @@ and prints, for every item with a `copc` asset: the count per group, how far the
 boxes differ, the CRS names and horizontal EPSG of both files, and the LAS version and point
 format of both. These are the numbers research/canelevation_overlap.md and NEWS.md quote (#6).
 
-With `--published DIR` (a copy of the bucket, e.g. `aws s3 sync s3://stac-pointcloud-bc DIR`)
-it also compares item bodies, `links` removed as stacs digests them: the ids only on one side,
-the ids whose body changed, and whether any changed body differs by more than its `copc` asset.
+The published-vs-build comparison it once did for 0.2.0 is `catalogue_compare.py` (#2).
 
 Usage:
-    uv run python scripts/copc_pairs_measure.py [--build data/build] [--published DIR]
+    uv run python scripts/copc_pairs_measure.py [--build data/build]
 """
 
 import argparse
@@ -44,7 +42,6 @@ def items_load(d: str) -> dict[str, dict]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--build", default="data/build")
-    ap.add_argument("--published")
     args = ap.parse_args()
 
     items = items_load(f"{args.build}/items")
@@ -81,19 +78,6 @@ def main() -> int:
     print(f"horizontal EPSG (laz, copc): {dict(epsg)}")
     print(f"LAS version/format (laz -> copc): {dict(fmt)}")
 
-    if args.published:
-        pub = items_load(args.published)
-        changed = {k for k in pub.keys() & items.keys() if pub[k] != items[k]}
-        beyond = set()
-        for k in changed:
-            q = dict(items[k])
-            q["assets"] = {a: x for a, x in q["assets"].items() if a != ASSET_COPC}
-            if q != pub[k]:
-                beyond.add(k)
-        print(f"published {len(pub)}, built {len(items)}; only published "
-              f"{len(pub.keys() - items.keys())}, only built {len(items.keys() - pub.keys())}")
-        print(f"changed {len(changed)}; changed == ids with {ASSET_COPC}: {changed == set(paired)}; "
-              f"changed beyond the {ASSET_COPC} asset {len(beyond)} {sorted(beyond)[:3]}")
     return 0
 
 

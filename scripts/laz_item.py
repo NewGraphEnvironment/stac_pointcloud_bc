@@ -9,6 +9,7 @@ The module constants are also declared in stacs.toml; tests/test_stacs_config.py
 if the two disagree.
 """
 
+import functools
 import re
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -31,6 +32,17 @@ PATH_S3_STAC = "https://stac-pointcloud-bc.s3.us-west-2.amazonaws.com"
 ASSET_LAZ = "laz"
 MEDIA_TYPE_LAZ = "application/vnd.laszip"
 PRODUCTS = ("pointcloud", "dsm")
+
+# The JSON Schemas of the two custom prefixes (crate#23, decided in #12). pystac fetches
+# each when it validates, so validation checks every `lidarbc:` and `las:` value, and a build
+# depends on these URLs answering. A released version is never edited; a new field is a new
+# version, and v1.0.0 refuses a `lidarbc:` or `las:` key it does not declare.
+SCHEMA_LIDARBC = "https://newgraphenvironment.github.io/crate/stac/lidarbc/v1.0.0/schema.json"
+SCHEMA_LAS = "https://newgraphenvironment.github.io/crate/stac/las/v1.0.0/schema.json"
+SCHEMAS_CUSTOM = {"lidarbc": SCHEMA_LIDARBC, "las": SCHEMA_LAS}
+# `lidarbc:delivery`, shared with stac-elevation-bc so the two match on one filter (#5,
+# stac_dem_bc#55): the three path segments after `gdwuts/`.
+DELIVERY = re.compile(r"^[0-9]{3}/[0-9]{3}[a-p]/[0-9]{4}$")
 
 # NRCan's CanElevation series publishes COPC under many LidarBC file names
 # (research/canelevation_overlap.md, #6). Where it does and copc_asset_add's header check
@@ -90,6 +102,8 @@ def key_parse(url: str) -> dict:
     if not m:
         raise ValueError(f"key is not <block>/<sheet>/<year>/<product>/<file>.laz: {key}")
     block, sheet, year, product, name = m.groups()
+    if not sheet.startswith(block):
+        raise ValueError(f"sheet {sheet} is not in block {block}: {key}")
     if product not in PRODUCTS:
         raise ValueError(f"unknown product directory {product!r}: {key}")
     return {"key": key, "block": block, "sheet": sheet, "year": int(year),
@@ -208,6 +222,15 @@ def _horizontal(crs: CRS) -> CRS:
     return horiz.source_crs if horiz.is_bound else horiz
 
 
+@functools.lru_cache(maxsize=256)
+def _crs_to_wgs84(crs_wkt: str) -> tuple[CRS, Transformer]:
+    """The horizontal CRS of a header's WKT and its transformer to WGS84. Cached: a build
+    meets a handful of distinct WKTs over 175k files, and parsing each per file dominated
+    item_create. Called from one thread (a Transformer is not thread-safe)."""
+    horiz = _horizontal(CRS.from_wkt(crs_wkt))
+    return horiz, Transformer.from_crs(horiz, "EPSG:4326", always_xy=True)
+
+
 def item_create(url: str, header: dict, collection_href: str,
                 trust_filename_date: bool = True) -> pystac.Item:
     """A STAC item for one `.laz`. Pure: no I/O.
@@ -222,13 +245,16 @@ def item_create(url: str, header: dict, collection_href: str,
     is wrong.
     """
     parts = key_parse(url)
+    # Checked first, so a key the sheet check would also refuse is named for this.
+    delivery = f"{parts['block']}/{parts['sheet']}/{parts['year']}"
+    if not DELIVERY.match(delivery):
+        raise ValueError(f"delivery {delivery!r} is not <block>/<sheet>/<year>: {url}")
     if not header.get("crs_wkt"):
         raise ValueError(f"no CRS in the LAS header: {url}")
     if header.get("header_version") != HEADER_VERSION:
         raise ValueError(f"header record is version {header.get('header_version')}, "
                          f"not {HEADER_VERSION} - read it again: {url}")
-    horiz = _horizontal(CRS.from_wkt(header["crs_wkt"]))
-    to_wgs84 = Transformer.from_crs(horiz, "EPSG:4326", always_xy=True)
+    horiz, to_wgs84 = _crs_to_wgs84(header["crs_wkt"])
     (x0, y0, _), (x1, y1, _) = header["mins"], header["maxs"]
     hi = TILE_SIDE_MAX_M
     if not (0 < x1 - x0 <= hi and 0 < y1 - y0 <= hi):
@@ -258,11 +284,13 @@ def item_create(url: str, header: dict, collection_href: str,
         end_datetime=when.get("end"),
         properties={
             "lidarbc:product": parts["product"],
+            "lidarbc:delivery": delivery,
             "lidarbc:datetime_source": when["source"],
             "las:version": header["las_version"],
             "las:point_format": header["point_format"],
         },
         collection=COLLECTION_ID,
+        stac_extensions=[SCHEMA_LIDARBC, SCHEMA_LAS],
     )
     if when["filename_date"]:
         item.properties["lidarbc:filename_date"] = when["filename_date"]
@@ -451,3 +479,23 @@ def canelevation_keys_list(prefix: str, session: requests.Session | None = None,
         token = root.findtext("s3:NextContinuationToken", namespaces=ns)
         if not token:
             raise OSError(f"listing {prefix!r} reported truncated with no continuation token")
+
+
+def schemas_check(body: dict) -> None:
+    """Refuse a STAC body (item or collection, as JSON) that writes a key of a custom prefix
+    without listing that prefix's schema in `stac_extensions`. Without it validation skips
+    the field's schema entirely and would pass any value."""
+    def keys(x):
+        if isinstance(x, dict):
+            for k, v in x.items():
+                yield k
+                yield from keys(v)
+        elif isinstance(x, list):
+            for v in x:
+                yield from keys(v)
+    used = {k.split(":", 1)[0] for k in keys(body) if ":" in k}
+    missing = sorted(p for p in used & SCHEMAS_CUSTOM.keys()
+                     if SCHEMAS_CUSTOM[p] not in body.get("stac_extensions", []))
+    if missing:
+        raise ValueError(f"{body.get('id')}: writes {', '.join(p + ':' for p in missing)} keys "
+                         f"without the schema in stac_extensions")
