@@ -87,6 +87,9 @@ treating the repo as a Python package (#9).
 - **Register the collection before its items, and never delete-then-load.**
   `pgstac.items.collection` is `ON DELETE CASCADE`.
 - Concatenating many item JSONs uses `find -exec cat {} +`, never a glob (ARG_MAX).
+- **A full publish of 174k items is about four hours** (0.3.0, 2026-10-11): `s3_sync.sh` 95 min,
+  each `stacs verify` 45 min (it fetches every item body), `stacs register --mode drift` 65 min.
+  Run them with `PYTHONUNBUFFERED=1`, or their logs stay empty until the end.
 
 <!-- BEGIN SOUL CONVENTIONS — DO NOT EDIT BELOW THIS LINE -->
 
