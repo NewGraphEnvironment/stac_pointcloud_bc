@@ -42,19 +42,37 @@ treating the repo as a Python package (#9).
   stac_dem_bc they leave 1,211 DEM tiles reported as `no_raster_dsm`. **Those `.laz`
   are not surface models.** In every sample compared, each was an RGB-colourised copy of
   the same-tile `pointcloud/*.laz` (`research/laz_header_read.md`, which says how far
-  that was measured). The first increment indexed here is those groups'
+  that was measured). The first increment indexed here was those groups'
   `pointcloud/*.laz` (#1).
+- **The build indexes every `pointcloud/*.laz` under the eight NTS blocks** (#2; walk of
+  2026-10-10: 175,278 files in 233 mapsheet-years, recorded per group in
+  `data/pointcloud_groups.json`, which a short listing must not fall under). Two sets are held
+  out, each by a named entry with its reason: 11 files whose header no item can be built from
+  (`EXCLUDE`), and 985 files in eight 2017 deliveries that state no CRS at all
+  (`EXCLUDE_DELIVERIES`; indexing them from their DEM's CRS is #15). 174,282 items.
+- **2,008 files in seven 2021 deliveries write a compound CRS vertical-first**
+  (`COMPD_CS[VERT_CS, PROJCS]`), which PROJ refuses. `laz_item.header_crs` reads them with the
+  two parts swapped (`compound_reorder`); a file that fails even then fails the build.
+- **42 deliveries name files with dates whose year disagrees with the directory**, so their
+  items carry the directory year. Only `092p/2017` mixes a day token with no token and keeps
+  each file's own precision (`lidarbc:datetime_source`).
 - **13,996 of the `pointcloud/*.laz` share a file name with a COPC in NRCan's CanElevation
   series**, in four of its projects (measured 2026-10-09; `research/canelevation_overlap.md`,
   #6). A name is not proof: the build pairs by name, checks each copy's header (point count,
   horizontal CRS, box within 0.05 m), and only then adds it as the `copc` asset. The `laz`
-  asset stays the source of record.
+  asset stays the source of record. **26 are not copies** (all
+  `Vancouver_Island_Sunshine_Coast_2018`, each with fewer points than the LAZ); they are
+  recorded in `data/copc_not_copies.json` and left unlinked, and the build refuses if either
+  count changes. 13,970 items carry a `copc` asset (measured 2026-10-11).
 - **A header cannot say which classes a file holds**, and some files lack what a user would
-  assume. Measured on all 9,649 indexed files (#10, `research/laz_classes.md`): one is
-  ground-only (`092g028_1_1_1`, 092g/2016) and 57 hold no ground at all, 2 of them never
-  classified. Every file a point sample flagged was read whole, and its `laz` asset lists its
-  classes in `classification:classes`; the build refuses a class cache that is missing,
-  short or stale (`CLASSES_READ`). Vegetation here is mostly class 1, not 3–5.
+  assume (#10, #2; `research/laz_classes.md`). The build samples every file at or below the
+  10th density percentile of its mapsheet-year (17,552 in 0.3.0), reads whole what a sample
+  calls ground-only or groundless, and publishes the classes of exactly those files plus the
+  ids in the committed `data/classes_required.json` (`classes_published`), so a local cache
+  can never add a list. 0.3.0: 349 lists, 12 ground-only (mostly near-empty or noise tiles) and
+  253 with no ground. **The screen misses some**: a random 5% of the rest found 2 in 7,834,
+  one at the 96th density percentile, so about 40 unlisted files hold no ground or only
+  ground. Vegetation here is mostly class 1; classes 3–5 are in about 9% of files.
 - **Source URLs are `https://`.** `ngr::ngr_s3_keys_get()` returned `https:/` before ngr
   0.0.3 (ngr#38). Anything that reads a URL list refuses the one-slash form; never
   repair it silently (stac_dem_bc#51).

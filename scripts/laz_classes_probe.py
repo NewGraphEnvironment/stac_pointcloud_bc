@@ -66,7 +66,9 @@ CLASSES_FULL = "classes_full.jsonl"
 # A file is screened, and its points sampled, when its point density (header point count over
 # header box area) is at or below this percentile of its mapsheet-year: the share of the group
 # strictly less dense than it is at most SCREEN_PERCENTILE %. At 5 this caught all 58 groundless
-# or ground-only files of the first increment; 10 is the margin (research/laz_classes.md, #2).
+# or ground-only files of the first increment; 10 is the margin. A random 5% of the files it
+# leaves out found 2 misses in 7,834, one at the 96th percentile: the screen gathers such files
+# (1.5% inside, 0.026% outside) but cannot catch them all (research/laz_classes.md, #2).
 SCREEN_PERCENTILE = 10
 
 FIRST_POINTS = 100_000

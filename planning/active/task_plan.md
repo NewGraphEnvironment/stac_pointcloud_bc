@@ -52,11 +52,11 @@
 
   That keeps "missing, short or stale" refused without per-group numbers. Prove each refusal
   by mutation.
-- [ ] Update the `CLAUDE.md` source facts and the `CLASSES_READ` mentions.
+- [x] Update the `CLAUDE.md` source facts and the `CLASSES_READ` mentions.
 
 ## Phase 4: COPC pairs, dates and scale
 
-- [ ] Let the build measure pairs over all groups, check each one's header (as now), and record
+- [x] Let the build measure pairs over all groups, check each one's header (as now), and record
   the new `COPC_PAIRS` per group. Expect about 14,000, against the 13,996 name matches.
 - [x] Record which deliveries `groups_with_untrusted_dates` now flags. Check that the 4 known
   ones are among them and name any new ones.
@@ -96,15 +96,15 @@
 
 ## Phase 5: Full build and documents
 
-- [ ] Run the full build in the background, then the class steps, then build until green.
+- [x] Run the full build in the background, then the class steps, then build until green.
   Logs go to `logs/`.
-- [ ] Run the published-vs-build check against a copy of the 0.2.0 bucket. The 9,649 ids
+- [x] Run the published-vs-build check against a copy of the 0.2.0 bucket. The 9,649 ids
   should differ only by the expected changes, and the rest should be new.
-- [ ] Update `research/laz_classes.md`, `research/README.md` if needed, and the `CLAUDE.md`
+- [x] Update `research/laz_classes.md`, `research/README.md` if needed, and the `CLAUDE.md`
   source facts.
 - [x] Re-derive the collection `DESCRIPTION` claims from the build. Today it says that most
   of the listed items hold no ground.
-- [ ] `NEWS.md` 0.3.0: the counts, each `nge:` → new name pair, the delivery key, the class
+- [x] `NEWS.md` 0.3.0: the counts, each `nge:` → new name pair, the delivery key, the class
   lists, and the screen.
 - [ ] `README.Rmd`: the field names, the counts, and the 0.2.0 `nge:` note. Re-render with its
   `build` chunk.

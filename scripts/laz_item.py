@@ -67,8 +67,8 @@ CANELEVATION = "https://canelevation-lidar-point-clouds.s3.ca-central-1.amazonaw
 ASSET_COPC = "copc"
 MEDIA_TYPE_COPC = "application/vnd.laszip+copc"
 # A copy has the same point count, horizontal CRS, and header box (x, y and z) within this
-# of the LidarBC file's. Over all 1,964 pairs in the first increment the largest offset was
-# 0.01 m, the LidarBC scale rounded into COPC's (2026-10-09); a datum re-realisation or a
+# of the LidarBC file's. Over all 13,970 linked pairs the largest offset was 0.01 m, the
+# LidarBC scale rounded into COPC's (2026-10-11, #2); a datum re-realisation or a
 # reprojection moves a box far more. COPC conversion rewrites LAS 1.2 as 1.4, so the header
 # is compared on what conversion keeps, not as a whole.
 COPC_BOX_TOLERANCE_M = 0.05
@@ -83,12 +83,12 @@ HEADER_VERSION = 2
 NTS_BLOCKS = {"082": (48, -112), "083": (52, -112), "092": (48, -120), "093": (52, -120),
               "094": (56, -120), "102": (48, -128), "103": (52, -128), "104": (56, -128)}
 _NTS_ROWS = ("ABCD", "HGFE", "IJKL", "PONM")  # each written east -> west
-# A LidarBC .laz covers at most one sub-tile of a 1:20k sheet: median 1,829 x 1,418 m,
-# none over 3 km (all 9,650 headers in the first increment, 2026-10-07, bar the one in
-# EXCLUDE). Files at the edge of coverage are much smaller -- 104 have a side under
-# 100 m, the smallest 1 x 1 m with 14 points -- and are real, so there is no lower bound
-# beyond a box of positive size. The upper bound is what catches a box anchored at the
-# UTM origin.
+# A LidarBC .laz covers at most one sub-tile of a 1:20k sheet: median 1,660 x 1,417 m,
+# none over 2.4 km (all 174,282 items, 2026-10-11, #2; the first increment's 9,650 gave
+# 1,829 x 1,418 m). Files at the edge of coverage are much smaller -- 1,302 have a side
+# under 100 m, the first increment's smallest 1 x 1 m with 14 points -- and are real, so
+# there is no lower bound beyond a box of positive size. The upper bound is what catches a
+# box anchored at the UTM origin.
 TILE_SIDE_MAX_M = 5_000
 
 # <block>/<sheet>/<year>/<product>/<file>.laz
@@ -128,8 +128,8 @@ def key_parse(url: str) -> dict:
 
 def nts_sheet_bounds(block: str, sheet: str) -> tuple[float, float, float, float]:
     """(west, south, east, north) in degrees of the NTS 1:250k sheet a key names, e.g.
-    `082`, `082e` -> 082E. Verified 2026-10-07: the footprint centre of 9,649 of the
-    first increment's 9,650 files falls in its named sheet (the other is in EXCLUDE)."""
+    `082`, `082e` -> 082E. item_create refuses a footprint centre outside it: over the
+    175,278 listed files, 4 fail, and are in EXCLUDE with the reason (2026-10-11, #2)."""
     if block not in NTS_BLOCKS:
         raise ValueError(f"no NTS grid recorded for block {block}")
     lat0, lon_east = NTS_BLOCKS[block]

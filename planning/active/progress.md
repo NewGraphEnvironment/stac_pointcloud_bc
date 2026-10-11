@@ -68,3 +68,10 @@
   Published lists: 12 ground-only, 253 no ground, 84 mixed (`logs/20261011_1100_*` summary).
 - Collection DESCRIPTION re-derived (G4): the screen and the random 5%, and that a few unlisted
   items hold no ground too.
+- Final build (`logs/20261011_1115_catalogue_build_final.log`, 53 min, exit 0, peak RSS
+  4.08 GB): 174,282 items, validated in 765 s. `catalogue_compare.py` against the 0.2.0 bucket
+  (`logs/20261011_1200_catalogue_compare.log`): exit 0; all 9,649 still built, 0 differing
+  beyond this release's changes, 164,633 new (12,006 with `copc`). `copc_pairs_measure.py`
+  (`logs/20261011_1200_copc_pairs_measure.log`): 13,970 pairs, largest offset 0.01 m.
+- Docs: NEWS 0.3.0, research (classes, CanElevation), CLAUDE.md source facts, README.Rmd prose
+  (its render waits on the publish: it reads the live API), code comments' counts.
