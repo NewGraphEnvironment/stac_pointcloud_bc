@@ -125,7 +125,8 @@ Branch: `2-index-the-rest-of-pointcloud-laz-165-667`
   WKT, no GeoKeys (TerraScan, LAS 1.4 format 6). One DEM tile per delivery declares NAD83(CSRS) /
   UTM 9N (`093e`, `103b`, `103c`, `103h`; EPSG:3156) or 8N (`103f`, `103g`, `103j`, `103k`;
   EPSG:3155), matching the `utm0N` in the file names. Not every DEM tile was read.
-  **A stored-data decision, so it is the user's** and goes in the final report. In-branch default,
+  **Decided by the user 2026-10-11:** keep them out of 0.3.0; indexing them from the DEM CRS is #15.
+  (Was: a stored-data decision, so the user's.) In-branch default,
   reversible before the publish: `EXCLUDE_DELIVERIES`, which refuses if any file there gains a CRS.
   Alternative: take each file's CRS from its delivery's DEM (zone and datum), with the CRS
   source noted in NEWS.
@@ -140,7 +141,7 @@ Branch: `2-index-the-rest-of-pointcloud-laz-165-667`
 
 `logs/20261011_0436_catalogue_build_full.log`: of 13,996 name matches, **26 fail the header check**,
 all in `Vancouver_Island_Sunshine_Coast_2018` (groups `092b/092c/092e/092f/092g/092l/102i` 2019).
-Every one has fewer points than the LidarBC file: 37.1M vs 41.2M, down to 8.45M vs 93.1M. 19 of
+Every one has fewer points than the LidarBC file: 37.1M vs 41.2M, down to 8.45M vs 93.1M. 20 of
 the 26 COPC counts are multiples of 50,000 (58,550,000; 15,000,000; ...), which looks like conversions
 cut short, though that was not measured. Recorded in `data/copc_not_copies.json` with both counts.
 Those items carry no `copc` asset and are not sampled through it. The build refuses if either
@@ -153,3 +154,4 @@ count changes. So 13,970 items carry a `copc` asset.
 | `ConnectionError: RemoteDisconnected` on a CanElevation listing page, after a 9-min walk | `laz_item.page_get`: 4 attempts with backoff on connection errors, timeouts and 5xx |
 | `CRSError` on 2,008 headers: compound CRS written vertical-first | Read swapped (`compound_reorder`); see the section above |
 | 34 of 12,032 COPC header reads `RemoteDisconnected` on the CanElevation bucket (`logs/20261011_0335_*`) | Transient: re-run, which reads only the uncached 34 (`logs/20261011_0436_*`) |
+| 6 of 17,552 screened point samples `RemoteDisconnected` on the LidarBC objectstore after a 3 h 10 min sample pass (`logs/20261011_0525_*`, which is named for a mislabelled start: it ran 05:05Z to 08:55Z) | Transient, and the build refused as designed (`classes_check`): re-run, which samples only the 6 |

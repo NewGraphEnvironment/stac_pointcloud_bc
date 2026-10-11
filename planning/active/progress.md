@@ -13,3 +13,15 @@
 - Phases 1-2 done; Phase 3-4 code done (class step in the build, derived check, audit, pooled
   validation, catalogue_compare.py); 12-guard mutation table all red
 - Next: the full build (cold headers ~165.6k), triage faults, then the audit
+
+## Session 2026-10-11 (overnight)
+
+- Full build `logs/20261011_0525_catalogue_build_full.log` (05:05Z to 08:55Z, 13,749 s, peak RSS
+  4.13 GB): 174,282 items; 13,970 `copc` assets over 28 groups; 17,552 of 174,282 screened at the
+  10th percentile; exit 1 on 6 transient sample failures (findings, Errors).
+- Review round 1 (`review-round1.md`): no bugs, three fragile. Fixed two: `exclusions_check`
+  also re-runs `item_create`, so an entry fixed outside its `mins` stops the build; class lists
+  outside the screen come from the committed `data/classes_required.json` (`--classes-record`),
+  not the gitignored cache. The third (`blocks_list` drops non-block prefixes) is accepted.
+- #15 filed for the 985 no-CRS files; `EXCLUDE_DELIVERIES` cites it.
+- 5% audit started (`logs/20261011_0900_laz_classes_audit.log`).

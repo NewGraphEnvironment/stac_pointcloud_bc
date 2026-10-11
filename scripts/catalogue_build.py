@@ -123,6 +123,13 @@ with open(COPC_PAIRS_PATH) as _fh:
 COPC_NOT_COPIES_PATH = os.path.join(ROOT, "data", "copc_not_copies.json")
 with open(COPC_NOT_COPIES_PATH) as _fh:
     COPC_NOT_COPIES = json.load(_fh)
+# Item ids outside the density screen whose point sample flagged them: the 5% audit's, and the
+# first increment's survey of every file. The build reads each whole as it does a screened
+# flag, so their class lists come from this list and not from a local cache (data/build is not
+# committed). `--classes-record` rewrites it; a flagged sample it lacks stops the build.
+CLASSES_REQUIRED_PATH = os.path.join(ROOT, "data", "classes_required.json")
+with open(CLASSES_REQUIRED_PATH) as _fh:
+    CLASSES_REQUIRED = json.load(_fh)
 
 # Files whose header is known to be faulty, excluded by name with the reason. Anything
 # else item_create() refuses fails the build, so a new fault is seen rather than dropped.
@@ -206,10 +213,10 @@ EXCLUDE = {
 # Whole deliveries left out because no file in them states a CRS: no WKT and no GeoKeys,
 # only the LASzip VLR (measured 2026-10-11, #2): 985 files, every file of each. One DEM tile
 # of each delivery declares NAD83(CSRS) / UTM 8N or 9N (EPSG:3155, 3156), but an item's
-# `proj:code` describes the file, and taking it from another product is a decision this
-# entry does not make. If any file in one gains a CRS, the build refuses: review it.
+# `proj:code` describes the file: indexing them from the DEM's CRS is #15. If any file in one
+# gains a CRS, the build refuses: review it.
 _NO_CRS = ("no file in the delivery states a CRS (no WKT, no GeoKeys); a DEM tile of the "
-           "delivery declares NAD83(CSRS) / UTM 8N or 9N. Found 2026-10-11 (#2).")
+           "delivery declares NAD83(CSRS) / UTM 8N or 9N. Found 2026-10-11 (#2); #15.")
 EXCLUDE_DELIVERIES = {
     "093/093e/2017": {"reason": _NO_CRS},
     "103/103b/2017": {"reason": _NO_CRS},
@@ -500,6 +507,13 @@ def exclusions_check(urls: list[str], headers: dict) -> list[str]:
             raise RuntimeError(f"EXCLUDE entry for {u} records mins {EXCLUDE[u]['mins']} but "
                                f"the header now reads {headers[u]['mins']} - the file may have "
                                f"been fixed; review the entry")
+        try:  # the mins can survive a fix of another field (a box's maxs, a CRS)
+            item_create(u, headers[u], f"{PATH_S3_STAC}/collection.json")
+        except ValueError:
+            pass
+        else:
+            raise RuntimeError(f"EXCLUDE entry for {u}: the file now makes an item - it may "
+                               f"have been fixed; review the entry")
         logger.warning("excluded by EXCLUDE: %s: %s", u, EXCLUDE[u]["reason"])
         out.append(u)
     by_delivery = collections.defaultdict(list)
@@ -616,11 +630,15 @@ def class_target(item: pystac.Item) -> dict:
 
 
 def classes_check(screened: set[str], ids: dict[str, str], current: dict[str, str],
-                  samples: dict[str, dict], full: dict[str, dict]) -> dict[str, str]:
+                  samples: dict[str, dict], full: dict[str, dict],
+                  required: list[str]) -> dict[str, str]:
     """What stops a build publishing class lists it cannot stand behind, by laz url:
     - a screened file with no good point sample at its current ETag;
     - a file any good current sample flags (screened or not: earlier samples and audit samples
-      count too) with no good whole-file read at its current ETag.
+      count too) with no good whole-file read at its current ETag;
+    - a file in `required` (CLASSES_REQUIRED) with no good whole-file read at its current ETag;
+    - a file outside the screen that a good sample flags and `required` lacks: its class list
+      would otherwise exist only where that sample is cached.
     Derived from the screen and the samples, so a cache that is missing, short or stale is
     refused without a count to keep (#2). `samples` and `full` are keyed by item id."""
     problems = {}
@@ -631,12 +649,18 @@ def classes_check(screened: set[str], ids: dict[str, str], current: dict[str, st
                            + (f" ({r['error']})" if r and "error" in r else ""))
     by_id = {i: u for u, i in ids.items()}
     good = {k: r for k, r in samples.items() if k in by_id and record_good(r, current)}
-    for k in sorted(confirm_ids(good)):
+    flagged = confirm_ids(good)
+    for k in sorted(flagged | {k for k in required if k in by_id}):
         r = full.get(k)
         if r is None or not record_good(r, current):
-            problems[by_id[k]] = ("flagged by its sample, with no whole-file read at the "
-                                  "current ETag" + (f" ({r['error']})" if r and "error" in r
-                                                    else ""))
+            why = "flagged by its sample" if k in flagged else f"in {CLASSES_REQUIRED_PATH}"
+            problems[by_id[k]] = (f"{why}, with no whole-file read at the current ETag"
+                                  + (f" ({r['error']})" if r and "error" in r else ""))
+    for k in sorted(flagged - set(required)):
+        if by_id[k] not in screened:
+            problems[by_id[k]] = "; ".join(filter(None, [
+                problems.get(by_id[k]), f"flagged by a sample outside the screen and not in "
+                f"{CLASSES_REQUIRED_PATH}; record it with --classes-record"]))
     return problems
 
 
@@ -711,6 +735,9 @@ def main() -> int:
     ap.add_argument("--groups-record", action="store_true",
                     help="write the listing's per-group .laz and COPC pair counts to "
                          "data/pointcloud_groups.json and data/copc_pairs.json, and stop")
+    ap.add_argument("--classes-record", action="store_true",
+                    help="rewrite data/classes_required.json from the cached samples that flag "
+                         "a file outside the density screen")
     ap.add_argument("--force", action="store_true",
                     help="with --groups-record, allow a recorded count to fall")
     args = ap.parse_args()
@@ -824,13 +851,22 @@ def main() -> int:
               probe=item_probe, current=current)
     samples = {k: r for k, r in records_load(sample_path).items() if k in current}
     cache_tail_repair(full_path)
-    want = confirm_work({k: r for k, r in samples.items() if record_good(r, current)},
-                        {k: r for k, r in records_load(full_path).items() if k in current},
-                        current)
+    good = {k: r for k, r in samples.items() if record_good(r, current)}
+    required = CLASSES_REQUIRED
+    if args.classes_record:
+        required = sorted(k for k in confirm_ids(good) if k not in {ids[u] for u in screened})
+        with open(f"{CLASSES_REQUIRED_PATH}.new", "w") as fh:
+            json.dump(required, fh, indent=1)
+            fh.write("\n")
+        os.replace(f"{CLASSES_REQUIRED_PATH}.new", CLASSES_REQUIRED_PATH)
+        logger.info("recorded %d ids in %s", len(required), CLASSES_REQUIRED_PATH)
+    prior = {k: r for k, r in records_load(full_path).items() if k in current}
+    want = confirm_work(good, prior, current) | {
+        k for k in required if k in current and not (k in prior and record_good(prior[k], current))}
     probe_all([targets[k] for k in sorted(want)], full_path, args.workers, probe=full_probe,
               current=current)
     full = {k: r for k, r in records_load(full_path).items() if k in current}
-    problems = classes_check(screened, ids, current, samples, full)
+    problems = classes_check(screened, ids, current, samples, full, required)
     if problems:
         for u, e in sorted(problems.items()):
             logger.error("class read: %s: %s", u, e)

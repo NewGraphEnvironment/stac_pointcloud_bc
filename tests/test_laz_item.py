@@ -720,9 +720,20 @@ def test_a_delivery_with_any_disagreeing_date_is_untrusted_as_a_whole():
 
 def test_an_exclude_entry_whose_fault_is_gone_stops_the_build():
     u = next(iter(catalogue_build.EXCLUDE))
-    assert catalogue_build.exclusions_check([u], {u: {"mins": [0.0, 0.0, 0.0]}}) == [u]
+    assert catalogue_build.exclusions_check([u], {u: _header(mins=(0.0, 0.0, 0.0))}) == [u]
     with pytest.raises(RuntimeError, match="may have been fixed"):
-        catalogue_build.exclusions_check([u], {u: {"mins": [547410.0, 5441555.0, 2.0]}})
+        catalogue_build.exclusions_check([u], {u: _header(mins=(547410.0, 5441555.0, 2.0))})
+
+
+def test_an_exclude_entry_fixed_outside_its_mins_stops_the_build():
+    """092h011's fault is its maxs: a corrected re-delivery keeps the recorded mins."""
+    (u,) = [k for k in catalogue_build.EXCLUDE if "092h011_1_2_2" in k]
+    mins = tuple(catalogue_build.EXCLUDE[u]["mins"])
+    broken = _header(mins=mins, maxs=(3263847.73, 5440545.01, 564.36))
+    assert catalogue_build.exclusions_check([u], {u: broken}) == [u]
+    fixed = _header(mins=mins, maxs=(579850.0, 5440545.01, 564.36))
+    with pytest.raises(RuntimeError, match="now makes an item"):
+        catalogue_build.exclusions_check([u], {u: fixed})
 
 
 NO_CRS = f"{PATH_S3}/103/103h/2017/pointcloud/bc_103h039_1_1_1_xyes_17_utm09_20170806.laz"
@@ -1213,10 +1224,24 @@ def test_classes_check_requires_a_whole_read_for_every_flagged_sample_screened_o
     ids = {a: "A", b: "B"}
     cur = {"A": "a", "B": "a"}
     samples = {"A": _rec("A", {"1": 5, "2": 5}), "B": _rec("B", {"1": 5})}
-    p = catalogue_build.classes_check({a}, ids, cur, samples, {})
+    p = catalogue_build.classes_check({a}, ids, cur, samples, {}, ["B"])
     assert list(p) == [b] and "flagged by its sample" in p[b]
     full = {"B": {"id": "B", "full": _full({1: 5})}}
-    assert catalogue_build.classes_check({a}, ids, cur, samples, full) == {}
+    assert catalogue_build.classes_check({a}, ids, cur, samples, full, ["B"]) == {}
+    # and outside the screen it must be in the committed list, or the class list it earns
+    # would exist only where this sample is cached
+    p = catalogue_build.classes_check({a}, ids, cur, samples, full, [])
+    assert list(p) == [b] and "record it with --classes-record" in p[b]
+
+
+def test_classes_check_requires_a_whole_read_of_every_required_file():
+    a, b = PC, PC.replace("019_1_4_1", "019_1_4_2")
+    ids, cur = {a: "A", b: "B"}, {"A": "a", "B": "a"}
+    samples = {"A": _rec("A", {"1": 5, "2": 5})}  # B never sampled: a fresh cache
+    p = catalogue_build.classes_check({a}, ids, cur, samples, {}, ["B", "not-in-this-build"])
+    assert list(p) == [b] and "classes_required.json, with no whole-file read" in p[b]
+    full = {"B": {"id": "B", "full": _full({1: 5})}}
+    assert catalogue_build.classes_check({a}, ids, cur, samples, full, ["B"]) == {}
 
 
 @pytest.mark.parametrize("sample, why", [
@@ -1224,8 +1249,60 @@ def test_classes_check_requires_a_whole_read_for_every_flagged_sample_screened_o
     ({"id": "A", "error": "OSError: x"}, "(OSError: x)")])
 def test_classes_check_requires_a_current_sample_of_every_screened_file(sample, why):
     samples = {"A": sample} if sample else {}
-    p = catalogue_build.classes_check({PC}, {PC: "A"}, {"A": "a"}, samples, {})
+    p = catalogue_build.classes_check({PC}, {PC: "A"}, {"A": "a"}, samples, {}, [])
     assert why in p[PC]
+
+
+# Eleven files of one delivery, PC the densest: only the two least dense are screened.
+GROUP11 = [PC] + [PC.replace("019_1_4_1", f"019_{a}_{b}_1") for a, b in
+                  ((1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3), (4, 4))]
+
+
+def _main_with_required(tmp_path, monkeypatch, required, cached_samples=(), argv=()):
+    """main() over GROUP11 with `required` as data/classes_required.json and only
+    `cached_samples` in the sample cache; every sample is mixed, every whole read of PC is
+    ground and vegetation."""
+    objs = [{"url": u, "etag": "a", "size": 1} for u in GROUP11]
+    monkeypatch.chdir(tmp_path)
+    req = tmp_path / "classes_required.json"
+    req.write_text(json.dumps(required))
+    monkeypatch.setattr(catalogue_build, "CLASSES_REQUIRED_PATH", str(req))
+    monkeypatch.setattr(catalogue_build, "CLASSES_REQUIRED", required)
+    monkeypatch.setattr(catalogue_build, "OUT", "data/build")
+    monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
+    monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
+    monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
+    monkeypatch.setattr(catalogue_build, "item_probe", _sample({1: 5, 2: 5}))
+    monkeypatch.setattr(catalogue_build, "full_probe", _whole({1: 600, 2: 400}))
+
+    def header(u, session=None):
+        h = _header()
+        h["point_count"] = 1000 if u == PC else 10 + GROUP11.index(u)
+        return h
+    monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__", (header,))
+    monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1", *argv])
+    os.makedirs("data/build", exist_ok=True)
+    with open(f"data/build/{catalogue_build.CLASSES_SAMPLE}", "w") as fh:
+        for r in cached_samples:
+            fh.write(json.dumps(r) + "\n")
+    return catalogue_build.main(), req
+
+
+def test_a_required_file_outside_the_screen_is_read_whole_from_a_fresh_cache(tmp_path,
+                                                                            monkeypatch):
+    rc, _ = _main_with_required(tmp_path, monkeypatch, [url_to_item_id(PC)])
+    assert rc == 0
+    d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
+    assert [c["value"] for c in d["assets"][ASSET_LAZ]["classification:classes"]] == [1, 2]
+
+
+def test_a_flag_outside_the_screen_must_be_recorded_and_classes_record_records_it(
+        tmp_path, monkeypatch, caplog):
+    flag = _rec(url_to_item_id(PC), {"2": 1000})  # ground only: flags
+    rc, req = _main_with_required(tmp_path, monkeypatch, [], [flag])
+    assert rc == 1 and "record it with --classes-record" in caplog.text
+    rc, req = _main_with_required(tmp_path, monkeypatch, [], [flag], ["--classes-record"])
+    assert rc == 0 and json.loads(req.read_text()) == [url_to_item_id(PC)]
 
 
 def test_the_screen_is_the_research_percentile_within_each_group():
