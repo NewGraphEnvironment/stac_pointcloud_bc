@@ -1542,3 +1542,15 @@ def test_a_listing_page_failing_every_attempt_raises_and_a_4xx_is_not_retried():
     assert s.calls == 1
     s = _Flaky([503] * laz_item.PAGE_ATTEMPTS)
     assert laz_item.page_get(s, "u", {}, 1, sleep=lambda t: None).status_code == 503
+
+
+def test_the_build_refuses_an_item_missing_one_of_its_fields(tmp_path, monkeypatch):
+    real = catalogue_build.item_create
+
+    def dropping(*a, **k):
+        it = real(*a, **k)
+        it.properties.pop("lidarbc:delivery")
+        return it
+    monkeypatch.setattr(catalogue_build, "item_create", dropping)
+    with pytest.raises(ValueError, match="missing lidarbc:delivery"):
+        _main_with_copc(tmp_path, monkeypatch, _copc_header())

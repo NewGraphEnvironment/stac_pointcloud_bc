@@ -10,6 +10,8 @@ if the two disagree.
 """
 
 import functools
+import json
+import os
 import re
 import time
 import urllib.parse
@@ -41,6 +43,17 @@ PRODUCTS = ("pointcloud", "dsm")
 SCHEMA_LIDARBC = "https://newgraphenvironment.github.io/crate/stac/lidarbc/v1.0.0/schema.json"
 SCHEMA_LAS = "https://newgraphenvironment.github.io/crate/stac/las/v1.0.0/schema.json"
 SCHEMAS_CUSTOM = {"lidarbc": SCHEMA_LIDARBC, "las": SCHEMA_LAS}
+# Copies of both, checked in byte for byte (tests/test_schemas.py compares them with the published
+# files when online). Validation reads these, never the URLs, so a Pages or DNS hiccup cannot fail
+# a build; a published version never changes, so a copy can only drift by a hand edit.
+SCHEMA_FILES = {u: os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                "schemas", p, "v1.0.0", "schema.json")
+                for p, u in SCHEMAS_CUSTOM.items()}
+# What the build always writes (crate's schemas require nothing, because stac-elevation-bc
+# carries only lidarbc:delivery; they type what is present, and presence is the build's job).
+FIELDS_ITEM = ("lidarbc:product", "lidarbc:delivery", "lidarbc:datetime_source", "las:version",
+               "las:point_format")
+FIELDS_COPC = ("las:version", "las:point_format")
 # `lidarbc:delivery`, shared with stac-elevation-bc so the two match on one filter (#5,
 # stac_dem_bc#55): the three path segments after `gdwuts/`.
 DELIVERY = re.compile(r"^[0-9]{3}/[0-9]{3}[a-p]/[0-9]{4}$")
@@ -523,3 +536,30 @@ def schemas_check(body: dict) -> None:
     if missing:
         raise ValueError(f"{body.get('id')}: writes {', '.join(p + ':' for p in missing)} keys "
                          f"without the schema in stac_extensions")
+
+
+def schemas_preload() -> None:
+    """Put the checked-in copies of the crate schemas into pystac's validator cache, under their
+    published URLs, so no validate() in this process fetches them. Idempotent."""
+    import pystac.validation
+    cache = pystac.validation.RegisteredValidator.get_validator().schema_cache
+    for url, path in SCHEMA_FILES.items():
+        if url not in cache:
+            with open(path) as fh:
+                cache[url] = json.load(fh)
+
+
+def fields_check(body: dict) -> None:
+    """Refuse an item body (as JSON) missing a field the build always writes, or carrying one
+    empty: every FIELDS_ITEM in properties, `lidarbc:filename_date` where the date came from the
+    file name, and both `las:` fields on a `copc` asset."""
+    p = body["properties"]
+    want = list(FIELDS_ITEM)
+    if p.get("lidarbc:datetime_source") == "filename":
+        want.append("lidarbc:filename_date")
+    missing = [k for k in want if p.get(k) in (None, "")]
+    if ASSET_COPC in body.get("assets", {}):
+        missing += [f"{ASSET_COPC}.{k}" for k in FIELDS_COPC
+                    if body["assets"][ASSET_COPC].get(k) in (None, "")]
+    if missing:
+        raise ValueError(f"{body.get('id')}: missing {', '.join(missing)}")

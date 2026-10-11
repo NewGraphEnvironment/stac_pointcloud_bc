@@ -69,8 +69,10 @@ from laz_item import (
     copc_asset_add,
     header_read,
     item_create,
+    fields_check,
     keys_list,
     schemas_check,
+    schemas_preload,
     url_scheme_check,
 )
 
@@ -525,6 +527,7 @@ def classes_check(screened: set[str], ids: dict[str, str], current: dict[str, st
 
 def validate_one(body: dict) -> str | None:
     """None if `body` validates (core and every schema in stac_extensions), else the error."""
+    schemas_preload()  # in each pool worker too
     try:
         pystac.validation.validate_dict(body)
     except pystac.errors.STACValidationError as e:
@@ -740,6 +743,7 @@ def main() -> int:
             raise RuntimeError(f"{i.id} has no {ASSET_LAZ!r} asset")
         d = i.to_dict(include_self_link=False)
         schemas_check(d)
+        fields_check(d)
         bodies.append(d)
     invalid = validate_all(bodies, args.workers)
     if invalid:
@@ -750,6 +754,7 @@ def main() -> int:
 
     c = collection_build(items)
     schemas_check(c.to_dict())
+    schemas_preload()
     c.validate()
 
     # Everything is built and validated before anything on disk changes. The new set is

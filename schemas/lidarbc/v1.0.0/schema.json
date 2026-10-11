@@ -1,0 +1,143 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://newgraphenvironment.github.io/crate/stac/lidarbc/v1.0.0/schema.json",
+  "title": "LidarBC",
+  "description": "Fields describing LidarBC's objectstore paths and file names, for STAC Items and Collections. Each field is optional; a catalogue requires the ones it always writes.",
+  "type": "object",
+  "required": [
+    "stac_extensions",
+    "type"
+  ],
+  "properties": {
+    "stac_extensions": {
+      "type": "array",
+      "contains": {
+        "const": "https://newgraphenvironment.github.io/crate/stac/lidarbc/v1.0.0/schema.json"
+      }
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "Collection",
+        "Feature"
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$comment": "Item properties.",
+      "type": "object",
+      "required": [
+        "type",
+        "properties"
+      ],
+      "properties": {
+        "type": {
+          "const": "Feature"
+        },
+        "properties": {
+          "$ref": "#/definitions/fields"
+        }
+      }
+    },
+    {
+      "$comment": "Collection summaries.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "Collection"
+        },
+        "summaries": {
+          "$ref": "#/definitions/summaries"
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "lidarbc:product": {
+      "title": "Product directory",
+      "description": "The product directory in the object key, e.g. `pointcloud` or `dsm`.",
+      "type": "string",
+      "minLength": 1
+    },
+    "lidarbc:delivery": {
+      "title": "Delivery",
+      "description": "The delivery the file belongs to: `<block>/<sheet>/<year>` from the object key, e.g. `082/082l/2019`.",
+      "type": "string",
+      "pattern": "^[0-9]{3}/[0-9]{3}[a-p]/[0-9]{4}$"
+    },
+    "lidarbc:datetime_source": {
+      "title": "Datetime source",
+      "description": "Which part of the object key the item's datetime fields came from: the file name's date token, or the year directory in the path.",
+      "type": "string",
+      "enum": [
+        "filename",
+        "path"
+      ]
+    },
+    "lidarbc:filename_date": {
+      "title": "File name date",
+      "description": "The date token in the file name, as written. Present whether or not it was used for the item's datetime.",
+      "type": "string",
+      "minLength": 1
+    },
+    "fields": {
+      "type": "object",
+      "properties": {
+        "lidarbc:product": {
+          "$ref": "#/definitions/lidarbc:product"
+        },
+        "lidarbc:delivery": {
+          "$ref": "#/definitions/lidarbc:delivery"
+        },
+        "lidarbc:datetime_source": {
+          "$ref": "#/definitions/lidarbc:datetime_source"
+        },
+        "lidarbc:filename_date": {
+          "$ref": "#/definitions/lidarbc:filename_date"
+        }
+      },
+      "patternProperties": {
+        "^(?!lidarbc:)": {}
+      },
+      "additionalProperties": false
+    },
+    "summaries": {
+      "$comment": "Lists of values only: none of these fields has an order a range could use.",
+      "type": "object",
+      "properties": {
+        "lidarbc:product": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lidarbc:product"
+          }
+        },
+        "lidarbc:delivery": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lidarbc:delivery"
+          }
+        },
+        "lidarbc:datetime_source": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lidarbc:datetime_source"
+          }
+        },
+        "lidarbc:filename_date": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lidarbc:filename_date"
+          }
+        }
+      },
+      "patternProperties": {
+        "^(?!lidarbc:)": {}
+      },
+      "additionalProperties": false
+    }
+  }
+}

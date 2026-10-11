@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://newgraphenvironment.github.io/crate/stac/las/v1.0.0/schema.json",
+  "title": "LAS",
+  "description": "Fields describing a file in the ASPRS LAS format (LAS, LAZ, COPC), for STAC Items, their Assets, and Collections. On an Item they describe its source-of-record asset; an asset that is a different file carries its own. Each field is optional.",
+  "type": "object",
+  "required": [
+    "stac_extensions",
+    "type"
+  ],
+  "properties": {
+    "stac_extensions": {
+      "type": "array",
+      "contains": {
+        "const": "https://newgraphenvironment.github.io/crate/stac/las/v1.0.0/schema.json"
+      }
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "Collection",
+        "Feature"
+      ]
+    },
+    "assets": {
+      "$comment": "Item assets and Collection assets.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/fields"
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$comment": "Item properties.",
+      "type": "object",
+      "required": [
+        "type",
+        "properties"
+      ],
+      "properties": {
+        "type": {
+          "const": "Feature"
+        },
+        "properties": {
+          "$ref": "#/definitions/fields"
+        }
+      }
+    },
+    {
+      "$comment": "Collection summaries and item_assets.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "Collection"
+        },
+        "summaries": {
+          "$ref": "#/definitions/summaries"
+        },
+        "item_assets": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/fields"
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "las:version": {
+      "title": "LAS version",
+      "description": "The LAS specification version in the file's header, as `<major>.<minor>`.",
+      "type": "string",
+      "enum": [
+        "1.0",
+        "1.1",
+        "1.2",
+        "1.3",
+        "1.4"
+      ]
+    },
+    "las:point_format": {
+      "title": "Point data record format",
+      "description": "The point data record format ID in the file's header.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "fields": {
+      "type": "object",
+      "properties": {
+        "las:version": {
+          "$ref": "#/definitions/las:version"
+        },
+        "las:point_format": {
+          "$ref": "#/definitions/las:point_format"
+        }
+      },
+      "patternProperties": {
+        "^(?!las:)": {}
+      },
+      "additionalProperties": false
+    },
+    "summaries": {
+      "type": "object",
+      "properties": {
+        "las:version": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/las:version"
+          }
+        },
+        "las:point_format": {
+          "type": [
+            "array",
+            "object"
+          ],
+          "items": {
+            "$ref": "#/definitions/las:point_format"
+          },
+          "properties": {
+            "minimum": {
+              "$ref": "#/definitions/las:point_format"
+            },
+            "maximum": {
+              "$ref": "#/definitions/las:point_format"
+            }
+          }
+        }
+      },
+      "patternProperties": {
+        "^(?!las:)": {}
+      },
+      "additionalProperties": false
+    }
+  }
+}
