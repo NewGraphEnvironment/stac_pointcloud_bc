@@ -11,6 +11,7 @@ if the two disagree.
 
 import functools
 import json
+import logging
 import os
 import re
 import time
@@ -22,6 +23,7 @@ import laspy
 import pystac
 import requests
 from pyproj import CRS, Transformer
+from pyproj.exceptions import CRSError
 from pystac.extensions.classification import Classification, ClassificationExtension
 from pystac.extensions.file import FileExtension
 from pystac.extensions.pointcloud import PointcloudExtension, Schema, SchemaType
@@ -187,13 +189,69 @@ def date_parse(name: str, path_year: int, trust_filename: bool = True) -> dict:
             "source": source, "filename_date": tok}
 
 
+def compound_reorder(wkt: str) -> str | None:
+    """A WKT1 COMPD_CS written vertical-first, with its two parts swapped; None for any
+    other WKT.
+
+    OGC 01-009 puts the horizontal part first and PROJ refuses the other order. 2,008
+    files in seven 2021 deliveries carry `COMPD_CS[..., VERT_CS[...], PROJCS[...]]`
+    (2026-10-11, #2). The swap changes the order only, so both parts keep their own
+    definitions and authority codes."""
+    s = wkt.strip()
+    if not (s.startswith("COMPD_CS[") and s.endswith("]")):
+        return None
+    body = s[len("COMPD_CS["):-1]
+    parts, depth, quoted, start = [], 0, False, 0
+    for i, c in enumerate(body):
+        if c == '"':
+            quoted = not quoted
+        elif quoted:
+            continue
+        elif c == "[":
+            depth += 1
+        elif c == "]":
+            depth -= 1
+        elif c == "," and depth == 0:
+            parts.append(body[start:i])
+            start = i + 1
+    parts.append(body[start:])
+    kinds = [p.split("[", 1)[0].strip() for p in parts]
+    if len(parts) < 3 or kinds[1] != "VERT_CS" or kinds[2] not in ("PROJCS", "GEOGCS"):
+        return None
+    parts[1], parts[2] = parts[2], parts[1]
+    return "COMPD_CS[" + ",".join(parts) + "]"
+
+
+@functools.lru_cache(maxsize=16)
+def _crs_reordered(wkt: str) -> CRS:
+    """Parse a vertical-first compound by its swapped form, logged once per distinct WKT."""
+    crs = CRS.from_wkt(compound_reorder(wkt))
+    logging.getLogger(__name__).warning("CRS written vertical-first, read swapped: %s",
+                                        crs.name)
+    return crs
+
+
+def header_crs(h: laspy.LasHeader) -> CRS | None:
+    """The header's CRS, as laspy parses it, except that a WKT compound written
+    vertical-first is read with its parts swapped (`compound_reorder`). Any other
+    parse failure raises as before."""
+    try:
+        return h.parse_crs()
+    except CRSError:
+        wkts = [r.string for r in [*h.vlrs, *(h.evlrs or [])]
+                if isinstance(r, laspy.vlrs.known.WktCoordinateSystemVlr)]
+        if len(wkts) != 1 or compound_reorder(wkts[0]) is None:
+            raise
+        return _crs_reordered(wkts[0])
+
+
 def header_read(url: str, session: requests.Session | None = None) -> dict:
     """The facts an item needs, from the LAS header and VLRs only (one ~64 KB range
     request; research/laz_header_read.md). No points are decompressed."""
     f = HttpRangeFile(href_encode(url), session=session)
     with laspy.open(f) as reader:
         h = reader.header
-        crs = h.parse_crs()
+        crs = header_crs(h)
         dims = [(d.name, d.num_bits, d.kind.name) for d in h.point_format.dimensions]
         return {
             "header_version": HEADER_VERSION,

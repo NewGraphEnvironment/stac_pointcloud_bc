@@ -102,7 +102,23 @@ Branch: `2-index-the-rest-of-pointcloud-laz-165-667`
   range where it names none. Each item says which in `lidarbc:datetime_source`. Only `092p/2017`
   is in that case.
 
+## A compound CRS written vertical-first (full build, 2026-10-11)
+
+- The first full build read 173,270 new headers and refused on 2,008 (`logs/20261011_0014_catalogue_build_full.log`):
+  every one `CRSError: components of the compound CRS do not belong to one of the allowed
+  combinations` (PROJ 9.8.1, pyproj 3.8.0, laspy 2.7.0).
+- All 2,008 are in seven 2021 deliveries: `082l` 132, `092h` 277, `092i` 156, `092p` 157,
+  `093a` 156, `093i` 428, `093p` 702. Their WKT, in an EVLR (`LASF_Projection` 2112, no
+  GeoKeys), is `COMPD_CS["CGVD2013 height + NAD83(CSRS) / UTM zone 10N" (1,876) or 11N (132),
+  VERT_CS[...], PROJCS[...]]`: the vertical part first, which OGC 01-009 and PROJ refuse.
+- Not triaged into `EXCLUDE` (one fault across 2,008 files). Read instead with the two parts
+  swapped (`laz_item.compound_reorder`, `header_crs`). The swap changes the order only: each part
+  keeps its own definition and EPSG authority (3157 / 2955 horizontal, 6647 vertical). Any other
+  parse failure still raises. Logged once per distinct WKT.
+
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
+| `ConnectionError: RemoteDisconnected` on a CanElevation listing page, after a 9-min walk | `laz_item.page_get`: 4 attempts with backoff on connection errors, timeouts and 5xx |
+| `CRSError` on 2,008 headers: compound CRS written vertical-first | Read swapped (`compound_reorder`); see the section above |

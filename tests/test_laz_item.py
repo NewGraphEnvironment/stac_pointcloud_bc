@@ -17,6 +17,7 @@ import numpy as np
 import pystac
 import pytest
 from pyproj import CRS
+from pyproj.exceptions import CRSError
 
 import catalogue_build
 import laz_item
@@ -1554,3 +1555,49 @@ def test_the_build_refuses_an_item_missing_one_of_its_fields(tmp_path, monkeypat
     monkeypatch.setattr(catalogue_build, "item_create", dropping)
     with pytest.raises(ValueError, match="missing lidarbc:delivery"):
         _main_with_copc(tmp_path, monkeypatch, _copc_header())
+
+
+# =============================================================================
+# A compound CRS written vertical-first (2,008 files in seven 2021 deliveries, #2)
+# =============================================================================
+
+VERTICAL_FIRST = (FIXTURES / "crs_compound_vertical_first_093p.wkt").read_text()
+
+
+def _header_with_wkt(wkt: str) -> laspy.LasHeader:
+    h = laspy.LasHeader(point_format=6, version="1.4")
+    h.vlrs.append(laspy.vlrs.known.WktCoordinateSystemVlr(wkt))
+    return h
+
+
+def test_a_vertical_first_compound_is_refused_by_proj_and_read_swapped():
+    with pytest.raises(CRSError):
+        CRS.from_wkt(VERTICAL_FIRST)
+    crs = laz_item.header_crs(_header_with_wkt(VERTICAL_FIRST))
+    assert crs.is_compound
+    assert [c.is_vertical for c in crs.sub_crs_list] == [False, True]
+    assert crs.sub_crs_list[1].name == "CGVD2013 height"
+    assert laz_item._horizontal(crs).to_epsg() == 3157
+
+
+def test_a_swapped_crs_round_trips_through_the_header_cache_into_proj_code():
+    wkt = laz_item.header_crs(_header_with_wkt(VERTICAL_FIRST)).to_wkt()
+    url = f"{PATH_S3}/093/093p/2021/pointcloud/bc_093p075_1_2_3_xyes_8_utm10_2021.laz"
+    it = item_create(url, _header(wkt, mins=(650000.0, 6170000.0, 700.0),
+                                  maxs=(651000.0, 6171000.0, 900.0)), COLL)
+    assert it.properties["proj:code"] == "EPSG:3157"
+
+
+def test_only_a_vertical_first_compound_is_reordered():
+    assert laz_item.compound_reorder((FIXTURES / "crs_compound_bound_2955.wkt").read_text()) is None
+    assert laz_item.compound_reorder((FIXTURES / "crs_esri_utm11_082k.wkt").read_text()) is None
+    swapped = laz_item.compound_reorder(VERTICAL_FIRST)
+    assert swapped.index("PROJCS[") < swapped.index("VERT_CS[")
+    assert laz_item.compound_reorder(swapped) is None  # a WKT1 compound already in order
+    assert sorted(swapped) == sorted(VERTICAL_FIRST)  # the same characters, reordered
+
+
+def test_any_other_crs_parse_failure_still_raises():
+    broken = VERTICAL_FIRST.replace("VERT_CS[", "VERT_XX[", 1)
+    with pytest.raises(CRSError):
+        laz_item.header_crs(_header_with_wkt(broken))
