@@ -44,7 +44,7 @@ fields (#12), class lists (#10) and the delivery key (#5). Unpublished as of thi
   the first and last day flown over that tile; the year directory is the year of the first, and the last can be a later
   year. Such an item carries them as `start_datetime` / `end_datetime` (44,744 items), or as
   its `datetime` when the two are the same day; with names of one day, 64,372 items carry a
-  day. In 30 two-day files from 14 deliveries every sampled point's GPS time fell between the
+  day. In 30 two-day files from 15 deliveries every sampled point's GPS time fell between the
   two days, and in 12 same-day files on that day. 9 deliveries name files with a date whose
   year disagrees with the directory (the first increment's 4 among them), so all their items
   carry the directory year, as do names with a year only: 65,166 items span a year.

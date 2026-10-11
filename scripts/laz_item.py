@@ -166,7 +166,7 @@ def date_parse(name: str, path_year: int, trust_filename: bool = True) -> dict:
     None).
 
     Two day tokens (`_20250509_20251014`) are the first and last day flown, and the year
-    directory is the year of the first: in 30 such files from 14 deliveries every sampled
+    directory is the year of the first: in 30 such files from 15 deliveries every sampled
     point's GPS time fell between the two, including 14 whose last day is in a later year
     (`093c/2023` `_20230921_20251001` holds points from 2023, 2024 and 2025; 2026-10-11, #2).
     So they are a range, and only the first day need agree with the directory.

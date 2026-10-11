@@ -17,7 +17,7 @@ file probed, every sampled point's day lay between them, and most files showed b
 | probe | files | deliveries | result |
 |---|---:|---:|---|
 | pairs within one year | 16 | 8 | all points between the two days |
-| pairs ending in a later year | 14 | 8 | all points between; `093c/2023` `_20230921_20251001` holds points from 2023, 2024 and 2025 |
+| pairs ending in a later year | 14 | 7 | all points between; `093c/2023` `_20230921_20251001` holds points from 2023, 2024 and 2025 |
 | the same day twice | 12 | 6 | all points on that day |
 
 So the **year directory is the year of the first day**, and the last can fall in a later year.

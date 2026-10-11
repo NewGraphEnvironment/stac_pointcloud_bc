@@ -176,7 +176,7 @@ The docs fact-check found 10,603 items dated by the second of two day tokens; th
 review (`review-round5.md`) found 9,278 more pairs whose last day is in a later year, which made
 33 deliveries (80,337 files) untrusted. GPS times (a 20,000-point read at 0/25/50/75/95% of each
 file; scratchpad probes, not committed) settle it:
-- 16 in-year pairs from 8 deliveries and 14 cross-year pairs from 8 deliveries: every sampled
+- 16 in-year pairs from 8 deliveries and 14 cross-year pairs from 7 deliveries: every sampled
   point's day lies between the two tokens; most files show both ends. `093c/2023`
   `_20230921_20251001` holds points from 2023, 2024 and 2025.
 - 12 same-day pairs from 6 newly trusted deliveries: every point on the named day.
