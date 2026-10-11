@@ -244,12 +244,17 @@ DESCRIPTION = (
     "Where an item's file name is one of them, the item also carries that COPC as its `copc` "
     "asset, checked to have the same point count and horizontal CRS and a header box within "
     f"{COPC_BOX_TOLERANCE_M:g} m; the `laz` asset stays the source of record. "
-    "A LAS header does not say which classes a file holds. Files that a sample of their "
-    "points found to hold only ground, noise and water, or no ground at all, were read "
-    "whole: their `laz` asset lists every class present, with its point count, in "
-    "`classification:classes`. An item without that list was not read whole. Most of the "
-    "listed items hold no ground (class 2) at all, and so give no bare-earth surface; "
-    "vegetation in this collection is mostly unclassified (class 1), not classes 3 to 5."
+    "A LAS header does not say which classes a file holds. A sample of points was read from "
+    f"every file whose point density is in the lowest {SCREEN_PERCENTILE:g}% of its "
+    "mapsheet-year, where such files gather, and from a random 5% of the rest. Each file a "
+    "sample found to hold only ground, noise and water, or no ground at all, was read whole: "
+    "its `laz` asset lists every class present, with its point count, in "
+    "`classification:classes`. An item without that list was not read whole, and a few of "
+    "them hold no ground either: the random sample found such files outside the low-density "
+    "tail, rarely (research/laz_classes.md in "
+    "github.com/NewGraphEnvironment/stac_pointcloud_bc). Most of the listed items hold no "
+    "ground (class 2) at all, and so give no bare-earth surface. Vegetation in this "
+    "collection is mostly unclassified (class 1); classes 3 to 5 are in a minority of files."
 )
 PROVIDERS = [
     {"name": "Province of British Columbia", "roles": ["producer", "licensor", "host"],

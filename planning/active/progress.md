@@ -58,3 +58,13 @@
   flagged, is dropped only with `--force`; any other old id is always kept, and is refused
   without a good read; a new id enters only as a flag outside the screen or as a good read
   not screened and flagged. Each arm has a test that a mutant turns red.
+- 5% audit (`logs/20261011_0900_*`, retry `_1005_*`): 7,836 picked, 7,834 sampled (2 files the
+  sampler cannot read: findings), 9 flagged, 2 confirmed misses, one at the 96th density
+  percentile of its group, so the plan's "widen the screen" cannot catch it. Put to the user
+  (findings); proceeding with the screen plus the audit's reads.
+- Build with `--classes-record` (`logs/20261011_1010_*`, 53 min, exit 0, peak RSS 3.96 GB):
+  174,282 items validated in 768 s; 17,552 screened, 347 flagged, 349 read whole;
+  `data/classes_required.json` records 11 ids (9 audit flags, the #10 survey's 2 reads).
+  Published lists: 12 ground-only, 253 no ground, 84 mixed (`logs/20261011_1100_*` summary).
+- Collection DESCRIPTION re-derived (G4): the screen and the random 5%, and that a few unlisted
+  items hold no ground too.

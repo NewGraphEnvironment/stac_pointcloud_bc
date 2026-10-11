@@ -32,7 +32,7 @@
 
 ## Phase 3: Class check moves into the build
 
-- [ ] Re-measure the screen. Compute the density percentile within each mapsheet-year from the
+- [x] Re-measure the screen. Compute the density percentile within each mapsheet-year from the
   headers.
   - Sample a random 5% (fixed seed) of the files above the 10th percentile, then read whole
     whatever that sample flags.
@@ -66,7 +66,7 @@
   - Done: 10 single-file entries. 2,008 vertical-first compound CRSs read swapped
     (`compound_reorder`). 985 files in 8 deliveries with no CRS at all are held out by
     `EXCLUDE_DELIVERIES`; decided: they stay out of 0.3.0, and #15 indexes them from the DEM CRS.
-- [ ] Run validation in a process pool, timed. Record peak memory for about 175k items.
+- [x] Run validation in a process pool, timed. Record peak memory for about 175k items.
 - [x] Generalise `copc_pairs_measure.py --published` (landed as `scripts/catalogue_compare.py`,
   which exits 1 on anything unexpected and compares the collection too):
   - map `nge:` to the new names (from #12's table);
@@ -91,7 +91,7 @@
   cached (O5).
 - [x] `laz_classes_probe.py --audit FRACTION --seed` for the screen audit, with a pass condition
   (zero confirmed misses) and a 95% bound (G2).
-- [ ] Rewrite the sampling claim in the collection description, CLAUDE.md and NEWS (G4).
+- [x] Rewrite the sampling claim in the collection description, CLAUDE.md and NEWS (G4).
 - [ ] Tell stac_dem_bc that `lidarbc/v1.1.0` 404s (A2): comment on stac_dem_bc#55.
 
 ## Phase 5: Full build and documents
@@ -102,7 +102,7 @@
   should differ only by the expected changes, and the rest should be new.
 - [ ] Update `research/laz_classes.md`, `research/README.md` if needed, and the `CLAUDE.md`
   source facts.
-- [ ] Re-derive the collection `DESCRIPTION` claims from the build. Today it says that most
+- [x] Re-derive the collection `DESCRIPTION` claims from the build. Today it says that most
   of the listed items hold no ground.
 - [ ] `NEWS.md` 0.3.0: the counts, each `nge:` → new name pair, the delivery key, the class
   lists, and the screen.

@@ -147,6 +147,28 @@ cut short, though that was not measured. Recorded in `data/copc_not_copies.json`
 Those items carry no `copc` asset and are not sampled through it. The build refuses if either
 count changes. So 13,970 items carry a `copc` asset.
 
+## The 5% audit of the density screen (2026-10-11, `logs/20261011_0900_*`, `_1005_*`)
+
+`laz_classes_probe.py --audit 0.05 --seed 2`: a uniform 5% of the 156,730 files the 10th-percentile
+screen leaves out, 7,836 files. 7,834 sampled; 2 cannot be read by the sampler at all, every time
+(`LazrsError: no chunks available in chunk table`): `082e075_1_4_3` (082e/2024, 166 M points,
+1.08 GB) and `094j045_3_3_4` (094j/2024, 95 M points, 0.62 GB). Both LAS 1.4 format 6, about 6.5
+bytes a point, so not obviously truncated; not investigated further. 9 flagged; whole reads
+confirm **2 misses**:
+
+| file | whole read | density percentile in its mapsheet-year |
+|---|---|---|
+| `082-082g-2016-..._082g002_2_2_2_xyes_6_utm11_2016` | no ground: class 1 2,394,812, class 7 116 (las2las, 2022-04-26) | 95.9 (n=2,149) |
+| `102-102i-2019-..._102i090_2_1_4_xyes_8_utm10_2019` | 29,724 class 7 and 2 class 2: "ground-only" by the definition, in fact a noise tile | 17.7 (n=373) |
+
+The other 7 flags were mixed (5 in `093g/2019`, where the COPC levels or the laz sample showed no
+ground in a mostly-vegetation tile). **The first miss breaks the plan's fallback** ("widen the
+screen to the smallest percentile that catches them all"): at the 96th percentile, that is
+sampling nearly every file, about 20 h. Point estimate of the miss rate outside the screen:
+2 / 7,834 = 0.026% (exact binomial 95% interval about 0.003% to 0.092%), so roughly 40 such files
+among the 156,730 unsampled (5 to 145). Put to the user with the PR; the build meanwhile publishes
+the screen's lists plus the audit's 9 reads (recorded in `data/classes_required.json`).
+
 ## Errors Encountered
 
 | Error | Resolution |
