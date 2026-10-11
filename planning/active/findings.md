@@ -116,6 +116,26 @@ Branch: `2-index-the-rest-of-pointcloud-laz-165-667`
   keeps its own definition and EPSG authority (3157 / 2955 horizontal, 6647 vertical). Any other
   parse failure still raises. Logged once per distinct WKT.
 
+## item_create refusals on the full listing (2026-10-11)
+
+`logs/20261011_0250_catalogue_build_full.log`: 995 of 175,277 files refused, in two kinds.
+
+- **985 with no CRS at all**: every file of eight 2017 deliveries (`093e` 37, `103b` 114,
+  `103c` 37, `103f` 156, `103g` 33, `103h` 576, `103j` 6, `103k` 26). The only VLR is LASzip; no
+  WKT, no GeoKeys (TerraScan, LAS 1.4 format 6). One DEM tile per delivery declares NAD83(CSRS) /
+  UTM 9N (`093e`, `103b`, `103c`, `103h`; EPSG:3156) or 8N (`103f`, `103g`, `103j`, `103k`;
+  EPSG:3155), matching the `utm0N` in the file names. Not every DEM tile was read.
+  **A stored-data decision, so it is the user's** and goes in the final report. In-branch default,
+  reversible before the publish: `EXCLUDE_DELIVERIES`, which refuses if any file there gains a CRS.
+  Alternative: take each file's CRS from its delivery's DEM (zone and datum), with the CRS
+  source noted in NEWS.
+- **10 single-file faults**, each its own `EXCLUDE` entry with its reason: three with 0 points
+  or 1 point, two impossible boxes (`082j/2022` from easting 0; `092h/2021` 2,685 km wide), one
+  copy of a 093C tile filed under both `092b/2023` and `092n/2023`, a `093n/2021` file whose header
+  declares UTM 9N while its name and data are UTM 10N, and a 6 x 130 m sliver at the west edge of
+  082M whose centre is 0.86 m outside the sheet.
+- The build now logs every refused file, not only three examples per class.
+
 ## Errors Encountered
 
 | Error | Resolution |

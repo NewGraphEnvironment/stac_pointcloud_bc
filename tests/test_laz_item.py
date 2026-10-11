@@ -719,10 +719,23 @@ def test_a_delivery_with_any_disagreeing_date_is_untrusted_as_a_whole():
 
 
 def test_an_exclude_entry_whose_fault_is_gone_stops_the_build():
-    (u,) = catalogue_build.EXCLUDE
+    u = next(iter(catalogue_build.EXCLUDE))
     assert catalogue_build.exclusions_check([u], {u: {"mins": [0.0, 0.0, 0.0]}}) == [u]
     with pytest.raises(RuntimeError, match="may have been fixed"):
         catalogue_build.exclusions_check([u], {u: {"mins": [547410.0, 5441555.0, 2.0]}})
+
+
+NO_CRS = f"{PATH_S3}/103/103h/2017/pointcloud/bc_103h039_1_1_1_xyes_17_utm09_20170806.laz"
+
+
+def test_an_excluded_delivery_drops_every_file_and_nothing_else():
+    hs = {NO_CRS: {**_header(None), "mins": [1.0, 1.0, 1.0]}, PC: _header()}
+    assert catalogue_build.exclusions_check([NO_CRS, PC], hs) == [NO_CRS]
+
+
+def test_an_excluded_delivery_whose_files_gain_a_crs_stops_the_build():
+    with pytest.raises(RuntimeError, match="103/103h/2017 records no CRS, but 1 of its files"):
+        catalogue_build.exclusions_check([NO_CRS], {NO_CRS: _header()})
 
 
 def test_a_limited_build_never_writes_where_a_publish_reads(tmp_path, monkeypatch):

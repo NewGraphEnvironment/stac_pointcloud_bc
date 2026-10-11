@@ -130,6 +130,88 @@ EXCLUDE = {
                   "2026-10-07 (#1).",
         "mins": [0.0, 0.0, 0.0],
     },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/082/082j/2022/pointcloud/"
+    "bc_082j025_2_2_1_xyes_8_utm11_2022.laz": {
+        "reason": "header box runs from easting 0 to northing 7,000,000 (640,950 x "
+                  "1,437,312 m) for one tile: the box is not the data's. Found 2026-10-11"
+                  " (#2).",
+        "mins": [0.0, 5562687.78, 0.0],
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/082/082m/2019/pointcloud/"
+    "bc_082m081_3_3_3_xyes_16_utm11_2019.laz": {
+        "reason": "a 6 x 130 m sliver of 24,510 points straddling 120 W, the sheet's west"
+                  " edge; its centre is under a metre outside 082M. Found 2026-10-11 "
+                  "(#2).",
+        "mins": [293554.99, 5752780.3, 775.63],
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/092/092b/2023/pointcloud/"
+    "bc_093c080_4_4_4_xyes_8_utm10_20230916_20230916.laz": {
+        "reason": "a 093C tile filed under 092B (its name and its footprint, 124.01 W "
+                  "52.79 N, are in 093C); the same file is also under 092N/2023. Found "
+                  "2026-10-11 (#2).",
+        "mins": [430875.64, 5849101.15, 1318.8],
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/092/092g/2021/pointcloud/"
+    "bc_092g010_2_1_1_xyes_4_utm10_2021.laz": {
+        "reason": "header has 0 points and an inverted box (mins easting 859,015, maxs "
+                  "0). Found 2026-10-11 (#2).",
+        "mins": [859015.36, 0.0, 0.0],
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/092/092g/2021/pointcloud/"
+    "bc_092g020_4_4_4_xyes_4_utm10_2021.laz": {
+        "reason": "header has 0 points and an inverted box (mins easting 859,015, maxs "
+                  "0.3). Found 2026-10-11 (#2).",
+        "mins": [859015.36, 0.0, 0.0],
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/092/092h/2021/pointcloud/"
+    "bc_092h011_1_2_2_xyes_4_utm10_2021.laz": {
+        "reason": "header maxs easting is 3,263,847, so the box is 2,685 km wide for one "
+                  "tile. Found 2026-10-11 (#2).",
+        "mins": [578450.42, 5439128.86, 15.14],
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/092/092k/2018/pointcloud/"
+    "bc_092k005_3_4_3_xyes_8_utm10_2018.laz": {
+        "reason": "header has 1 point, so the box is a point (0 x 0 m). Found 2026-10-11 (#2).",
+        "mins": [346219.68, 5550929.38, 135.57],
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/092/092k/2020/pointcloud/"
+    "bc_092k043_3_1_3_xyes_8_utm10_2020.laz": {
+        "reason": "header has 0 points and the empty-box sentinels (mins 99999999.99, "
+                  "maxs -99999999.99). Found 2026-10-11 (#2).",
+        "mins": [99999999.99, 99999999.99, 99999999.99],
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/092/092n/2023/pointcloud/"
+    "bc_093c080_4_4_4_xyes_8_utm10_20230916_20230916.laz": {
+        "reason": "a 093C tile filed under 092N (its name and its footprint, 124.01 W "
+                  "52.79 N, are in 093C); the same file is also under 092B/2023. Found "
+                  "2026-10-11 (#2).",
+        "mins": [430875.64, 5849101.15, 1318.8],
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/093/093n/2021/pointcloud/"
+    "bc_093n052_1_2_3_xyes_8_utm10_2021.laz": {
+        "reason": "header declares UTM 9N (EPSG:3156) but the name says utm10, and only "
+                  "as UTM 10N does the box fall in 093N (125.74 W, not 131.74 W). Found "
+                  "2026-10-11 (#2).",
+        "mins": [326359.85114856396, 6155198.308212042, 1036.09],
+    },
+}
+
+# Whole deliveries left out because no file in them states a CRS: no WKT and no GeoKeys,
+# only the LASzip VLR (measured 2026-10-11, #2): 985 files, every file of each. One DEM tile
+# of each delivery declares NAD83(CSRS) / UTM 8N or 9N (EPSG:3155, 3156), but an item's
+# `proj:code` describes the file, and taking it from another product is a decision this
+# entry does not make. If any file in one gains a CRS, the build refuses: review it.
+_NO_CRS = ("no file in the delivery states a CRS (no WKT, no GeoKeys); a DEM tile of the "
+           "delivery declares NAD83(CSRS) / UTM 8N or 9N. Found 2026-10-11 (#2).")
+EXCLUDE_DELIVERIES = {
+    "093/093e/2017": {"reason": _NO_CRS},
+    "103/103b/2017": {"reason": _NO_CRS},
+    "103/103c/2017": {"reason": _NO_CRS},
+    "103/103f/2017": {"reason": _NO_CRS},
+    "103/103g/2017": {"reason": _NO_CRS},
+    "103/103h/2017": {"reason": _NO_CRS},
+    "103/103j/2017": {"reason": _NO_CRS},
+    "103/103k/2017": {"reason": _NO_CRS},
 }
 
 TITLE = "Point clouds from British Columbia - stac-pointcloud-bc"
@@ -400,6 +482,19 @@ def exclusions_check(urls: list[str], headers: dict) -> list[str]:
                                f"been fixed; review the entry")
         logger.warning("excluded by EXCLUDE: %s: %s", u, EXCLUDE[u]["reason"])
         out.append(u)
+    by_delivery = collections.defaultdict(list)
+    for u in urls:
+        if group_of(u) in EXCLUDE_DELIVERIES:
+            by_delivery[group_of(u)].append(u)
+    for g, us in sorted(by_delivery.items()):
+        stated = [u for u in us if headers[u].get("crs_wkt")]
+        if stated:
+            raise RuntimeError(f"EXCLUDE_DELIVERIES entry for {g} records no CRS, but "
+                               f"{len(stated)} of its files now state one (e.g. {stated[0]}) - "
+                               f"review the entry")
+        logger.warning("excluded by EXCLUDE_DELIVERIES: %s (%d files): %s", g, len(us),
+                       EXCLUDE_DELIVERIES[g]["reason"])
+        out += us
     return out
 
 
@@ -648,6 +743,8 @@ def main() -> int:
             by_class[fault_class(e)].append(e)
         for cls, es in sorted(by_class.items(), key=lambda x: -len(x[1])):
             logger.error("%d files: %s; e.g. %s", len(es), cls, " | ".join(es[:3]))
+        for u, e in sorted(faults.items()):
+            logger.error("refused: %s", e)
         logger.error("%d of %d files refused by item_create - not building; triage each into "
                      "EXCLUDE or a fix", len(faults), len(kept))
         return 1

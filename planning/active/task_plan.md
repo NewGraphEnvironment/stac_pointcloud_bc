@@ -58,11 +58,14 @@
 
 - [ ] Let the build measure pairs over all groups, check each one's header (as now), and record
   the new `COPC_PAIRS` per group. Expect about 14,000, against the 13,996 name matches.
-- [ ] Record which deliveries `groups_with_untrusted_dates` now flags. Check that the 4 known
+- [x] Record which deliveries `groups_with_untrusted_dates` now flags. Check that the 4 known
   ones are among them and name any new ones.
-- [ ] Triage new header faults through `EXCLUDE`, one entry per file with its reason.
+- [x] Triage new header faults through `EXCLUDE`, one entry per file with its reason.
   - If more than a handful share one fault, stop and report rather than listing hundreds of
     entries.
+  - Done: 10 single-file entries. 2,008 vertical-first compound CRSs read swapped
+    (`compound_reorder`). 985 files in 8 deliveries with no CRS at all are held out by
+    `EXCLUDE_DELIVERIES`, **pending the user's decision** (findings.md).
 - [ ] Run validation in a process pool, timed. Record peak memory for about 175k items.
 - [x] Generalise `copc_pairs_measure.py --published` (landed as `scripts/catalogue_compare.py`,
   which exits 1 on anything unexpected and compares the collection too):
