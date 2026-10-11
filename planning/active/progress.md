@@ -44,3 +44,17 @@
   `probe_all(match_copc=True)`). `--classes-record` records after the reads. Residuals
   accepted: a COPC re-delivered under the same href, and a cache record whose id disagrees
   with its URL (0 of 340). 253 tests; 12 mutants over rounds 2 and 3, each caught.
+- Review round 4 (`review-round4.md`, on 9884d5a alone): one bug inside round 3's fix and one
+  latent fragility. Bug: `--classes-record --force` dropped a listed required id whose re-read
+  failed in that run, and the build then passed with no list. Fixed: `--force` drops only ids
+  no longer listed or now screened and flagged. Fragile: `targets_load` gave the probe a raw
+  COPC href where the build's items carry `href_encode`'s (equal today for all 13,970); now
+  encoded alike. `confirm_work`'s docstring no longer claims the build uses it. The claim
+  9884d5a rests on was measured on the real caches and held (338 published ids, none without
+  a good read; no screened read outside the published set).
+- Ended by enumeration, not a fifth round. The publish path has one writer (`classes_add` <-
+  `classes_attach`), fed only ids in `classes_published`. The one committed write
+  (`--classes-record`) was enumerated per id: an old id not listed, or now screened and
+  flagged, is dropped only with `--force`; any other old id is always kept, and is refused
+  without a good read; a new id enters only as a flag outside the screen or as a good read
+  not screened and flagged. Each arm has a test that a mutant turns red.

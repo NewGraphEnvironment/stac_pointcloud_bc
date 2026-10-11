@@ -243,10 +243,10 @@ def confirm_ids(recs: dict[str, dict]) -> set[str]:
 
 def confirm_work(samples: dict[str, dict], full: dict[str, dict],
                  current: dict[str, str] | None) -> set[str]:
-    """The items to read whole: what the samples flag, and every item already read whole
-    whose record is not good now (failed, or of an older delivery). The build checks every
-    record of a file it keeps, so a record left stale because a newer sample no longer flags
-    its file would otherwise refuse every build with nothing to clear it."""
+    """The items to read whole for `--confirm`: what the samples flag, and every item already
+    read whole whose record is not good now (failed, or of an older delivery). The build does
+    not use this: it reads what classes_published() needs, and a good read outside that set
+    stops it until recorded with --classes-record."""
     return confirm_ids(samples) | {k for k, r in full.items() if not record_good(r, current)}
 
 
@@ -270,8 +270,8 @@ def targets_load(path: str) -> tuple[list[dict], dict[str, str]]:
     with open(path) as fh:
         for t in map(json.loads, fh):
             assets = {ASSET_LAZ: {"href": href_encode(t["laz"])}}
-            if t["copc"]:
-                assets[ASSET_COPC] = {"href": t["copc"]}
+            if t["copc"]:  # encoded as the build's item carries it, which sample_good compares
+                assets[ASSET_COPC] = {"href": href_encode(t["copc"])}
             items.append({"id": t["id"], "assets": assets})
             current[t["id"]] = t["etag"]
     return items, current

@@ -889,8 +889,11 @@ def main() -> int:
     if args.classes_record:  # after the reads, so a read made good in this run is recorded
         found = ((flagged - inside)
                  | {k for k, r in full.items() if record_good(r, current)} - (inside & flagged))
-        dropped = set(CLASSES_REQUIRED) - found
-        required = sorted(found if args.force else found | set(CLASSES_REQUIRED))
+        # --force drops only an id no longer listed or now derived (screened and flagged): a
+        # listed one whose read failed in this run stays required, and is refused below.
+        keep = {k for k in CLASSES_REQUIRED if k in current and k not in inside & flagged}
+        required = sorted(found | (keep if args.force else set(CLASSES_REQUIRED)))
+        dropped = set(CLASSES_REQUIRED) - set(required)
         with open(f"{CLASSES_REQUIRED_PATH}.new", "w") as fh:
             json.dump(required, fh, indent=1)
             fh.write("\n")

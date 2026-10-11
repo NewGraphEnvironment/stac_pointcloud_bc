@@ -1339,7 +1339,7 @@ GROUP11 = [PC] + [PC.replace("019_1_4_1", f"019_{a}_{b}_1") for a, b in
 
 
 def _main_with_required(tmp_path, monkeypatch, required, cached_samples=(), argv=(),
-                        cached_full=(), build="data/build"):
+                        cached_full=(), build="data/build", full_probe=None):
     """main() over GROUP11 with `required` as data/classes_required.json and only
     `cached_samples` in the sample cache; every sample is mixed, every whole read of PC is
     ground and vegetation."""
@@ -1354,7 +1354,7 @@ def _main_with_required(tmp_path, monkeypatch, required, cached_samples=(), argv
     monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
     monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
     monkeypatch.setattr(catalogue_build, "item_probe", _sample({1: 5, 2: 5}))
-    monkeypatch.setattr(catalogue_build, "full_probe", _whole({1: 600, 2: 400}))
+    monkeypatch.setattr(catalogue_build, "full_probe", full_probe or _whole({1: 600, 2: 400}))
 
     def header(u, session=None):
         h = _header()
@@ -1428,6 +1428,26 @@ def test_a_limit_build_does_not_require_recording_against_its_partial_screen(tmp
     rc, _ = _main_with_required(tmp_path, monkeypatch, [], argv=["--limit", "11"],
                                 cached_full=[read], build="data/build-limit")
     assert rc == 0
+
+
+def test_classes_record_force_keeps_a_listed_id_whose_read_failed_and_refuses(tmp_path,
+                                                                              monkeypatch):
+    """--force drops only ids no longer listed or now derived: a 503 on a required file's
+    read must not drop it and pass with no list."""
+    pc = url_to_item_id(PC)
+    rc, req = _main_with_required(tmp_path, monkeypatch, [pc],
+                                  argv=["--classes-record", "--force"], full_probe=_fails)
+    assert rc == 1 and json.loads(req.read_text()) == [pc]
+
+
+def test_the_probe_carries_a_copc_href_encoded_as_the_build_item_does(tmp_path):
+    """sample_good compares the href a sample was taken with to the build's, as strings."""
+    import laz_classes_probe as lcp
+    raw = "https://c.example/BC/A B/x+y.copc.laz"
+    p = tmp_path / "class_targets.jsonl"
+    p.write_text(json.dumps({"id": "A", "laz": PC, "copc": raw, "etag": "a"}) + "\n")
+    items, _ = lcp.targets_load(str(p))
+    assert lcp.item_copc(items[0]) == laz_item.href_encode(raw) != raw
 
 
 def test_classes_record_refuses_a_limit(tmp_path, monkeypatch):
