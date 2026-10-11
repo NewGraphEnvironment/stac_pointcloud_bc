@@ -112,7 +112,7 @@
 ## Phase 6: Publish (after your explicit go)
 
 - [x] Run `scripts/s3_sync.sh --dryrun`, and report the counts: 174,283 uploads (174,282 items
-  + `collection.json`), 0 deletes (`logs/20261011_1215_s3_sync_dryrun.log`).
+  + `collection.json`), 0 deletes (`logs/20261011_1320_s3_sync_dryrun.log`, after the last rebuild).
 - [ ] **Ask.** Then stamp the version (`collection_version.py`), run the sync, then
   `stacs register`, then `stacs verify`. The verify must report IN SYNC: id sets equal in both
   directions and every body digest-equal.
@@ -123,5 +123,5 @@
 - [x] Tests pass (`uv run pytest`): 255
 - [x] `/code-check` clean (once over the branch with `/code-check branch`): four rounds, ended by
   enumeration (progress.md)
-- [ ] PWF checkboxes match landed work
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion

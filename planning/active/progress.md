@@ -91,3 +91,11 @@
   and 12 same-day pairs confirmed the reading (findings). Rule now: the first day must fall in
   the directory year. 9 untrusted deliveries (was 42); 64,372 day items, 44,744 ranges, 65,166
   years. The rebuild started under the earlier rule was stopped before the edit.
+- Last build (`logs/20261011_1315_catalogue_build_final.log`, 53 min, exit 0, peak RSS
+  4.09 GB): 174,282 items validated in 765 s; 9 untrusted deliveries; dates 64,372 days,
+  44,744 ranges, 65,166 years, as counted from the listing. `catalogue_compare.py`
+  (`logs/20261011_1320_catalogue_compare.log`) exit 0, unchanged verdict;
+  `s3_sync.sh --dryrun` (`logs/20261011_1320_s3_sync_dryrun.log`) 174,283 uploads, 0 deletes.
+- Reviewers this task: 4 code rounds, the docs fact-check, the date-rule review (6, past the
+  usual 5; the last two found the 10,603 and then the 80,337 mis-dated items).
+- Open for the user: the screen-audit decision (findings), and the publish.
