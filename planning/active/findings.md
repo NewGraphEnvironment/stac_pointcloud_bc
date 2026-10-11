@@ -170,6 +170,22 @@ among the 148,894 neither screened nor audited (5 to 137; corrected from 40 over
 docs fact-check, `review-docs.md`). Put to the user with the PR; the build meanwhile publishes
 the screen's lists plus the audit's 9 reads (recorded in `data/classes_required.json`).
 
+## Two-day file names are the first and last day flown (2026-10-11)
+
+The docs fact-check found 10,603 items dated by the second of two day tokens; the date-rule
+review (`review-round5.md`) found 9,278 more pairs whose last day is in a later year, which made
+33 deliveries (80,337 files) untrusted. GPS times (a 20,000-point read at 0/25/50/75/95% of each
+file; scratchpad probes, not committed) settle it:
+- 16 in-year pairs from 8 deliveries and 14 cross-year pairs from 8 deliveries: every sampled
+  point's day lies between the two tokens; most files show both ends. `093c/2023`
+  `_20230921_20251001` holds points from 2023, 2024 and 2025.
+- 12 same-day pairs from 6 newly trusted deliveries: every point on the named day.
+
+So the directory year is the year of the first day, and the pair is `start_datetime` /
+`end_datetime`. Untrusted deliveries fall from 42 to 9. Items: 64,372 single days, 44,744 ranges
+of days, 65,166 years. Not checked: whether the tokens are UTC or Pacific days (the GPS days were
+taken in UTC and matched); `end_datetime` is 23:59:59Z of the last day.
+
 ## Errors Encountered
 
 | Error | Resolution |

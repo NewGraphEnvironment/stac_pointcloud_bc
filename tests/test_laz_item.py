@@ -173,6 +173,10 @@ def test_two_days_in_the_filename_are_the_first_and_last_day_flown():
     got = date_parse("bc_094p025_1_2_3_xyes_8_utm10_20250509_20251014.laz", 2025)
     assert got == {"start": _d(2025, 5, 9), "end": _d(2025, 10, 14, 23, 59, 59),
                    "source": "filename", "filename_date": "20251014"}
+    # the year directory is the first day's: flying can run into a later year
+    got = date_parse("bc_094j045_3_3_4_xyes_8_utm10_20240531_20250510.laz", 2024)
+    assert got["start"] == _d(2024, 5, 31) and got["end"] == _d(2025, 5, 10, 23, 59, 59)
+    assert got["source"] == "filename"
     # the same day twice is that day
     got = date_parse("bc_093c080_4_4_4_xyes_8_utm10_20230916_20230916.laz", 2023)
     assert got["datetime"] == _d(2023, 9, 16)

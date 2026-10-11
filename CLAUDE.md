@@ -53,9 +53,12 @@ treating the repo as a Python package (#9).
 - **2,008 files in seven 2021 deliveries write a compound CRS vertical-first**
   (`COMPD_CS[VERT_CS, PROJCS]`), which PROJ refuses. `laz_item.header_crs` reads them with the
   two parts swapped (`compound_reorder`); a file that fails even then fails the build.
-- **42 deliveries name files with dates whose year disagrees with the directory**, so their
-  items carry the directory year. Only `092p/2017` mixes a day token with no token and keeps
-  each file's own precision (`lidarbc:datetime_source`).
+- **76 of the 77 deliveries since 2023 name each file with two days** (`_20240531_20250510`), the
+  first and last day flown over that tile, and the year directory is the year of the first
+  (GPS times, 2026-10-11, #2): the item carries the range. **9 deliveries name files with a
+  date whose year disagrees with the directory**, so their items carry the directory year.
+  Only `092p/2017` mixes a day token with no token and keeps each file's own precision
+  (`lidarbc:datetime_source`).
 - **13,996 of the `pointcloud/*.laz` share a file name with a COPC in NRCan's CanElevation
   series**, in four of its projects (measured 2026-10-09; `research/canelevation_overlap.md`,
   #6). A name is not proof: the build pairs by name, checks each copy's header (point count,

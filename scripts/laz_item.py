@@ -165,9 +165,11 @@ def date_parse(name: str, path_year: int, trust_filename: bool = True) -> dict:
     or a year, plus `source` (`filename` / `path`) and `filename_date` (the last token, or
     None).
 
-    Two day tokens (`_20250509_20251014`) are the first and last day flown: in 16 files of 8
-    such deliveries every sampled point's GPS time fell between them, and in 14 on both
-    (2026-10-11, #2). So they are a range, not the last day; 10,603 items in 0.3.0.
+    Two day tokens (`_20250509_20251014`) are the first and last day flown, and the year
+    directory is the year of the first: in 30 such files from 14 deliveries every sampled
+    point's GPS time fell between the two, including 14 whose last day is in a later year
+    (`093c/2023` `_20230921_20251001` holds points from 2023, 2024 and 2025; 2026-10-11, #2).
+    So they are a range, and only the first day need agree with the directory.
 
     The filename date is not reliably the acquisition date. `082k/2017` files are named
     `_180827` while their GPS times fall in October 2017; `092g/092h/092j 2016` names carry
@@ -189,7 +191,7 @@ def date_parse(name: str, path_year: int, trust_filename: bool = True) -> dict:
     d1 = (datetime.strptime(first, "%Y%m%d").replace(tzinfo=timezone.utc)
           if first and first != tok and len(tok) == 8 else None)
     year = dt.year if dt else (int(tok) if tok else None)
-    agrees = year == path_year and (d1 is None or (d1.year == path_year and d1 <= dt))
+    agrees = (d1.year == path_year and d1 <= dt) if d1 else year == path_year
     if dt and agrees and trust_filename:
         if d1:
             return {"start": d1, "end": dt.replace(hour=23, minute=59, second=59),

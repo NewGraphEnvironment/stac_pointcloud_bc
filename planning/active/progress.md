@@ -86,3 +86,8 @@
   `start_datetime`/`end_datetime`. A pair outside the directory year, or out of order, gets
   the year range (source `path`). Untrusted deliveries unchanged at 42. 258 tests; three
   mutants caught. The `EXCLUDE_DELIVERIES` DEM-CRS claim's evidence is #15's body.
+- Date-rule review (`review-round5.md`): the in-year-only pair rule still distrusted 33
+  deliveries (80,337 files) for pairs ending in a later year. GPS times of 14 cross-year pairs
+  and 12 same-day pairs confirmed the reading (findings). Rule now: the first day must fall in
+  the directory year. 9 untrusted deliveries (was 42); 64,372 day items, 44,744 ranges, 65,166
+  years. The rebuild started under the earlier rule was stopped before the edit.
