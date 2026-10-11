@@ -64,5 +64,6 @@ Research: `research/laz_classes.md`, `research/canelevation_overlap.md`,
 `logs/20261010_*`, `logs/20261011_*` (gitignored). Reviews: `review-plan.md`,
 `review-round1.md` to `review-round5.md`, `review-docs.md` in this directory.
 
-Closed by: the PR for branch `2-index-the-rest-of-pointcloud-laz-165-667` (publish pending the
-user's go).
+Published 2026-10-11 and verified `IN SYNC` (see `progress.md`, "Publish").
+
+Closed by: PR #16.

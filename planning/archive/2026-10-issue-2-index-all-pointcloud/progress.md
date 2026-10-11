@@ -99,3 +99,28 @@
 - Reviewers this task: 4 code rounds, the docs fact-check, the date-rule review (6, past the
   usual 5; the last two found the 10,603 and then the 80,337 mis-dated items).
 - Open for the user: the screen-audit decision (findings), and the publish.
+
+## Publish (2026-10-11, on the user's go)
+
+- Screen audit decided: ship as is; sampling the other 148,894 files is #17.
+- `collection_version.py --version 0.3.0`; `s3_sync.sh` 16:08-17:43 UTC
+  (`logs/20261011_s3_sync_v0.3.0.log`): 174,283 uploads, 0 failed.
+- `stacs verify` before (17:45-18:30 UTC): published 174,282, registered 9,649, missing
+  164,633, orphaned 0, changed 9,649, collection changed: exactly the expected drift.
+- `stacs register --mode drift` (18:31-19:36 UTC, `logs/20261011_stacs_register_v0.3.0.log`):
+  1 collection and 174,282 items loaded; its own check: every body served as published.
+- `stacs verify` after (19:37-20:27 UTC, `logs/20261011_stacs_verify_post_v0.3.0.log`):
+  IN SYNC, 174,282 published, all registered with the published body, no orphans.
+- Live API: collection version 0.3.0; a `lidarbc:delivery` filter (`093/093c/2023`) returns
+  items; a served item's `laz` href answers 200.
+- README render: the first attempt failed reading the bucket's 35 MB collection.json past R's
+  60 s URL timeout while the verify shared the link (about 48 KB/s); re-run with
+  `options(timeout = 1800)`.
+- README render, second attempt: `scripts/readme_dem.py` read `start_datetime[:4]`, which
+  0.3.0's one-day items do not carry (two `092g/2025` items in the Kanaka window); it now takes
+  the year from `lidarbc:delivery` (`flight_year`). Tests fail against the old read (4 of 10).
+  Reviewed in three rounds (`review-readme-dem-round*.md`): two Clean, the third enumerated every
+  date-field reader in the repo, all handle the three date shapes, and found only the rendered
+  pages still showing the old code, which this render replaces. Third render
+  (`logs/20261011_readme_render_v0.3.0.log`) exit 0: 174,282 items in 225 mapsheet-years; the
+  demo reads the same four 2016 tiles.

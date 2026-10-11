@@ -113,10 +113,10 @@
 
 - [x] Run `scripts/s3_sync.sh --dryrun`, and report the counts: 174,283 uploads (174,282 items
   + `collection.json`), 0 deletes (`logs/20261011_1320_s3_sync_dryrun.log`, after the last rebuild).
-- [ ] **Ask.** Then stamp the version (`collection_version.py`), run the sync, then
+- [x] **Ask.** Then stamp the version (`collection_version.py`), run the sync, then
   `stacs register`, then `stacs verify`. The verify must report IN SYNC: id sets equal in both
   directions and every body digest-equal.
-- [ ] Record the publish in `NEWS.md`.
+- [x] Record the publish in `NEWS.md`.
 
 ## Validation
 

@@ -9,7 +9,10 @@ catalogue is in this state". Same convention as
 
 Every `pointcloud/*.laz` (#2): **174,282 items in 225 mapsheet-years**, up from 9,649 in 11.
 This is also the full re-registration that publishes three changes merged since 0.2.0: renamed
-fields (#12), class lists (#10) and the delivery key (#5). Unpublished as of this entry.
+fields (#12), class lists (#10) and the delivery key (#5). Published 2026-10-11 and verified
+`IN SYNC` (174,282 ids equal in both directions, every body digest-equal). Before
+registration, `stacs verify` found exactly the expected drift: 164,633 items missing, the
+9,649 of 0.2.0 changed, the collection changed, and nothing orphaned.
 
 - **What is listed.** The build walks the objectstore's eight NTS blocks and keeps every
   `<block>/<sheet>/<year>/pointcloud/*.laz`: 175,278 files in 233 mapsheet-years on
