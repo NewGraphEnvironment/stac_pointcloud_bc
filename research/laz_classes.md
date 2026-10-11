@@ -1,6 +1,6 @@
 # Which LidarBC point clouds are ground-only, or hold no ground at all
 
-**Verified:** 2026-10-11 · **Issues:** #10 (found in #9), #2 (the build step and the audit) ·
+**Verified:** 2026-10-11 · **Issues:** #10 (found in #9), #2 (the build step and the audit), #17 (sampling the rest) ·
 **Produced by:** `scripts/catalogue_build.py` (the screen, samples and whole reads) and
 `scripts/laz_classes_probe.py` (`--audit 0.05 --seed 2`, `--summary`); logs
 `logs/20261011_1010_catalogue_build_classes_record.log`, `logs/20261011_0900_laz_classes_audit.log`,
@@ -169,7 +169,7 @@ density screen would sample about 16,600 (about 35 GB), plus full reads of what 
 ## What this does not establish
 
 - **About 38 unsampled files lack a list they should have** (the audit, above); which ones is
-  known only by sampling them all.
+  known only by sampling them all (#17).
 - The 2 files the sampler cannot read have no sample at all.
 - A tile that holds some ground is not shown to hold enough for a DEM; only the zero case is
   counted.

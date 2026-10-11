@@ -38,7 +38,8 @@ fields (#12), class lists (#10) and the delivery key (#5). Unpublished as of thi
   ground-only, most of them near-empty or noise tiles, and 253 with no ground at all. A random
   5% of the other files (7,834 sampled) found 2 more, one denser than 96% of its
   mapsheet-year, so about 38 of the 148,894 items neither screened nor audited (95% interval
-  5 to 137) hold no ground or only ground but carry no list (`research/laz_classes.md`). Vegetation is mostly class 1: classes 3 to 5 are in
+  5 to 137) hold no ground or only ground but carry no list (`research/laz_classes.md`); sampling
+  them is #17. Vegetation is mostly class 1: classes 3 to 5 are in
   9% of the randomly sampled files.
 - **Dates.** 76 of the 77 deliveries since 2023 (109,327 files) name each file with two days,
   the first and last day flown over that tile; the year directory is the year of the first, and the last can be a later
