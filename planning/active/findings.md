@@ -164,9 +164,10 @@ confirm **2 misses**:
 The other 7 flags were mixed (5 in `093g/2019`, where the COPC levels or the laz sample showed no
 ground in a mostly-vegetation tile). **The first miss breaks the plan's fallback** ("widen the
 screen to the smallest percentile that catches them all"): at the 96th percentile, that is
-sampling nearly every file, about 21 h and 380 GB at the audit's pace. Point estimate of the miss rate outside the screen:
-2 / 7,834 = 0.026% (exact binomial 95% interval about 0.003% to 0.092%), so roughly 40 such files
-among the 156,730 unsampled (5 to 145). Put to the user with the PR; the build meanwhile publishes
+sampling nearly every file, about 20 h and 400 GB at the audit's pace. Point estimate of the miss rate outside the screen:
+2 / 7,834 = 0.026% (exact binomial 95% interval about 0.003% to 0.092%), so roughly 38 such files
+among the 148,894 neither screened nor audited (5 to 137; corrected from 40 over 156,730 by the
+docs fact-check, `review-docs.md`). Put to the user with the PR; the build meanwhile publishes
 the screen's lists plus the audit's 9 reads (recorded in `data/classes_required.json`).
 
 ## Errors Encountered

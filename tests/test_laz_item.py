@@ -168,6 +168,30 @@ def test_a_filename_date_in_another_year_is_recorded_not_published(name, path_ye
     assert got["filename_date"] in name
 
 
+def test_two_days_in_the_filename_are_the_first_and_last_day_flown():
+    """Measured: every sampled point's GPS time falls between the two (#2)."""
+    got = date_parse("bc_094p025_1_2_3_xyes_8_utm10_20250509_20251014.laz", 2025)
+    assert got == {"start": _d(2025, 5, 9), "end": _d(2025, 10, 14, 23, 59, 59),
+                   "source": "filename", "filename_date": "20251014"}
+    # the same day twice is that day
+    got = date_parse("bc_093c080_4_4_4_xyes_8_utm10_20230916_20230916.laz", 2023)
+    assert got["datetime"] == _d(2023, 9, 16)
+    # and untrusted, the directory year as for any other name
+    got = date_parse("bc_094p025_1_2_3_xyes_8_utm10_20250509_20251014.laz", 2025,
+                     trust_filename=False)
+    assert got["start"] == _d(2025, 1, 1) and got["source"] == "path"
+
+
+@pytest.mark.parametrize("name", [
+    "bc_094p025_1_2_3_xyes_8_utm10_20241228_20250103.laz",  # first day in another year
+    "bc_094p025_1_2_3_xyes_8_utm10_20251014_20250509.laz",  # first after last
+])
+def test_two_days_that_cannot_be_a_range_in_the_year_are_recorded_not_published(name):
+    got = date_parse(name, 2025)
+    assert got["start"] == _d(2025, 1, 1) and got["end"] == _d(2025, 12, 31, 23, 59, 59)
+    assert got["source"] == "path"
+
+
 def test_a_year_only_date_is_a_range_not_january_first():
     got = date_parse("bc_082e004_3_1_3_xyes_12_utm11_2018.laz", 2018)
     assert got == {"start": _d(2018, 1, 1), "end": _d(2018, 12, 31, 23, 59, 59),

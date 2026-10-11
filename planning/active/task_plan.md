@@ -92,7 +92,7 @@
 - [x] `laz_classes_probe.py --audit FRACTION --seed` for the screen audit, with a pass condition
   (zero confirmed misses) and a 95% bound (G2).
 - [x] Rewrite the sampling claim in the collection description, CLAUDE.md and NEWS (G4).
-- [ ] Tell stac_dem_bc that `lidarbc/v1.1.0` 404s (A2): comment on stac_dem_bc#55.
+- [x] Tell stac_dem_bc that `lidarbc/v1.1.0` 404s (A2): comment on stac_dem_bc#55 (2026-10-11 00:04Z).
 
 ## Phase 5: Full build and documents
 
@@ -111,7 +111,8 @@
 
 ## Phase 6: Publish (after your explicit go)
 
-- [ ] Run `scripts/s3_sync.sh --dryrun`, and report the counts.
+- [x] Run `scripts/s3_sync.sh --dryrun`, and report the counts: 174,283 uploads (174,282 items
+  + `collection.json`), 0 deletes (`logs/20261011_1215_s3_sync_dryrun.log`).
 - [ ] **Ask.** Then stamp the version (`collection_version.py`), run the sync, then
   `stacs register`, then `stacs verify`. The verify must report IN SYNC: id sets equal in both
   directions and every body digest-equal.
@@ -119,7 +120,8 @@
 
 ## Validation
 
-- [ ] Tests pass (`uv run pytest`)
-- [ ] `/code-check` clean (once over the branch with `/code-check branch`)
+- [x] Tests pass (`uv run pytest`): 255
+- [x] `/code-check` clean (once over the branch with `/code-check branch`): four rounds, ended by
+  enumeration (progress.md)
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion

@@ -60,21 +60,24 @@ investigated further. 9 samples flagged; whole reads confirmed **2 misses**:
 | `102i090_2_1_4` (`102i/2019`) | class 7 29,724, class 2 2: a noise tile | 17.7 (of 373) |
 
 So the miss rate outside the screen is about **0.026%** (2 of 7,834; exact binomial 95% interval
-0.003% to 0.092%): roughly **40 files** among the 156,730 unsampled (5 to 145) whose item lacks a
+0.003% to 0.092%): roughly **38 files** among the 148,894 neither screened nor audited (5 to 137)
+whose item lacks a
 class list though it holds no ground or only ground. Inside the screen the rate is 263 of 17,552
-(1.5%), about 58 times higher, so the screen concentrates them; it cannot catch all of them, because
+(1.5%), about 59 times higher, so the screen concentrates them; it cannot catch all of them, because
 `082g002_2_2_2` is denser than 96% of its group. Widening the screen does not help short of
-sampling nearly everything: about 21 h and 380 GB at the audit's pace and the median below.
+sampling nearly everything: the 148,894 left are about 20 h and 400 GB at the audit's pace and
+median below.
 
 **Classes across the collection** (the audit's 7,834, a uniform sample of the unscreened 90%):
 class 1 is in 7,773 (99.2%). Vegetation classes are rare: 4 (medium vegetation) in 170, 5 (high
 vegetation) in 532, 3 in none; any of 3–5 in 702 (9.0%). Class 12 (overlap) is in 3,445 (44%),
 which the first increment never showed. The commonest sets are `[1, 2, 7, 12]` 3,425 and
-`[1, 2, 7]` 3,153. A canopy model built from this collection has to read class 1.
+`[1, 2, 7]` 3,153 (laz samples; with the COPC levels merged, 3,208). A canopy model built from this collection has to read class 1.
 
 ## Cost (0.3.0)
 
-Laz sample: median 2.42 MB and 6.3 s a file (p95 21.4 s). COPC levels 0–1: median 3.17 MB. The
+Laz sample: median 2.44 MB and 6.7 s a file over the screen (p95 26.0 s), 2.65 MB and 6.5 s over
+the audit (p95 7.7 s). COPC levels 0–1: median 3.17 MB. The
 screened samples took 3 h 10 min at 16 workers; the audit's 7,836, 63 min.
 
 ## The first increment's survey (#10, 2026-10-10)
@@ -165,7 +168,7 @@ density screen would sample about 16,600 (about 35 GB), plus full reads of what 
 
 ## What this does not establish
 
-- **About 40 unscreened files lack a list they should have** (the audit, above); which ones is
+- **About 38 unsampled files lack a list they should have** (the audit, above); which ones is
   known only by sampling them all.
 - The 2 files the sampler cannot read have no sample at all.
 - A tile that holds some ground is not shown to hold enough for a DEM; only the zero case is

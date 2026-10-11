@@ -75,3 +75,14 @@
   (`logs/20261011_1200_copc_pairs_measure.log`): 13,970 pairs, largest offset 0.01 m.
 - Docs: NEWS 0.3.0, research (classes, CanElevation), CLAUDE.md source facts, README.Rmd prose
   (its render waits on the publish: it reads the live API), code comments' counts.
+- `scripts/s3_sync.sh --dryrun` (`logs/20261011_1215_s3_sync_dryrun.log`): exit 0; 174,283
+  uploads (174,282 items + `collection.json`), 0 deletes. Not published: that waits on the
+  user's go.
+- Docs fact-check (`review-docs.md`, about 60 numbers re-derived): two wrong, one wrong
+  population, one mislabelled cost, one unsupported, minors; all fixed. It also found that
+  10,603 items named with two days (`_20250509_20251014`) published the second as their single
+  `datetime`. GPS times of 16 such files (8 deliveries, a sample at 0%, 50% and 95%) all fall
+  between the two days, so they are the first and last day flown: now
+  `start_datetime`/`end_datetime`. A pair outside the directory year, or out of order, gets
+  the year range (source `path`). Untrusted deliveries unchanged at 42. 258 tests; three
+  mutants caught. The `EXCLUDE_DELIVERIES` DEM-CRS claim's evidence is #15's body.

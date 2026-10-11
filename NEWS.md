@@ -37,13 +37,17 @@ fields (#12), class lists (#10) and the delivery key (#5). Unpublished as of thi
   carry `classification:classes` on the `laz` asset, every class with its point count: 12
   ground-only, most of them near-empty or noise tiles, and 253 with no ground at all. A random
   5% of the other files (7,834 sampled) found 2 more, one denser than 96% of its
-  mapsheet-year, so about 40 items without a list (95% interval 5 to 145) hold no ground or
-  only ground (`research/laz_classes.md`). Vegetation is mostly class 1: classes 3 to 5 are in
+  mapsheet-year, so about 38 of the 148,894 items neither screened nor audited (95% interval
+  5 to 137) hold no ground or only ground but carry no list (`research/laz_classes.md`). Vegetation is mostly class 1: classes 3 to 5 are in
   9% of the randomly sampled files.
 - **Dates.** 42 deliveries name files with dates whose year disagrees with the directory (the
-  first increment had 4), so their items carry the directory year. `092p/2017` mixes a day
-  token with no token, so each of its items keeps its own precision, as
-  `lidarbc:datetime_source` says.
+  first increment had 4), so their items carry the directory year. In the others, a name with
+  a day gives the item that day (18,177 items), and a name with two days gives the first and
+  last day flown as `start_datetime` / `end_datetime` (10,603): in 16 such files every sampled
+  point's GPS time fell between the two. Every other item spans its directory year.
+  `092p/2017` mixes a day token with no token, so each of its items keeps its own precision,
+  as `lidarbc:datetime_source` says. The first increment's day tokens were all in its four
+  untrusted deliveries, so 0.2.0 had only years.
 - **A compound CRS written vertical-first.** 2,008 files in seven 2021 deliveries write
   `COMPD_CS[VERT_CS, PROJCS]`, which PROJ refuses. They are read with the two parts swapped.
 - **COPC.** 13,970 items carry a `copc` asset, in 28 mapsheet-years (0.2.0: 1,964 in 4). 26

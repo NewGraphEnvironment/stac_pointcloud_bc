@@ -94,8 +94,9 @@ TILE_SIDE_MAX_M = 5_000
 # <block>/<sheet>/<year>/<product>/<file>.laz
 _KEY = re.compile(r"^(\d{3})/(\d{3}[a-z])/(\d{4})/([a-z]+)/([^/]+\.laz)$")
 # The last underscore token before `.laz` (an optional ` (2)` copy marker and `_dsm`
-# suffix allowed) is the acquisition date: yyyymmdd, yymmdd or yyyy.
-_DATE = re.compile(r"_(\d{4}|\d{6}|\d{8})(?:_dsm)?(?: \(\d+\))?\.laz$")
+# suffix allowed) is the acquisition date: yyyymmdd, yymmdd or yyyy. A yyyymmdd before it
+# (`_20250509_20251014`) makes the pair the first and last day flown (date_parse).
+_DATE = re.compile(r"_(?:(\d{8})_)?(\d{4}|\d{6}|\d{8})(?:_dsm)?(?: \(\d+\))?\.laz$")
 
 
 def url_scheme_check(url: str) -> str:
@@ -128,8 +129,8 @@ def key_parse(url: str) -> dict:
 
 def nts_sheet_bounds(block: str, sheet: str) -> tuple[float, float, float, float]:
     """(west, south, east, north) in degrees of the NTS 1:250k sheet a key names, e.g.
-    `082`, `082e` -> 082E. item_create refuses a footprint centre outside it: over the
-    175,278 listed files, 4 fail, and are in EXCLUDE with the reason (2026-10-11, #2)."""
+    `082`, `082e` -> 082E. item_create refuses a footprint centre outside it: of the listed
+    files that reach the check, 4 fail, and are in EXCLUDE with the reason (2026-10-11, #2)."""
     if block not in NTS_BLOCKS:
         raise ValueError(f"no NTS grid recorded for block {block}")
     lat0, lon_east = NTS_BLOCKS[block]
@@ -160,8 +161,13 @@ def date_parse(name: str, path_year: int, trust_filename: bool = True) -> dict:
     """Acquisition time from the filename, trusted only when it agrees with the year
     directory; otherwise the year directory as a range.
 
-    Returns `{"datetime": dt}` for a day, or `{"start": dt, "end": dt}` for a year, plus
-    `source` (`filename` / `path`) and `filename_date` (the token, or None).
+    Returns `{"datetime": dt}` for a day, or `{"start": dt, "end": dt}` for a range of days
+    or a year, plus `source` (`filename` / `path`) and `filename_date` (the last token, or
+    None).
+
+    Two day tokens (`_20250509_20251014`) are the first and last day flown: in 16 files of 8
+    such deliveries every sampled point's GPS time fell between them, and in 14 on both
+    (2026-10-11, #2). So they are a range, not the last day; 10,603 items in 0.3.0.
 
     The filename date is not reliably the acquisition date. `082k/2017` files are named
     `_180827` while their GPS times fall in October 2017; `092g/092h/092j 2016` names carry
@@ -173,17 +179,23 @@ def date_parse(name: str, path_year: int, trust_filename: bool = True) -> dict:
     `trust_filename=False` for all of it, and every file gets the directory year.
     """
     m = _DATE.search(name)
-    tok = m.group(1) if m else None
+    first, tok = (m.group(1), m.group(2)) if m else (None, None)
     if tok and len(tok) == 8:
         dt = datetime.strptime(tok, "%Y%m%d").replace(tzinfo=timezone.utc)
     elif tok and len(tok) == 6:
         dt = datetime.strptime(tok, "%y%m%d").replace(tzinfo=timezone.utc)
     else:
         dt = None
+    d1 = (datetime.strptime(first, "%Y%m%d").replace(tzinfo=timezone.utc)
+          if first and first != tok and len(tok) == 8 else None)
     year = dt.year if dt else (int(tok) if tok else None)
-    if dt and year == path_year and trust_filename:
+    agrees = year == path_year and (d1 is None or (d1.year == path_year and d1 <= dt))
+    if dt and agrees and trust_filename:
+        if d1:
+            return {"start": d1, "end": dt.replace(hour=23, minute=59, second=59),
+                    "source": "filename", "filename_date": tok}
         return {"datetime": dt, "source": "filename", "filename_date": tok}
-    source = "filename" if (year == path_year and trust_filename) else "path"
+    source = "filename" if (agrees and trust_filename) else "path"
     return {"start": datetime(path_year, 1, 1, tzinfo=timezone.utc),
             "end": datetime(path_year, 12, 31, 23, 59, 59, tzinfo=timezone.utc),
             "source": source, "filename_date": tok}
