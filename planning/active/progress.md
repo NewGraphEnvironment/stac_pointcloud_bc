@@ -25,3 +25,11 @@
   not the gitignored cache. The third (`blocks_list` drops non-block prefixes) is accepted.
 - #15 filed for the 985 no-CRS files; `EXCLUDE_DELIVERIES` cites it.
 - 5% audit started (`logs/20261011_0900_laz_classes_audit.log`).
+- Review round 2 (`review-round2.md`): one bug and two fragile, all inside round 1's
+  class-list fix. The bug: `--classes-record --limit` rewrote the committed list from a slice.
+  Fragile: recording could shrink the list, and whole reads outside the screen with no flagging
+  sample at the current ETag (the #10 survey's samples have none) stayed cache-only. The
+  mechanism was a required set derived from current flags, not from what the build publishes.
+  Fixed: `--classes-record` refuses `--limit`, only adds ids unless `--force`, and records every
+  good whole read outside the screen; `classes_check` refuses any such read the list lacks (not
+  under `--limit`, whose screen is partial). 248 tests; six mutants, each caught.

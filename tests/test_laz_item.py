@@ -1244,6 +1244,20 @@ def test_classes_check_requires_a_whole_read_of_every_required_file():
     assert catalogue_build.classes_check({a}, ids, cur, samples, full, ["B"]) == {}
 
 
+def test_classes_check_requires_every_whole_read_outside_the_screen_to_be_recorded():
+    """A whole read the build publishes, outside the screen, with no current sample flagging it
+    (the #10 survey's samples carry no ETag): unrecorded, its list would live only in the cache.
+    Not checked under --limit, whose screen is that of partial groups."""
+    a, b = PC, PC.replace("019_1_4_1", "019_1_4_2")
+    ids, cur = {a: "A", b: "B"}, {"A": "a", "B": "a"}
+    samples = {"A": _rec("A", {"1": 5, "2": 5})}
+    full = {"B": {"id": "B", "full": _full({1: 5, 2: 5})}}
+    p = catalogue_build.classes_check({a}, ids, cur, samples, full, [])
+    assert list(p) == [b] and "read whole outside the screen" in p[b]
+    assert catalogue_build.classes_check({a}, ids, cur, samples, full, ["B"]) == {}
+    assert catalogue_build.classes_check({a}, ids, cur, samples, full, [], unrecorded=False) == {}
+
+
 @pytest.mark.parametrize("sample, why", [
     (None, "no point sample"), (_rec("A", {"1": 5, "2": 5}, etag="old"), "no point sample"),
     ({"id": "A", "error": "OSError: x"}, "(OSError: x)")])
@@ -1258,7 +1272,8 @@ GROUP11 = [PC] + [PC.replace("019_1_4_1", f"019_{a}_{b}_1") for a, b in
                   ((1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3), (4, 4))]
 
 
-def _main_with_required(tmp_path, monkeypatch, required, cached_samples=(), argv=()):
+def _main_with_required(tmp_path, monkeypatch, required, cached_samples=(), argv=(),
+                        cached_full=(), build="data/build"):
     """main() over GROUP11 with `required` as data/classes_required.json and only
     `cached_samples` in the sample cache; every sample is mixed, every whole read of PC is
     ground and vegetation."""
@@ -1281,9 +1296,12 @@ def _main_with_required(tmp_path, monkeypatch, required, cached_samples=(), argv
         return h
     monkeypatch.setattr(catalogue_build.headers_fetch, "__defaults__", (header,))
     monkeypatch.setattr("sys.argv", ["catalogue_build.py", "--workers", "1", *argv])
-    os.makedirs("data/build", exist_ok=True)
-    with open(f"data/build/{catalogue_build.CLASSES_SAMPLE}", "w") as fh:
+    os.makedirs(build, exist_ok=True)
+    with open(f"{build}/{catalogue_build.CLASSES_SAMPLE}", "w") as fh:
         for r in cached_samples:
+            fh.write(json.dumps(r) + "\n")
+    with open(f"{build}/{catalogue_build.CLASSES_FULL}", "w") as fh:
+        for r in cached_full:
             fh.write(json.dumps(r) + "\n")
     return catalogue_build.main(), req
 
@@ -1303,6 +1321,43 @@ def test_a_flag_outside_the_screen_must_be_recorded_and_classes_record_records_i
     assert rc == 1 and "record it with --classes-record" in caplog.text
     rc, req = _main_with_required(tmp_path, monkeypatch, [], [flag], ["--classes-record"])
     assert rc == 0 and json.loads(req.read_text()) == [url_to_item_id(PC)]
+
+
+def test_a_whole_read_outside_the_screen_must_be_recorded_and_classes_record_records_it(
+        tmp_path, monkeypatch, caplog):
+    read = {"id": url_to_item_id(PC), "laz": PC, "full": _full({1: 600, 2: 400})}
+    rc, req = _main_with_required(tmp_path, monkeypatch, [], cached_full=[read])
+    assert rc == 1 and "read whole outside the screen" in caplog.text
+    rc, req = _main_with_required(tmp_path, monkeypatch, [], argv=["--classes-record"],
+                                  cached_full=[read])
+    assert rc == 0 and json.loads(req.read_text()) == [url_to_item_id(PC)]
+
+
+def test_classes_record_keeps_a_recorded_id_this_cache_cannot_support_unless_forced(
+        tmp_path, monkeypatch):
+    """A fresh cache has no sample and no read of PC: recording from it must not drop PC."""
+    pc = url_to_item_id(PC)
+    rc, req = _main_with_required(tmp_path, monkeypatch, [pc], argv=["--classes-record"])
+    assert rc == 0 and json.loads(req.read_text()) == [pc]
+    rc, req = _main_with_required(tmp_path, monkeypatch, [pc],
+                                  argv=["--classes-record", "--force"])
+    assert rc == 0 and json.loads(req.read_text()) == []
+
+
+def test_a_limit_build_does_not_require_recording_against_its_partial_screen(tmp_path,
+                                                                            monkeypatch):
+    read = {"id": url_to_item_id(PC), "laz": PC, "full": _full({1: 600, 2: 400})}
+    rc, _ = _main_with_required(tmp_path, monkeypatch, [], argv=["--limit", "11"],
+                                cached_full=[read], build="data/build-limit")
+    assert rc == 0
+
+
+def test_classes_record_refuses_a_limit(tmp_path, monkeypatch):
+    pc = url_to_item_id(PC)
+    with pytest.raises(SystemExit) as e:
+        _main_with_required(tmp_path, monkeypatch, [pc], argv=["--limit", "3", "--classes-record"])
+    assert e.value.code == 2
+    assert json.loads((tmp_path / "classes_required.json").read_text()) == [pc]
 
 
 def test_the_screen_is_the_research_percentile_within_each_group():
