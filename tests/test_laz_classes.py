@@ -260,3 +260,40 @@ def test_the_probe_reads_the_files_and_etags_the_build_listed(tmp_path):
     assert "copc" not in items[1]["assets"]
     with pytest.raises(SystemExit, match="run catalogue_build.py first"):
         lcp.targets_load(str(tmp_path / "absent.jsonl"))
+
+
+# --- the screen audit (#2) ---------------------------------------------------
+
+from laz_item import PATH_S3  # noqa: E402
+
+
+def _items_headers(n):
+    urls = [f"{PATH_S3}/092/092g/2016/pointcloud/f{i:03d}_2016.laz" for i in range(n)]
+    items = [{"id": f"f{i:03d}", "assets": {"laz": {"href": u}}} for i, u in enumerate(urls)]
+    headers = {u: {"point_count": 100 * (i + 1), "mins": [0, 0, 0], "maxs": [10, 10, 1]}
+               for i, u in enumerate(urls)}
+    return items, headers
+
+
+def test_the_audit_draws_only_outside_the_screen_and_is_reproducible():
+    items, headers = _items_headers(100)
+    a = lcp.audit_select(items, headers, 0.1, seed=2)
+    assert len(a) == 9  # 89 of 100 are outside the screen (11 at or below 10%)
+    assert not {i["id"] for i in a} & {f"f{i:03d}" for i in range(11)}
+    assert a == lcp.audit_select(items, headers, 0.1, seed=2)
+    assert a != lcp.audit_select(items, headers, 0.1, seed=3)
+
+
+def _s(classes):
+    return {"laz_sample": {"samples": {"all": classes}}}
+
+
+def test_the_audit_counts_a_confirmed_flag_as_a_miss_and_bounds_a_clean_run():
+    samples = {"a": _s({"1": 5, "2": 5}), "b": _s({"1": 5}), "c": _s({"2": 9})}
+    full = {"b": {"full": {"classes": {"1": 50, "2": 1}}}, "c": {"full": {"classes": {"2": 90}}}}
+    r = lcp.audit_report(["a", "b", "c"], samples, full)
+    assert r["flagged"] == 2 and r["misses"] == ["c"] and r["bound_95"] is None
+    clean = lcp.audit_report(["a"] * 1, {"a": samples["a"]}, {})
+    assert clean["misses"] == [] and clean["bound_95"] == pytest.approx(0.95)
+    unread = lcp.audit_report(["b"], samples, {})
+    assert unread["unread"] == ["b"]

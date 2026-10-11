@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from readme_dem import fill_small_gaps, grid
+from readme_dem import fill_small_gaps, flight_year, grid
 
 BOX = (100.0, 200.0, 106.0, 204.0)  # 6 m by 4 m: 3 columns, 2 rows of 2 m cells
 
@@ -41,3 +41,20 @@ def test_fill_closes_a_small_hole_and_leaves_a_wide_gap():
     assert out[2, 2] == 1.0
     assert np.isnan(out[:, 7:]).all()  # one pass reaches one cell in, no further
     assert np.isnan(a[2, 2])  # the input is not modified
+
+
+@pytest.mark.parametrize("props", [
+    {"lidarbc:delivery": "092/092g/2016", "datetime": "2016-09-13T00:00:00Z"},  # one day
+    {"lidarbc:delivery": "092/092g/2016", "datetime": None,  # a range ending a year later
+     "start_datetime": "2016-09-13T00:00:00Z", "end_datetime": "2017-05-02T23:59:59Z"},
+    {"lidarbc:delivery": "092/092g/2016", "datetime": None,  # a year
+     "start_datetime": "2016-01-01T00:00:00Z", "end_datetime": "2016-12-31T23:59:59Z"},
+])
+def test_flight_year_is_the_delivery_year_whatever_the_item_is_dated_by(props):
+    assert flight_year(props) == "2016"
+
+
+@pytest.mark.parametrize("props", [{}, {"lidarbc:delivery": "092/092g"}, {"lidarbc:delivery": None}])
+def test_flight_year_refuses_an_item_with_no_delivery_year(props):
+    with pytest.raises(ValueError):
+        flight_year(props)

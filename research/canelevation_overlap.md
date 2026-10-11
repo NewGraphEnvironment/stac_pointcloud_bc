@@ -1,6 +1,6 @@
 # Which LidarBC point clouds NRCan's CanElevation series republishes
 
-**Verified:** 2026-10-09 · **Issues:** #6 (opened from #1) · **Produced by:**
+**Verified:** 2026-10-11 · **Issues:** #6 (opened from #1), #2 · **Produced by:**
 `scripts/canelevation_overlap_probe.py`; log `logs/20261009_*_canelevation_overlap_probe.log`;
 the per-pair check by `scripts/catalogue_build.py` (`logs/20261009_catalogue_build_v0.2.0.log`),
 measured by `scripts/copc_pairs_measure.py`
@@ -80,6 +80,28 @@ caches) all pass:
   The horizontal EPSG agrees in every pair (3157 and 2955).
 
 A check on header values cannot see a reclassified re-delivery under the same name.
+
+## Every pair checked: 0.3.0 (2026-10-11, #2)
+
+The full build checked all 13,996 name pairs (`logs/20261011_1115_catalogue_build_final.log`,
+`logs/20261011_1200_copc_pairs_measure.log`). **26 are not copies**: all in
+`Vancouver_Island_Sunshine_Coast_2018`, each COPC holding fewer points than its LAZ (from 9% of the LAZ's
+points, 8.45 M against 93.1 M, to 99.6%, 85.75 M against 86.09 M). 20 of the 26 COPC counts are multiples of 50,000,
+which looks like conversions cut short, though that was not measured. They are recorded in
+`data/copc_not_copies.json` with both counts and left unlinked; the build refuses if either count
+changes. **13,970 items carry a `copc` asset**, in 28 mapsheet-years:
+
+| CanElevation project | linked |
+|---|---:|
+| `BC/Vancouver_Island_Sunshine_Coast_2018` | 7,847 of 7,873 |
+| `BC/Riverine_Floodplain_UTM10_2019` | 3,866 |
+| `BC/Riverine_Floodplain_UTM11_2019` | 682 |
+| `BC/Lower_Mainland_2016` | 1,575 |
+
+Of the linked pairs, 3,819 boxes are identical and 10,151 differ, by at most 0.01 m in x, y and
+z. The horizontal EPSG agrees in every pair (3157 for 13,288, 2955 for 682). The vertical CRS
+does not: the COPC drops the source's CGVD2013 in 12,395 and adds an unknown one in the 1,575
+Lower Mainland files, which are also the only format change (LAS 1.2 format 1 to 1.4 format 6).
 
 ## Same tile under another name is not the same points
 
