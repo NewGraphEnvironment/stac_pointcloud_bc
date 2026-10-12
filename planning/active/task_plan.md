@@ -29,19 +29,19 @@ only (NewGraphEnvironment/stac_dem_bc#47), and DSM specifications differ between
 
 ## Phase 1: CHM functions and tests
 
-- [ ] `scripts/DESCRIPTION`: add `lidR` and `terra` to Imports; install with
+- [x] `scripts/DESCRIPTION`: add `lidR` and `terra` to Imports; install with
       `pak::local_install_dev_deps("scripts")`
-- [ ] Failing tests in `tests/readme_functions_test.R`:
+- [x] Failing tests in `tests/readme_functions_test.R`:
   - CHM from a synthetic `lidR::LAS` (flat ground + a 20 m "tree" + a class 7 point at 80 m): the
     tree's cell reads ~20 m, open ground reads 0, the noise point does not appear, the grid has the
     window's extent and resolution
   - download-once: a cached file of the item's `file:size` is not fetched again; a wrong-size file
     is refused (no network in the test)
-- [ ] `scripts/readme_functions.R`: `pc_readme_laz_get(href, size, dir)` (download to a temp name,
+- [x] `scripts/readme_functions.R`: `pc_readme_laz_get(href, size, dir)` (download to a temp name,
       check size, rename; skip when present at the right size) and `pc_readme_chm(las, box, res)`
       (`normalize_height(tin())` on the buffered read, drop noise/withheld, `rasterize_canopy(res,
       pitfree(...))`, crop to the window); `CHM_JSON` constant
-- [ ] Tests pass
+- [x] Tests pass
 
 ## Phase 2: the CHM script, cache and figure
 

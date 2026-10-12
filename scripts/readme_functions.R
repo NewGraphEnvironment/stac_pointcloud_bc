@@ -1,9 +1,9 @@
 # readme_functions.R — sourced by README.Rmd (#9).
 #
-# Everything the landing page shows comes from two caches, written when the page is rendered
+# Everything the landing page shows comes from three caches, written when the page is rendered
 # with `update_query = TRUE`: data/readme_cache.rds (the published items reduced to counts,
 # the example's search result, two header reads) and data/readme_dem.json (written by
-# scripts/readme_dem.py). A render with `update_query = FALSE` reads only those, so it needs
+# scripts/readme_dem.py) and data/readme_chm.json (scripts/readme_chm.R). A render with `update_query = FALSE` reads only those, so it needs
 # no network.
 
 API_ROOT <- "https://images.a11s.one"
@@ -11,6 +11,7 @@ COLLECTION <- "stac-pointcloud-bc"
 BUCKET_URL <- "https://stac-pointcloud-bc.s3.us-west-2.amazonaws.com"
 CACHE <- "data/readme_cache.rds"
 DEM_JSON <- "data/readme_dem.json"
+CHM_JSON <- "data/readme_chm.json"
 
 #' The lines of a file between `# --- <marker>: begin` and `# --- <marker>: end`
 #'
@@ -212,6 +213,76 @@ pc_readme_rows <- function(features) {
 pc_readme_link <- function(href) {
   ifelse(is.na(href), "",
          paste0('<a href="', href, '" target="_blank">', basename(href), "</a>"))
+}
+
+
+# ---- the canopy height model (scripts/readme_chm.R, #19) ---------------------------------
+
+# ASPRS classes dropped before the CHM: low and high noise. Nothing is chosen by vegetation
+# class, because LidarBC leaves most vegetation in class 1 (research/laz_classes.md).
+NOISE_CLASSES <- c(7L, 18L)
+
+#' Download a `laz` asset whole, once
+#'
+#' A file already in `dir` at the item's `file:size` is used as it is. One at any other size
+#' is refused rather than overwritten: the download goes to a `.part` name and is renamed only
+#' once its size matches, so a wrong size there was not left by this function and is worth a
+#' look before it is deleted. `fetch(url, path)` is the transfer, swappable in tests.
+pc_readme_laz_get <- function(href, size, dir, fetch = pc_readme_fetch_file) {
+  dest <- file.path(dir, basename(href))
+  if (file.exists(dest)) {
+    if (!identical(as.numeric(file.size(dest)), as.numeric(size))) {
+      stop(dest, " is ", file.size(dest), " bytes, but the item says ", size,
+           ": delete it to download again", call. = FALSE)
+    }
+    return(list(path = dest, downloaded = FALSE))
+  }
+  dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  part <- paste0(dest, ".part")
+  on.exit(unlink(part))
+  fetch(href, part)
+  if (!identical(as.numeric(file.size(part)), as.numeric(size))) {
+    stop(href, ": downloaded ", file.size(part), " bytes, but the item says ", size,
+         call. = FALSE)
+  }
+  if (!file.rename(part, dest)) stop("could not move ", part, " to ", dest, call. = FALSE)
+  list(path = dest, downloaded = TRUE)
+}
+
+#' The whole file at `url`, written to `path`; an HTTP error status raises
+pc_readme_fetch_file <- function(url, path) {
+  httr2::request(url) |>
+    httr2::req_timeout(1800) |>
+    httr2::req_perform(path = path)
+  invisible(path)
+}
+
+#' A canopy height model over `box` from a point cloud read with a margin around it
+#'
+#' Heights are above a TIN of the ground returns (`normalize_height()`; lidR takes classes 2
+#' and 9 as ground). Every other return except noise and withheld points stands on it,
+#' class 1 included, and the ground returns stay in at height 0, so open ground reads 0 m
+#' rather than empty. Pit-free rasterising (Khosravipour et al. 2014) onto a grid of `res`
+#' over exactly `box` (xmin, ymin, xmax, ymax); a triangle with an edge over `max_edge` m is
+#' dropped, so a gap in the returns, such as open water, stays NA rather than being bridged.
+#' Read `las` with a margin beyond `box`: the ground TIN is unreliable at its own edge.
+pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5)) {
+  keep <- !las$Classification %in% NOISE_CLASSES
+  if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag
+  las <- lidR::filter_poi(las, keep)
+  las <- lidR::normalize_height(las, lidR::tin())
+  # Rasterised two cells beyond `box` and then cropped to it: the cells along the edge of a
+  # triangulation come out NA. rasterize_canopy() refuses a point outside its grid.
+  b <- box + 2 * res * c(-1, -1, 1, 1)
+  las <- lidR::filter_poi(las, X > b[1] & X < b[3] & Y > b[2] & Y < b[4])
+  grid <- terra::rast(terra::ext(b[1], b[3], b[2], b[4]), resolution = res,
+                      crs = lidR::st_crs(las)$wkt)
+  chm <- lidR::rasterize_canopy(
+    las, grid, lidR::pitfree(thresholds = c(0, 2, 5, 10, 15, 20, 25, 30), max_edge = max_edge)
+  )
+  chm <- terra::crop(chm, terra::ext(box[1], box[3], box[2], box[4]))
+  # A return a few cm under the interpolated ground is not a negative height.
+  terra::clamp(chm, lower = 0, values = TRUE)
 }
 
 

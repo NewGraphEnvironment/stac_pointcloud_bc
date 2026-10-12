@@ -35,7 +35,19 @@ About 39 points/m²; a sample from `bc_093l040_4_1_1` is 17% class 2 and 83% cla
 - `update_query = FALSE` render with `data/readme_laz/` deleted succeeds (cache only, no network).
 - Every number in the new paragraph traced to `data/readme_chm.json`.
 
+## lidR behaviour met in Phase 1 (lidR 4.3.3, 2026-10-11)
+
+- `rasterize_canopy()` given a template grid errors with `C++ unexpected internal error in
+  'filter_with_grid': point out of raster` when any point lies outside the grid. The read
+  margin has to be filtered off before rasterising.
+- Pit-free rasterising leaves the outermost row/column of its grid NA (the triangulation of
+  per-cell highest points does not reach those cell centres). So the grid is built two cells
+  beyond the window and cropped back.
+- `normalize_height()` takes classes 2 **and 9** (water) as ground by default.
+- `pitfree(highest = TRUE)` (the default) keeps the highest point per pixel, of any return.
+
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
+| `filter_with_grid: point out of raster` | Filter points to the grid before `rasterize_canopy()` |

@@ -23,9 +23,11 @@ Imports:
     httr2 (>= 1.1.0),
     jsonlite (>= 1.8.0),
     knitr (>= 1.45),
+    lidR (>= 4.1.0),
     rmarkdown (>= 2.25),
     rstac (>= 1.0.0),
     sf (>= 1.0.0),
+    terra (>= 1.8-54),
     tibble (>= 3.2.0)
 Suggests:
     testthat (>= 3.0.0)

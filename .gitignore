@@ -1,6 +1,8 @@
 # Built catalogue and run logs are regenerable; S3 holds the published copy.
 data/build/
 data/build-limit/
+# The CHM demo's whole-file .laz downloads (scripts/readme_chm.R): ~0.5 GB, refetched on demand.
+data/readme_laz/
 logs/*.log
 
 # Python
