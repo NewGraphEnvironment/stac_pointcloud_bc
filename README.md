@@ -59,6 +59,86 @@ x, y, z, c = (np.concatenate(a) for a in (xs, ys, zs, cls))
 
 The whole script, with the gridding, is [`scripts/readme_dem.py`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_dem.py).
 
+## From a search to a canopy height model
+
+<img src="fig/maxan_chm.png" alt="A canopy height model of the Maxan Creek delta where the creek enters Bulkley Lake, built from lidar point clouds: open ground and meadow at 0 m, the creek channel meandering through it, stands of trees up to about 40 m tall on the delta and a forested slope along the south edge, and the lake on the east in light blue where it returned too few points to model." width="100%" />
+
+The Maxan Creek delta, where the creek enters Bulkley Lake. One STAC search for a 1.2 × 1 km window, plus a 30 m margin, returned the 2 items covering it, both from the 093/093l/2019 delivery. None of them has a `copc` asset, so there is no window to read: each `laz` was downloaded whole, once, 532 MB holding 107.8 million points, of which 23.4 million fall in the window. 33% of those are ground returns (class 2) and 67% are class 1, unclassified, which is where LidarBC leaves most of its vegetation; the model is built from every return but noise and withheld points, with nothing chosen by vegetation class. With [lidR](https://r-lidar.github.io/lidRbook/), heights are measured above a triangulated surface of the ground returns, and the first returns are rasterised pit-free at 0.5 m. Open ground reads 0 m. Light blue is where the returns were too sparse to model: the lake and the creek’s channel, where water returned few points. Of the cells with a height, 25% stand at least 2 m and 8% at least 10 m; the tallest 1% exceed 25.5 m, to a maximum of 39.5 m. LidarBC publishes its own canopy height models for 2023 and 2024 only, and its DSM specifications differ between deliveries, so a DSM minus a DEM is not comparable from one delivery to the next ([stac_dem_bc#47](https://github.com/NewGraphEnvironment/stac_dem_bc/issues/47)); from the point clouds, one method serves every delivery. What this reach shows, its historic channels and the forest lost since 2017, is [floodplains#121](https://github.com/NewGraphEnvironment/floodplains/issues/121).
+
+``` r
+api <- rstac::stac(paste0(API_ROOT, "/"))
+# The CRS of the delivery's tiles, from the one at the mouth.
+at_mouth <- api |>
+  rstac::stac_search(collections = COLLECTION, limit = 100,
+                     intersects = list(type = "Point", coordinates = c(MOUTH_LON, MOUTH_LAT))) |>
+  rstac::post_request()
+at_mouth <- Filter(\(f) identical(f$properties[["lidarbc:delivery"]], DELIVERY),
+                   at_mouth$features)
+if (length(at_mouth) == 0L) stop("no ", DELIVERY, " item covers the mouth", call. = FALSE)
+crs <- at_mouth[[1]]$properties[["proj:code"]]
+
+xy <- sf::st_sfc(sf::st_point(c(MOUTH_LON, MOUTH_LAT)), crs = 4326) |>
+  sf::st_transform(crs) |>
+  sf::st_coordinates()
+box <- c(xy[1] - WEST, xy[2] - SOUTH, xy[1] + EAST, xy[2] + NORTH)
+read_box <- box + MARGIN * c(-1, -1, 1, 1)
+# Search for the window and its margin: every point read has to come from a found item.
+aoi <- sf::st_as_sfc(sf::st_bbox(setNames(read_box, c("xmin", "ymin", "xmax", "ymax")),
+                                 crs = sf::st_crs(crs))) |>
+  sf::st_transform(4326)
+found <- api |>
+  rstac::stac_search(collections = COLLECTION, limit = 100,
+                     intersects = jsonlite::fromJSON(geojsonsf::sfc_geojson(aoi),
+                                                     simplifyVector = FALSE)) |>
+  rstac::post_request() |>
+  rstac::items_fetch(progress = FALSE)
+items <- Filter(\(f) identical(f$properties[["lidarbc:delivery"]], DELIVERY), found$features)
+items <- items[order(vapply(items, \(f) f$id, ""))]
+size <- vapply(items, \(f) as.numeric(f$assets$laz[["file:size"]]), 0)
+if (length(items) > MAX_ITEMS || sum(size) > MAX_BYTES) {
+  stop(length(items), " items, ", round(sum(size) / 1e6), " MB: more than this demo downloads",
+       call. = FALSE)
+}
+if (any(vapply(items, \(f) f$properties[["proj:code"]] != crs, logical(1)))) {
+  stop("items in the window do not share one CRS", call. = FALSE)
+}
+
+# No `copc` asset, so no window read: each file is downloaded whole, once.
+laz <- vapply(seq_along(items), \(i) {
+  pc_readme_laz_get(items[[i]]$assets$laz$href, size[i], LAZ_DIR)$path
+}, "")
+# LASlib reads only the points inside the window and its margin. pitfree() needs the
+# return number: it rasterises first returns.
+las <- lidR::readLAS(laz, select = "xyzrc",
+                     filter = paste("-drop_withheld -keep_xy", paste(read_box, collapse = " ")))
+chm <- pc_readme_chm(las, box, res = CELL)
+```
+
+`pc_readme_chm()`, from [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R):
+
+``` r
+pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5)) {
+  keep <- !las$Classification %in% NOISE_CLASSES
+  if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag
+  las <- lidR::filter_poi(las, keep)
+  las <- lidR::normalize_height(las, lidR::tin())
+  # Rasterised two cells beyond `box` and then cropped to it: the cells along the edge of a
+  # triangulation come out NA. rasterize_canopy() refuses a point outside its grid.
+  b <- box + 2 * res * c(-1, -1, 1, 1)
+  las <- lidR::filter_poi(las, X > b[1] & X < b[3] & Y > b[2] & Y < b[4])
+  grid <- terra::rast(terra::ext(b[1], b[3], b[2], b[4]), resolution = res,
+                      crs = lidR::st_crs(las)$wkt)
+  chm <- lidR::rasterize_canopy(
+    las, grid, lidR::pitfree(thresholds = c(0, 2, 5, 10, 15, 20, 25, 30), max_edge = max_edge)
+  )
+  chm <- terra::crop(chm, terra::ext(box[1], box[3], box[2], box[4]))
+  # A return a few cm under the interpolated ground is not a negative height.
+  terra::clamp(chm, lower = 0, values = TRUE)
+}
+```
+
+The whole script, with the figure, is [`scripts/readme_chm.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_chm.R).
+
 ## What an item holds
 
 | asset | what it is |
@@ -402,7 +482,7 @@ Rscript -e 'pak::local_install_dev_deps("scripts")'
 Rscript -e 'testthat::test_file("tests/readme_functions_test.R")'
 ```
 
-The DEM demo is Python, in its own dependency group: `uv sync --group readme`. Then run the two `rmarkdown::render()` calls in the `build` chunk at the top of `README.Rmd`: the `README.md` render with `update_query = TRUE` queries the API, runs `scripts/readme_dem.py`, and refreshes `data/readme_cache.rds`, `data/readme_dem.json` and `fig/kanaka_dem.png`; the `index.html` render reads them. [research/](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/README.md) holds what is known about the source and how it was measured.
+The DEM demo is Python, in its own dependency group: `uv sync --group readme`. The CHM demo is R. Then run the two `rmarkdown::render()` calls in the `build` chunk at the top of `README.Rmd`: the `README.md` render with `update_query = TRUE` queries the API, runs `scripts/readme_dem.py` and `scripts/readme_chm.R`, and refreshes `data/readme_cache.rds`, `data/readme_dem.json`, `fig/kanaka_dem.png`, `data/readme_chm.json` and `fig/maxan_chm.png`; the `index.html` render reads them. The CHM demo’s first run downloads about 0.5 GB of `.laz` into `data/readme_laz/` (not committed), and later runs reuse it. [research/](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/README.md) holds what is known about the source and how it was measured.
 
 ## Licence
 

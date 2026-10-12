@@ -270,8 +270,8 @@ pc_readme_fetch_file <- function(url, path) {
 #' over exactly `box` (xmin, ymin, xmax, ymax); a triangle with an edge over `max_edge` m is
 #' dropped, so a gap in the returns, such as open water, stays NA rather than being bridged.
 #' Read `las` with a margin beyond `box`: the ground TIN is unreliable at its own edge.
+# --- the CHM, shown on the landing page: begin
 pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5)) {
-  # --- the CHM, shown on the landing page: begin
   keep <- !las$Classification %in% NOISE_CLASSES
   if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag
   las <- lidR::filter_poi(las, keep)
@@ -288,8 +288,8 @@ pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5)) {
   chm <- terra::crop(chm, terra::ext(box[1], box[3], box[2], box[4]))
   # A return a few cm under the interpolated ground is not a negative height.
   terra::clamp(chm, lower = 0, values = TRUE)
-  # --- the CHM, shown on the landing page: end
 }
+# --- the CHM, shown on the landing page: end
 
 
 # ---- table helpers, copied from the sister repos (staticimports) -------------------------

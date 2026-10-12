@@ -34,8 +34,10 @@ htmlwidgets::setWidgetIdSeed(42)
 # Both targets come from this file. `rmd_on` switches what differs between them;
 # `update_query` decides whether the network is used at all.
 #
-#   update_query = TRUE   the API, the bucket, two header reads and the DEM demo ->
-#                         data/readme_cache.rds, data/readme_dem.json, fig/kanaka_dem.png
+#   update_query = TRUE   the API, the bucket, two header reads, the DEM demo and the CHM
+#                         demo -> data/readme_cache.rds, data/readme_dem.json,
+#                         fig/kanaka_dem.png, data/readme_chm.json, fig/maxan_chm.png
+#                         (the CHM demo downloads ~0.5 GB of .laz to data/readme_laz/ once)
 #   update_query = FALSE  the cache only; no network
 #
 # Run the md first: it is the one that refreshes the cache the html then reads.
@@ -67,6 +69,11 @@ if (isTRUE(params$update_query)) {
   if (system2("uv", c("run", "--group", "readme", "python", "scripts/readme_dem.py")) != 0L) {
     stop("scripts/readme_dem.py failed", call. = FALSE)
   }
+  # The CHM demo is R (lidR); it writes fig/maxan_chm.png and data/readme_chm.json.
+  # The Rscript of the R rendering this page, whose library has lidR.
+  if (system2(file.path(R.home("bin"), "Rscript"), "scripts/readme_chm.R") != 0L) {
+    stop("scripts/readme_chm.R failed", call. = FALSE)
+  }
   groups <- sf::st_drop_geometry(all$items) |>
     dplyr::group_by(group) |>
     dplyr::summarise(items = dplyr::n(), copc = sum(copc), points = sum(points)) |>
@@ -81,13 +88,14 @@ if (isTRUE(params$update_query)) {
   ), CACHE)
 }
 # A missing cache must stop the render rather than produce a page with no numbers in it.
-for (f in c(CACHE, DEM_JSON)) {
+for (f in c(CACHE, DEM_JSON, CHM_JSON)) {
   if (!file.exists(f)) {
     stop(f, " is missing — render once with params$update_query = TRUE", call. = FALSE)
   }
 }
 cached <- readRDS(CACHE)
 dem <- jsonlite::fromJSON(DEM_JSON, simplifyVector = FALSE)
+chm <- jsonlite::fromJSON(CHM_JSON, simplifyVector = FALSE)
 groups <- cached$groups
 rows <- cached$rows
 ex <- cached$example
@@ -126,6 +134,24 @@ knitr::include_graphics("fig/kanaka_dem.png")
 ```
 
 The whole script, with the gridding, is [`scripts/readme_dem.py`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_dem.py).
+
+## From a search to a canopy height model
+
+```{r chm-fig, echo=FALSE, fig.alt="A canopy height model of the Maxan Creek delta where the creek enters Bulkley Lake, built from lidar point clouds: open ground and meadow at 0 m, the creek channel meandering through it, stands of trees up to about 40 m tall on the delta and a forested slope along the south edge, and the lake on the east in light blue where it returned too few points to model."}
+knitr::include_graphics("fig/maxan_chm.png")
+```
+
+`r paste0("The Maxan Creek delta, where the creek enters Bulkley Lake. One STAC search for a ", fmt(chm$window_m[[1]] / 1000), " × ", fmt(chm$window_m[[2]] / 1000), " km window, plus a ", chm$margin_m, " m margin, returned ", if (length(chm$items_found) == length(chm$items)) paste0("the ", length(chm$items), " items covering it, ", if (length(chm$items) == 2) "both" else "all", " from the ", chm$delivery, " delivery.") else paste0(length(chm$items_found), " items from more than one delivery; the ", length(chm$items), " from ", chm$delivery, " were used."), " None of them has a ")` `copc` `r paste0("asset, so there is no window to read: each ")` `laz` `r paste0("was downloaded whole, once, ", fmt(round(chm$bytes_files / 1e6)), " MB holding ", fmt(round(chm$points_files / 1e6, 1)), " million points, of which ", fmt(round(chm$points_window / 1e6, 1)), " million fall in the window. ", round(100 * chm$share_ground), "% of those are ground returns (class 2) and ", round(100 * chm$share_class1), "% are class 1, unclassified, which is where LidarBC leaves most of its vegetation; the model is built from every return but noise and withheld points, with nothing chosen by vegetation class. With [lidR](https://r-lidar.github.io/lidRbook/), heights are measured above a triangulated surface of the ground returns, and the first returns are rasterised pit-free at ", chm$cell_m, " m. Open ground reads 0 m. Light blue is where the returns were too sparse to model: the lake and the creek's channel, where water returned few points. Of the cells with a height, ", round(100 * chm$share_2m), "% stand at least 2 m and ", round(100 * chm$share_10m), "% at least 10 m; the tallest 1% exceed ", chm$height_m$p99, " m, to a maximum of ", chm$height_m$max, " m.")` LidarBC publishes its own canopy height models for 2023 and 2024 only, and its DSM specifications differ between deliveries, so a DSM minus a DEM is not comparable from one delivery to the next ([stac_dem_bc#47](https://github.com/NewGraphEnvironment/stac_dem_bc/issues/47)); from the point clouds, one method serves every delivery. What this reach shows, its historic channels and the forest lost since 2017, is [floodplains#121](https://github.com/NewGraphEnvironment/floodplains/issues/121).
+
+```{r chm-code, eval=FALSE, code=pc_readme_lines("scripts/readme_chm.R", "shown on the landing page")}
+```
+
+`pc_readme_chm()`, from [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R):
+
+```{r chm-fn-code, eval=FALSE, code=pc_readme_lines("scripts/readme_functions.R", "the CHM, shown on the landing page")}
+```
+
+The whole script, with the figure, is [`scripts/readme_chm.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_chm.R).
 
 ## What an item holds
 
@@ -267,7 +293,7 @@ Rscript -e 'pak::local_install_dev_deps("scripts")'
 Rscript -e 'testthat::test_file("tests/readme_functions_test.R")'
 ```
 
-The DEM demo is Python, in its own dependency group: `uv sync --group readme`. Then run the two `rmarkdown::render()` calls in the `build` chunk at the top of `README.Rmd`: the `README.md` render with `update_query = TRUE` queries the API, runs `scripts/readme_dem.py`, and refreshes `data/readme_cache.rds`, `data/readme_dem.json` and `fig/kanaka_dem.png`; the `index.html` render reads them. [research/](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/README.md) holds what is known about the source and how it was measured.
+The DEM demo is Python, in its own dependency group: `uv sync --group readme`. The CHM demo is R. Then run the two `rmarkdown::render()` calls in the `build` chunk at the top of `README.Rmd`: the `README.md` render with `update_query = TRUE` queries the API, runs `scripts/readme_dem.py` and `scripts/readme_chm.R`, and refreshes `data/readme_cache.rds`, `data/readme_dem.json`, `fig/kanaka_dem.png`, `data/readme_chm.json` and `fig/maxan_chm.png`; the `index.html` render reads them. The CHM demo's first run downloads about 0.5 GB of `.laz` into `data/readme_laz/` (not committed), and later runs reuse it. [research/](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/README.md) holds what is known about the source and how it was measured.
 
 ## Licence
 

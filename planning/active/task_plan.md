@@ -59,21 +59,21 @@ only (NewGraphEnvironment/stac_dem_bc#47), and DSM specifications differ between
 
 ## Phase 3: README section
 
-- [ ] `README.Rmd` `query` chunk: run `Rscript scripts/readme_chm.R` beside the DEM demo; add
+- [x] `README.Rmd` `query` chunk: run `Rscript scripts/readme_chm.R` beside the DEM demo; add
       `CHM_JSON` to the cache-existence loop
-- [ ] New section after the DEM one ("From a search to a canopy height model"): figure with alt text,
+- [x] New section after the DEM one ("From a search to a canopy height model"): figure with alt text,
       a paragraph whose numbers all come from `readme_chm.json` (tiles, MB downloaded, points, class
       shares, cell size, heights), why the `laz` is downloaded whole (no `copc` here), why class 1 is
       read, the floodplains#121 link; the script excerpt via `pc_readme_lines()` in an `{r}` chunk
       with `eval=FALSE`, and a link to the whole script
-- [ ] Update the `build` chunk comment and the "Build, publish, register" paragraph (new outputs,
+- [x] Update the `build` chunk comment and the "Build, publish, register" paragraph (new outputs,
       the CHM step, `data/readme_laz/`)
-- [ ] Render both targets per the `build` chunk; check README.md and index.html diffs carry only the
+- [x] Render both targets per the `build` chunk; check README.md and index.html diffs carry only the
       new section and expected numbers, and that `fig/maxan_chm.png` looks right
 
 ## Validation
 
-- [ ] Tests pass (`uv run pytest tests/ -q`, `testthat::test_file("tests/readme_functions_test.R")`)
+- [x] Tests pass (`uv run pytest tests/ -q`, `testthat::test_file("tests/readme_functions_test.R")`)
 - [ ] `/code-check` clean (once over the branch with `/code-check branch`)
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion

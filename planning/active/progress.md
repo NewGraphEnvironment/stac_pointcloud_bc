@@ -14,3 +14,9 @@
   in findings.md.
 - Phase 2: `scripts/readme_chm.R`. Tiles downloaded (532 MB), profiled; CHM run 570 s, 9.4 GB.
   `data/readme_chm.json`, `fig/maxan_chm.png` written.
+- Phase 3: CHM section in README.Rmd. `README.md` rendered with `update_query = TRUE`
+  (03:59–04:45 UTC, 46 min, `options(timeout = 1800)` for the run as #18 records); both figures
+  and every cache byte-identical to the standalone run. Then a wording fix and the whole
+  `pc_readme_chm()` in the excerpt, so README.md and index.html were re-rendered from the
+  cache (`update_query = FALSE`). index.html 3.4 → 4.1 MB. No README_files/ or index_files/.
+  A scratch render without data/readme_chm.json stops with the "missing" message.
