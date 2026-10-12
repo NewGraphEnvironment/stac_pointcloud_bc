@@ -1,0 +1,31 @@
+{
+  "items_found": ["093-093l-2019-pointcloud-bc_093l040_3_4_2_xyes_8_utm09_2019", "093-093l-2019-pointcloud-bc_093l040_3_4_1_xyes_8_utm09_2019"],
+  "delivery": "093/093l/2019",
+  "items": ["093-093l-2019-pointcloud-bc_093l040_3_4_1_xyes_8_utm09_2019", "093-093l-2019-pointcloud-bc_093l040_3_4_2_xyes_8_utm09_2019"],
+  "laz": ["https://nrs.objectstore.gov.bc.ca/gdwuts/093/093l/2019/pointcloud/bc_093l040_3_4_1_xyes_8_utm09_2019.laz", "https://nrs.objectstore.gov.bc.ca/gdwuts/093/093l/2019/pointcloud/bc_093l040_3_4_2_xyes_8_utm09_2019.laz"],
+  "crs": "EPSG:3156",
+  "window_m": [1200, 1000],
+  "cell_m": 0.5,
+  "margin_m": 30,
+  "bytes_files": 532357822,
+  "points_files": 107758311,
+  "points_window": 23448993,
+  "share_ground": 0.331147781058231,
+  "share_class1": 0.668796438294813,
+  "share_noise": 5.57806469557136e-05,
+  "classes": {
+    "1": 15682603,
+    "2": 7765082,
+    "7": 1308
+  },
+  "cells": 4800000,
+  "cells_na": 676858,
+  "share_2m": 0.251542634233795,
+  "share_10m": 0.0845120056500601,
+  "height_m": {
+    "p50": 0,
+    "p90": 8.1,
+    "p99": 25.5,
+    "max": 39.5
+  }
+}

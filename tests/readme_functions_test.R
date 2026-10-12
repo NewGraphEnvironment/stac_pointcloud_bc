@@ -106,6 +106,15 @@ test_that("the CHM is height above ground, open ground reads 0, and noise is dro
   expect_false(anyNA(terra::values(chm)))
 })
 
+test_that("a gap with no returns stays NA rather than being bridged", {
+  las <- synthetic_las()
+  gap <- las@data$X > 11 & las@data$X < 16 & las@data$Y > 9 & las@data$Y < 14
+  las <- lidR::filter_poi(las, !gap)
+  chm <- pc_readme_chm(las, c(2, 2, 18, 18), res = 1)
+  expect_true(is.na(terra::extract(chm, cbind(13.5, 11.5))[[1]]))
+  expect_equal(terra::extract(chm, cbind(8.5, 8.5))[[1]], 0)
+})
+
 test_that("withheld returns are dropped like noise", {
   las <- synthetic_las()
   las@data$Withheld_flag[las@data$Classification == 7L] <- TRUE

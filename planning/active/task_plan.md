@@ -45,16 +45,16 @@ only (NewGraphEnvironment/stac_dem_bc#47), and DSM specifications differ between
 
 ## Phase 2: the CHM script, cache and figure
 
-- [ ] `scripts/readme_chm.R`, shaped like `readme_dem.py`: constants (mouth, window offsets, 0.5 m
+- [x] `scripts/readme_chm.R`, shaped like `readme_dem.py`: constants (mouth, window offsets, 0.5 m
       cell, buffer), an rstac search for the window, keep the one delivery at the mouth
       (`lidarbc:delivery`), refuse items with mixed CRS; `# --- shown on the landing page` markers
       around search → download → read → CHM; runs `main()` only when invoked by Rscript
-- [ ] Download dir `data/readme_laz/`, gitignored
-- [ ] Writes `fig/maxan_chm.png` (terra plot to a fixed-size png, water light blue, scale bar, no
+- [x] Download dir `data/readme_laz/`, gitignored
+- [x] Writes `fig/maxan_chm.png` (terra plot to a fixed-size png, water light blue, scale bar, no
       keyword `legend()`) and `data/readme_chm.json`: items found / used, hrefs, CRS, window, cell,
       bytes downloaded, points read, class shares (ground / class 1 / other), CHM height percentiles,
       share of cells ≥ 2 m and ≥ 10 m
-- [ ] Tune the window on the first run so it shows the delta, the channel and forest edge; record
+- [x] Tune the window on the first run so it shows the delta, the channel and forest edge; record
       the measured numbers in `findings.md`
 
 ## Phase 3: README section

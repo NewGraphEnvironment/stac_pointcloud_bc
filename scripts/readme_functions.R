@@ -250,9 +250,13 @@ pc_readme_laz_get <- function(href, size, dir, fetch = pc_readme_fetch_file) {
 }
 
 #' The whole file at `url`, written to `path`; an HTTP error status raises
+#'
+#' No total timeout: the objectstore served these files at about 0.5 MB/s (2026-10-12), so a
+#' 0.6 GB file takes 20 minutes. A transfer that falls under 10 kB/s for two minutes is
+#' abandoned instead.
 pc_readme_fetch_file <- function(url, path) {
   httr2::request(url) |>
-    httr2::req_timeout(1800) |>
+    httr2::req_options(low_speed_limit = 10000, low_speed_time = 120) |>
     httr2::req_perform(path = path)
   invisible(path)
 }
@@ -267,6 +271,7 @@ pc_readme_fetch_file <- function(url, path) {
 #' dropped, so a gap in the returns, such as open water, stays NA rather than being bridged.
 #' Read `las` with a margin beyond `box`: the ground TIN is unreliable at its own edge.
 pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5)) {
+  # --- the CHM, shown on the landing page: begin
   keep <- !las$Classification %in% NOISE_CLASSES
   if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag
   las <- lidR::filter_poi(las, keep)
@@ -283,6 +288,7 @@ pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5)) {
   chm <- terra::crop(chm, terra::ext(box[1], box[3], box[2], box[4]))
   # A return a few cm under the interpolated ground is not a negative height.
   terra::clamp(chm, lower = 0, values = TRUE)
+  # --- the CHM, shown on the landing page: end
 }
 
 

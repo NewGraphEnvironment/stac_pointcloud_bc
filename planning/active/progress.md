@@ -10,3 +10,7 @@
   `scripts/readme_functions.R`, four tests. Two lidR behaviours found on the way (findings.md).
   Mutation check: removing the noise filter, the withheld filter, normalisation, or keeping
   ground out of the CHM each turns a test red.
+- Plan review (Plan agent) landed: 2 blockers, 14 gaps; saved to `review-plan.md`, dispositions
+  in findings.md.
+- Phase 2: `scripts/readme_chm.R`. Tiles downloaded (532 MB), profiled; CHM run 570 s, 9.4 GB.
+  `data/readme_chm.json`, `fig/maxan_chm.png` written.
