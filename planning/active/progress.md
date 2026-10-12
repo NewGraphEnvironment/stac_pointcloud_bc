@@ -27,3 +27,8 @@
   return within 5 m (water, 41% of the window), a coverage guard before download, and the
   prose and alt text derived from the json. Script re-run (570 s, 8.8 GB peak), both targets
   re-rendered from the cache.
+- Code-check round 4: the water mask reached ~2.75 m, not the 5 m the page states (a defect
+  inside round 3's fix). The window now reaches `ground_gap` m; a test cell discriminates the
+  two reaches. Script re-run, both targets re-rendered. The loop ended on enumeration
+  (`review-enumeration.md`): every claim in the section traced to the json, a guard, a
+  measurement on the pinned inputs, or a dated citation; one imprecise sentence reworded.

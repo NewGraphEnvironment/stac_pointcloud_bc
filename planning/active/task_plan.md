@@ -74,7 +74,7 @@ only (NewGraphEnvironment/stac_dem_bc#47), and DSM specifications differ between
 ## Validation
 
 - [x] Tests pass (`uv run pytest tests/ -q`, `testthat::test_file("tests/readme_functions_test.R")`)
-- [ ] `/code-check` clean (once over the branch with `/code-check branch`)
-- [ ] PWF checkboxes match landed work
+- [x] `/code-check` clean (once over the branch with `/code-check branch`)
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
 

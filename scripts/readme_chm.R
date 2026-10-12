@@ -2,7 +2,7 @@
 #
 # Finds the items covering a window over the Maxan Creek delta at Bulkley Lake, downloads each
 # item's `laz` asset whole (these have no `copc` to read a window from), and builds a pit-free
-# canopy height model from every return but noise. Writes fig/maxan_chm.png and
+# canopy height model with noise and withheld points left out. Writes fig/maxan_chm.png and
 # data/readme_chm.json, which README.Rmd reads. Run by README.Rmd when it renders with
 # `update_query = TRUE`, from the repo root:
 #

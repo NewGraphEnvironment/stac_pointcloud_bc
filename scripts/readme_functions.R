@@ -291,7 +291,8 @@ pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5), ground_gap 
   # the same as a meadow; a meadow returns ground and a lake does not.
   g <- las$Classification == 2L
   n <- tabulate(terra::cellFromXY(grid, cbind(las$X[g], las$Y[g])), terra::ncell(grid))
-  w <- 2L * as.integer(ceiling(ground_gap / (2 * res))) + 1L
+  # Every cell whose centre is within `ground_gap` m along x and y: that many cells each way.
+  w <- 2L * as.integer(ceiling(ground_gap / res)) + 1L
   near <- terra::focal(terra::setValues(grid, n), w = w, fun = "sum", na.rm = TRUE)
   chm <- terra::mask(chm, near, maskvalues = 0)
   chm <- terra::crop(chm, terra::ext(box[1], box[3], box[2], box[4]))

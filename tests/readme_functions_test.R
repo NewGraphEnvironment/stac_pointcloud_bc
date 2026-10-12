@@ -122,8 +122,11 @@ test_that("water, unclassified returns with no ground near them, is NA rather th
   # Its surface returns are class 1 at the height the ground TIN gives across it.
   d$Classification[lake & d$Classification == 2L] <- 1L
   las <- suppressMessages(lidR::LAS(d, crs = lidR::st_crs(las)))
-  chm <- pc_readme_chm(las, c(2, 2, 18, 18), res = 1)
+  chm <- pc_readme_chm(las, c(2, 2, 18, 18), res = 1, ground_gap = 3)
+  # The nearest ground cells are 4 or more cells away: water.
   expect_true(is.na(terra::extract(chm, cbind(13.5, 10.5))[[1]]))
+  # Ground in the cell 3 m east (x 18-19) is within the gap: not water.
+  expect_equal(terra::extract(chm, cbind(15.5, 10.5))[[1]], 0)
   expect_equal(terra::extract(chm, cbind(4.5, 4.5))[[1]], 0)  # open ground beside it
   expect_equal(terra::extract(chm, cbind(5.5, 15.5))[[1]], 20, tolerance = 0.01)
 })
