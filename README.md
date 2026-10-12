@@ -175,6 +175,13 @@ Items carry the [pointcloud](https://github.com/stac-extensions/pointcloud), [pr
 
 Every `<block>/<sheet>/<year>/pointcloud/*.laz` on the province’s objectstore, less two sets. Eleven files are excluded by name, each with its reason: four hold 0 or 1 points, three have a box no tile could have (hundreds or thousands of kilometres across), three sit outside the mapsheet their path names, and one declares a CRS its file name contradicts. And 985 files in eight 2017 deliveries state no CRS at all; indexing them from the CRS their delivery’s DEM declares is [\#15](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/15). The `dsm/*.laz` are not indexed: in every tile compared they were an RGB-colourised copy of the point cloud, not a surface model ([\#3](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/3), [`research/laz_header_read.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_header_read.md)). [NEWS.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/NEWS.md) says what each release published.
 
+<details>
+
+<summary>
+
+Items per mapsheet-year (225 mapsheet-years, 174,282 items)
+</summary>
+
 | mapsheet / year | items | with copc |        points |
 |:----------------|------:|----------:|--------------:|
 | 082e/2017       |   359 |           |   3.5 billion |
@@ -402,6 +409,8 @@ Every `<block>/<sheet>/<year>/pointcloud/*.laz` on the province’s objectstore,
 | 103p/2022       |   171 |           |   9.9 billion |
 | 104a/2019       |    16 |           |   0.4 billion |
 | 104k/2021       |   143 |           |   7.7 billion |
+
+</details>
 
 Catalogue version 0.3.0, read from the API on 2026-10-11. Every id the bucket’s collection.json links was served by the API, and nothing else was.
 
