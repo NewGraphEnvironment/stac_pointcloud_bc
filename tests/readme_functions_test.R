@@ -73,3 +73,94 @@ test_that("a header read is checked against its item's count and box", {
                "disagrees")
   expect_error(pc_readme_header_check(h, item(3957849L, c(bbox, 0, 1))), "not 2D")
 })
+
+# ---- the canopy height model (#19) --------------------------------------------------------
+
+# A 20 m square on a ground plane rising 0.5 m per metre east, sampled every 0.25 m; a 3 m
+# square of class 1 returns standing 20 m above it; one class 7 (noise) return 80 m up.
+synthetic_las <- function() {
+  g <- expand.grid(X = seq(0.125, 19.875, by = 0.25), Y = seq(0.125, 19.875, by = 0.25))
+  ground <- data.frame(g, Z = 100 + 0.5 * g$X, Classification = 2L)
+  t <- expand.grid(X = seq(4.1, 6.9, by = 0.2), Y = seq(14.1, 16.9, by = 0.2))
+  tree <- data.frame(t, Z = 100 + 0.5 * t$X + 20, Classification = 1L)
+  noise <- data.frame(X = 15.5, Y = 5.5, Z = 100 + 0.5 * 15.5 + 80, Classification = 7L)
+  d <- rbind(ground, tree, noise)
+  d$ReturnNumber <- 1L
+  d$NumberOfReturns <- 1L
+  d$Withheld_flag <- FALSE
+  las <- suppressMessages(lidR::LAS(data.table::as.data.table(d)))
+  lidR::st_crs(las) <- 3156
+  las
+}
+
+test_that("the CHM is height above ground, open ground reads 0, and noise is dropped", {
+  box <- c(2, 2, 18, 18)
+  chm <- pc_readme_chm(synthetic_las(), box, res = 1)
+  expect_equal(as.vector(terra::ext(chm)), c(xmin = 2, xmax = 18, ymin = 2, ymax = 18))
+  expect_equal(terra::res(chm), c(1, 1))
+  at <- function(x, y) terra::extract(chm, cbind(x, y))[[1]]
+  expect_equal(at(5.5, 15.5), 20, tolerance = 0.01)  # the tree, above a sloping ground
+  expect_equal(at(12.5, 12.5), 0)                    # open ground: 0, not NA
+  expect_equal(at(15.5, 5.5), 0)                     # where the noise return was
+  expect_lt(max(terra::values(chm), na.rm = TRUE), 20.1)
+  expect_false(anyNA(terra::values(chm)))
+})
+
+test_that("a gap with no returns stays NA rather than being bridged", {
+  las <- synthetic_las()
+  gap <- las@data$X > 11 & las@data$X < 16 & las@data$Y > 9 & las@data$Y < 14
+  las <- lidR::filter_poi(las, !gap)
+  chm <- pc_readme_chm(las, c(2, 2, 18, 18), res = 1)
+  expect_true(is.na(terra::extract(chm, cbind(13.5, 11.5))[[1]]))
+  expect_equal(terra::extract(chm, cbind(8.5, 8.5))[[1]], 0)
+})
+
+test_that("water, unclassified returns with no ground near them, is NA rather than 0 m", {
+  las <- synthetic_las()
+  d <- las@data
+  lake <- d$X > 8 & d$X < 17.9 & d$Y > 6 & d$Y < 13.9
+  # Its surface returns are class 1 at the height the ground TIN gives across it.
+  d$Classification[lake & d$Classification == 2L] <- 1L
+  las <- suppressMessages(lidR::LAS(d, crs = lidR::st_crs(las)))
+  chm <- pc_readme_chm(las, c(2, 2, 18, 18), res = 1, ground_gap = 3)
+  # The nearest ground cells are 4 or more cells away: water.
+  expect_true(is.na(terra::extract(chm, cbind(13.5, 10.5))[[1]]))
+  # Ground in the cell 3 m east (x 18-19) is within the gap: not water.
+  expect_equal(terra::extract(chm, cbind(15.5, 10.5))[[1]], 0)
+  expect_equal(terra::extract(chm, cbind(4.5, 4.5))[[1]], 0)  # open ground beside it
+  expect_equal(terra::extract(chm, cbind(5.5, 15.5))[[1]], 20, tolerance = 0.01)
+})
+
+test_that("withheld returns are dropped like noise", {
+  las <- synthetic_las()
+  las@data$Withheld_flag[las@data$Classification == 7L] <- TRUE
+  las@data$Classification[las@data$Classification == 7L] <- 1L
+  chm <- pc_readme_chm(las, c(2, 2, 18, 18), res = 1)
+  expect_lt(max(terra::values(chm), na.rm = TRUE), 20.1)
+})
+
+test_that("a laz asset is downloaded once, and a cached file of the wrong size is refused", {
+  dir <- withr::local_tempdir()
+  href <- "https://example.invalid/gdwuts/093/093l/2019/pointcloud/a.laz"
+  calls <- 0L
+  fake <- function(url, path) {
+    calls <<- calls + 1L
+    writeBin(as.raw(seq_len(10)), path)
+  }
+  r1 <- pc_readme_laz_get(href, 10, dir, fetch = fake)
+  expect_true(r1$downloaded)
+  expect_identical(r1$path, file.path(dir, "a.laz"))
+  r2 <- pc_readme_laz_get(href, 10, dir, fetch = fake)
+  expect_false(r2$downloaded)
+  expect_identical(calls, 1L)
+  expect_error(pc_readme_laz_get(href, 11, dir, fetch = fake), "delete it")
+  expect_identical(calls, 1L)
+})
+
+test_that("a download of the wrong size is not kept", {
+  dir <- withr::local_tempdir()
+  href <- "https://example.invalid/b.laz"
+  short <- function(url, path) writeBin(as.raw(1:9), path)
+  expect_error(pc_readme_laz_get(href, 10, dir, fetch = short), "downloaded 9 bytes")
+  expect_identical(list.files(dir), character(0))
+})
