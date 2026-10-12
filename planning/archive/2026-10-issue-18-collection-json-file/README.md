@@ -22,4 +22,4 @@ was rerun against the old read instead.
   the new function each turned test 13 red.
 - `/code-check branch`: three rounds, all Clean.
 
-Closed by: PR (this branch, `18-readme-render-read-the-35-mb-collection-json`)
+Closed by: PR #21
