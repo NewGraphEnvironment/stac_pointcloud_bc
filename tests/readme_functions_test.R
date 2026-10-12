@@ -167,8 +167,10 @@ test_that("a download of the wrong size is not kept", {
 
 test_that("the bucket's collection.json is read through a file, item links only", {
   got <- NULL
+  tmp <- NULL
   fake <- function(url, path) {
     got <<- c(got, url)
+    tmp <<- path
     writeLines(jsonlite::toJSON(list(
       version = "0.3.0",
       links = list(
@@ -182,6 +184,8 @@ test_that("the bucket's collection.json is read through a file, item links only"
   expect_identical(got, paste0(BUCKET_URL, "/collection.json"))
   expect_identical(b$ids, c("a", "b c"))
   expect_identical(b$version, "0.3.0")
+  expect_true(startsWith(tmp, tempdir()))
+  expect_false(file.exists(tmp))
 })
 
 test_that("a failed collection.json download raises and leaves no file behind", {

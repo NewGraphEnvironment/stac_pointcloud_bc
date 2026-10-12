@@ -7,3 +7,6 @@
 - Scaffolded PWF baseline from issue #18 with approved phases
 - Next: start Phase 1
 - Phase 1: two tests for `pc_readme_bucket_json()`; both fail on main (13: function absent; 14: regexp miss, then `file.exists(NULL)`)
+- Phase 2: `pc_readme_bucket_json()` reads through `pc_readme_fetch_file()` into a tempfile; 14/14 tests
+- Plan review folded in (`review-plan.md`): Phase 3 check corrected, success test checks the path and cleanup
+- Phase 3 live check: new read == old read, 174,282 ids both ways; see findings

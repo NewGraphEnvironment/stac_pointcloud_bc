@@ -24,3 +24,15 @@ Fix: download to a tempfile with `curl::curl_fetch_disk()` (no total timeout; ch
 
 | Error | Resolution |
 |-------|------------|
+| Phase 3 compared ids with `data/readme_cache.rds`, which holds none (`$ operator is invalid for atomic vectors`) | Compared with the old read under a long timeout |
+| `Rscript -e` with `"\\.json$"` inside shell single quotes: `'\.' is an unrecognized escape` | Ran the check from a script file |
+
+## Live check (2026-10-12, 15:09–15:16 UTC)
+
+- `pc_readme_bucket()` under `options(timeout = 5)`: succeeded, 92–117 s elapsed for 35 MB on this link.
+- The old `fromJSON(<url>)` under `options(timeout = 5)`: `Timeout of 5 seconds was reached` /
+  `cannot read from connection`, the incident's error.
+- New read vs old read (`timeout = 1800`): 174,282 ids each, no duplicates, 0 either way;
+  version 0.3.0 in the new read, the old read, the API and the cache; the cache's
+  `sum(groups$items)` is 174,282. Script: scratchpad `bucket_check.R`, its body is in the PR.
+- Mutation: removing `on.exit(unlink(tmp))` fails both cleanup assertions (tests 13 and 14).

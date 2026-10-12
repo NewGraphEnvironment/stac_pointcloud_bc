@@ -11,17 +11,20 @@
 - [x] Confirm both fail against the current code (function absent)
 
 ## Phase 2: Read through a file (`scripts/readme_functions.R`)
-- [ ] New `pc_readme_bucket_json(fetch = pc_readme_fetch_file)`: tempfile, `on.exit(unlink)`,
+- [x] New `pc_readme_bucket_json(fetch = pc_readme_fetch_file)`: tempfile, `on.exit(unlink)`,
       `fetch(paste0(BUCKET_URL, "/collection.json"), tmp)`, `jsonlite::fromJSON(tmp,
       simplifyVector = FALSE)`, return `list(ids, version)`; roxygen note says why (35 MB,
       R's 60 s URL timeout, #18)
-- [ ] `pc_readme_bucket()` keeps its signature and return shape; calls the new helper
+- [x] `pc_readme_bucket()` keeps its signature and return shape; calls the new helper
       for the bucket side, rstac for `api_version` as now
-- [ ] Tests pass: `Rscript -e 'testthat::test_file("tests/readme_functions_test.R")'`
+- [x] Tests pass: `Rscript -e 'testthat::test_file("tests/readme_functions_test.R")'`
 
 ## Phase 3: Verify live, and the issue body
-- [ ] Live: `pc_readme_bucket()` once; its ids equal the ids in `data/readme_cache.rds` as
+- [x] Live: `pc_readme_bucket()` once; its ids equal the ids in `data/readme_cache.rds` as
       sets in both directions, and `version` equals the cache's (no full 19-min render)
+      — *corrected by plan review:* the cache holds no ids, so compared with the old
+      `fromJSON(url)` read under `options(timeout = 1800)` instead, plus the cache's item total
+      and version; and run under `options(timeout = 5)` to show the new read ignores it
 - [ ] Edit issue #18's body: fix uses the existing `pc_readme_fetch_file()` (httr2), not
       `curl`, and why
 
