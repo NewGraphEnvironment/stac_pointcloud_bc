@@ -3,12 +3,12 @@
 **If we do it:** the README render survives a slow link. **If we never do:** a render on a slow connection (or in the monthly update, #4, if it renders) fails after the 19-minute API fetch, with an error that names `readBin`, not the timeout.
 
 ## Phase 1: Tests first (`tests/readme_functions_test.R`)
-- [ ] Test: `pc_readme_bucket_json(fetch = fake)` calls `fetch` once with
+- [x] Test: `pc_readme_bucket_json(fetch = fake)` calls `fetch` once with
       `<BUCKET_URL>/collection.json` and a local path, parses the file `fake` writes (a small
       inline collection with two `rel: item` links, one with `%20`, one `rel: self`), and
       returns `ids` (decoded, `.json` stripped, item links only) and `version`
-- [ ] Test: an error raised by `fetch` propagates, and no temp file is left behind
-- [ ] Confirm both fail against the current code (function absent)
+- [x] Test: an error raised by `fetch` propagates, and no temp file is left behind
+- [x] Confirm both fail against the current code (function absent)
 
 ## Phase 2: Read through a file (`scripts/readme_functions.R`)
 - [ ] New `pc_readme_bucket_json(fetch = pc_readme_fetch_file)`: tempfile, `on.exit(unlink)`,

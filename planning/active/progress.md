@@ -6,3 +6,4 @@
 - Created branch `18-readme-render-read-the-35-mb-collection-json` off main
 - Scaffolded PWF baseline from issue #18 with approved phases
 - Next: start Phase 1
+- Phase 1: two tests for `pc_readme_bucket_json()`; both fail on main (13: function absent; 14: regexp miss, then `file.exists(NULL)`)
