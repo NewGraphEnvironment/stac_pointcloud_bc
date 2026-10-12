@@ -76,6 +76,9 @@ treating the repo as a Python package (#9).
   253 with no ground. **The screen misses some**: a random 5% of the rest found 2 in 7,834,
   one at the 96th density percentile, so about 38 unsampled files hold no ground or only
   ground and carry no list. Vegetation here is mostly class 1; classes 3–5 are in about 9% of files.
+  **Water can be class 1 too**: Bulkley Lake's surface returns in `093l/2019` are class 1 at the
+  height of its shore, so a canopy height model reads the lake as 0 m unless water is masked by
+  its missing ground returns (#19, `research/laz_classes.md`).
 - **Source URLs are `https://`.** `ngr::ngr_s3_keys_get()` returned `https:/` before ngr
   0.0.3 (ngr#38). Anything that reads a URL list refuses the one-slash form; never
   repair it silently (stac_dem_bc#51).
