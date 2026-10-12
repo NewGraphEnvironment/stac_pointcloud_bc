@@ -71,7 +71,11 @@ main <- function() {
     stop("items in the window do not share one CRS", call. = FALSE)
   }
 
-  # No `copc` asset, so no window read: each file is downloaded whole, once.
+  # No `copc` asset, so no window read: each file is downloaded whole, once. Refused if a
+  # release pairs one with a COPC, since the page then says something false.
+  if (any(vapply(items, \(f) !is.null(f$assets$copc), logical(1)))) {
+    stop("an item in the window now has a copc asset: read the window from it", call. = FALSE)
+  }
   laz <- vapply(seq_along(items), \(i) {
     pc_readme_laz_get(items[[i]]$assets$laz$href, size[i], LAZ_DIR)$path
   }, "")
