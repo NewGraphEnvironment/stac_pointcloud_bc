@@ -11,3 +11,4 @@
 - Plan review folded in (`review-plan.md`): Phase 3 check corrected, success test checks the path and cleanup
 - Phase 3 live check: new read == old read, 174,282 ids both ways; see findings
 - Issue #18 body edited: fix as built (httr2 helper, 10 kB/s stall abort), curl prescription struck
+- `/code-check branch`: three rounds, all Clean (round 2: five mutations each red; live read under timeout = 3; round 3: callers and render path)
