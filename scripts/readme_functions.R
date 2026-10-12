@@ -268,10 +268,11 @@ pc_readme_fetch_file <- function(url, path) {
 #' class 1 included, and the ground returns stay in at height 0, so open ground reads 0 m
 #' rather than empty. Pit-free rasterising (Khosravipour et al. 2014) onto a grid of `res`
 #' over exactly `box` (xmin, ymin, xmax, ymax); a triangle with an edge over `max_edge` m is
-#' dropped, so a gap in the returns, such as open water, stays NA rather than being bridged.
+#' dropped, so a gap in the returns stays NA rather than being bridged, and a cell with no
+#' ground return within about `ground_gap` m is NA: open water.
 #' Read `las` with a margin beyond `box`: the ground TIN is unreliable at its own edge.
 # --- the CHM, shown on the landing page: begin
-pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5)) {
+pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5), ground_gap = 5) {
   keep <- !las$Classification %in% NOISE_CLASSES
   if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag
   las <- lidR::filter_poi(las, keep)
@@ -285,6 +286,14 @@ pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5)) {
   chm <- lidR::rasterize_canopy(
     las, grid, lidR::pitfree(thresholds = c(0, 2, 5, 10, 15, 20, 25, 30), max_edge = max_edge)
   )
+  # Water: where no ground return lies within about `ground_gap` m. A lake's surface returns
+  # are unclassified and sit at the height of the ground TIN across it, so they read 0 m,
+  # the same as a meadow; a meadow returns ground and a lake does not.
+  g <- las$Classification == 2L
+  n <- tabulate(terra::cellFromXY(grid, cbind(las$X[g], las$Y[g])), terra::ncell(grid))
+  w <- 2L * as.integer(ceiling(ground_gap / (2 * res))) + 1L
+  near <- terra::focal(terra::setValues(grid, n), w = w, fun = "sum", na.rm = TRUE)
+  chm <- terra::mask(chm, near, maskvalues = 0)
   chm <- terra::crop(chm, terra::ext(box[1], box[3], box[2], box[4]))
   # A return a few cm under the interpolated ground is not a negative height.
   terra::clamp(chm, lower = 0, values = TRUE)

@@ -26,6 +26,7 @@ SOUTH <- 600
 NORTH <- 400
 CELL <- 0.5     # m
 MARGIN <- 30    # m read beyond the window, so the ground TIN has no edge inside it
+GROUND_GAP <- 5 # m. A cell with no ground return this near is water (pc_readme_chm())
 # Refused before anything is downloaded: a window moved onto more tiles than this is a mistake.
 MAX_ITEMS <- 2L
 MAX_BYTES <- 600e6
@@ -70,6 +71,14 @@ main <- function() {
   if (any(vapply(items, \(f) f$properties[["proj:code"]] != crs, logical(1)))) {
     stop("items in the window do not share one CRS", call. = FALSE)
   }
+  # And they must cover all of it: a tile missing from the delivery would leave part of the
+  # window empty, drawn as if it were water.
+  rect <- \(b) sf::st_as_sfc(sf::st_bbox(setNames(b, c("xmin", "ymin", "xmax", "ymax")),
+                                         crs = sf::st_crs(crs)))
+  tiles <- sf::st_union(do.call(c, lapply(items, \(f) rect(unlist(f$properties[["proj:bbox"]])))))
+  if (!sf::st_covers(tiles, rect(read_box), sparse = FALSE)[1, 1]) {
+    stop("the items found do not cover the window and its margin", call. = FALSE)
+  }
 
   # No `copc` asset, so no window read: each file is downloaded whole, once. Refused if a
   # release pairs one with a COPC, since the page then says something false.
@@ -83,13 +92,13 @@ main <- function() {
   # return number: it rasterises first returns.
   las <- lidR::readLAS(laz, select = "xyzrc",
                        filter = paste("-drop_withheld -keep_xy", paste(read_box, collapse = " ")))
-  chm <- pc_readme_chm(las, box, res = CELL)
+  chm <- pc_readme_chm(las, box, res = CELL, ground_gap = GROUND_GAP)
   # --- shown on the landing page: end
 
   # The returns inside the window (the margin left out), noise included.
   inside <- las$X >= box[1] & las$X < box[3] & las$Y >= box[2] & las$Y < box[4]
   cls <- las$Classification[inside]
-  # Heights over the cells that have one; NA cells (no returns: open water) are left out.
+  # Heights over the cells that have one; NA cells (open water) are left out.
   h <- terra::values(chm, mat = FALSE)
   h <- h[!is.na(h)]
   plot_chm(chm, box)
@@ -102,6 +111,7 @@ main <- function() {
     window_m = c(WEST + EAST, SOUTH + NORTH),
     cell_m = CELL,
     margin_m = MARGIN,
+    ground_gap_m = GROUND_GAP,
     # The files as published, downloaded whole once: their `file:size` and `pc:count`.
     bytes_files = sum(size),
     points_files = sum(vapply(items, \(f) as.numeric(f$properties[["pc:count"]]), 0)),

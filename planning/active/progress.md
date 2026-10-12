@@ -20,3 +20,10 @@
   `pc_readme_chm()` in the excerpt, so README.md and index.html were re-rendered from the
   cache (`update_query = FALSE`). index.html 3.4 → 4.1 MB. No README_files/ or index_files/.
   A scratch render without data/readme_chm.json stops with the "missing" message.
+- `/code-check branch`: round 1 one fragile finding (unchecked "no copc" claim → guard);
+  round 2 clean; round 3 asked for the mechanism (prose claims not derived from the json) and
+  found the lake reading 0 m (its class 1 surface returns normalise to 0) and no check that
+  the items cover the window. Fixed: `pc_readme_chm(ground_gap =)` masks cells with no ground
+  return within 5 m (water, 41% of the window), a coverage guard before download, and the
+  prose and alt text derived from the json. Script re-run (570 s, 8.8 GB peak), both targets
+  re-rendered from the cache.

@@ -115,6 +115,19 @@ test_that("a gap with no returns stays NA rather than being bridged", {
   expect_equal(terra::extract(chm, cbind(8.5, 8.5))[[1]], 0)
 })
 
+test_that("water, unclassified returns with no ground near them, is NA rather than 0 m", {
+  las <- synthetic_las()
+  d <- las@data
+  lake <- d$X > 8 & d$X < 17.9 & d$Y > 6 & d$Y < 13.9
+  # Its surface returns are class 1 at the height the ground TIN gives across it.
+  d$Classification[lake & d$Classification == 2L] <- 1L
+  las <- suppressMessages(lidR::LAS(d, crs = lidR::st_crs(las)))
+  chm <- pc_readme_chm(las, c(2, 2, 18, 18), res = 1)
+  expect_true(is.na(terra::extract(chm, cbind(13.5, 10.5))[[1]]))
+  expect_equal(terra::extract(chm, cbind(4.5, 4.5))[[1]], 0)  # open ground beside it
+  expect_equal(terra::extract(chm, cbind(5.5, 15.5))[[1]], 20, tolerance = 0.01)
+})
+
 test_that("withheld returns are dropped like noise", {
   las <- synthetic_las()
   las@data$Withheld_flag[las@data$Classification == 7L] <- TRUE
