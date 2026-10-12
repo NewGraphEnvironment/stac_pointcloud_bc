@@ -25,11 +25,11 @@
       — *corrected by plan review:* the cache holds no ids, so compared with the old
       `fromJSON(url)` read under `options(timeout = 1800)` instead, plus the cache's item total
       and version; and run under `options(timeout = 5)` to show the new read ignores it
-- [ ] Edit issue #18's body: fix uses the existing `pc_readme_fetch_file()` (httr2), not
+- [x] Edit issue #18's body: fix uses the existing `pc_readme_fetch_file()` (httr2), not
       `curl`, and why
 
 ## Validation
-- [ ] Tests pass
+- [x] Tests pass
 - [ ] `/code-check` clean (once over the branch with `/code-check branch`)
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
