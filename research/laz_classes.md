@@ -1,6 +1,6 @@
 # Which LidarBC point clouds are ground-only, or hold no ground at all
 
-**Verified:** 2026-10-11 · **Issues:** #10 (found in #9), #2 (the build step and the audit), #17 (sampling the rest) ·
+**Verified:** 2026-10-11 (water section 2026-10-12) · **Issues:** #10 (found in #9), #2 (the build step and the audit), #17 (sampling the rest), #19 (water) ·
 **Produced by:** `scripts/catalogue_build.py` (the screen, samples and whole reads) and
 `scripts/laz_classes_probe.py` (`--audit 0.05 --seed 2`, `--summary`); logs
 `logs/20261011_1010_catalogue_build_classes_record.log`, `logs/20261011_0900_laz_classes_audit.log`,
@@ -165,6 +165,18 @@ measured on 9,649 files; that it holds for other deliveries is an expectation, n
 
 Sampling all of #2's 165,667 files at this rate is about 350 GB and 20 hours. A 10th-percentile
 density screen would sample about 16,600 (about 35 GB), plus full reads of what it flags.
+
+## Water reads as ground-level returns, not as class 9 (093/093l/2019, #19, 2026-10-12)
+
+In the two tiles under the Maxan Creek delta (`bc_093l040_3_4_1`, `_3_4_2`), every return is
+class 1, 2 or 7: no class 9, no withheld points, no overlap flag. Bulkley Lake's surface returns
+are class 1, about 4.6/m², flat (712.5–712.8 m), level with the ground at the shore. So a canopy
+height model over water reads 0 m, the same as a meadow, unless water is found some other way.
+The meadow beside it is 77% class 2; the lake has no class 2 at all. `pc_readme_chm()`
+(`scripts/readme_functions.R`) masks a cell with no ground return within 5 m, which took 41% of
+that window as water and left no cell with a height under the forested south-west strip
+(560,000 cells checked). Measured on these two tiles only; whether other deliveries classify
+water as 9 is not established here.
 
 ## What this does not establish
 
