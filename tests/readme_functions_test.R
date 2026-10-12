@@ -164,3 +164,37 @@ test_that("a download of the wrong size is not kept", {
   expect_error(pc_readme_laz_get(href, 10, dir, fetch = short), "downloaded 9 bytes")
   expect_identical(list.files(dir), character(0))
 })
+
+test_that("the bucket's collection.json is read through a file, item links only", {
+  got <- NULL
+  tmp <- NULL
+  fake <- function(url, path) {
+    got <<- c(got, url)
+    tmp <<- path
+    writeLines(jsonlite::toJSON(list(
+      version = "0.3.0",
+      links = list(
+        list(rel = "self", href = "https://example.invalid/collection.json"),
+        list(rel = "item", href = "./a.json"),
+        list(rel = "item", href = "./b%20c.json")
+      )
+    ), auto_unbox = TRUE), path)
+  }
+  b <- pc_readme_bucket_json(fetch = fake)
+  expect_identical(got, paste0(BUCKET_URL, "/collection.json"))
+  expect_identical(b$ids, c("a", "b c"))
+  expect_identical(b$version, "0.3.0")
+  expect_true(startsWith(tmp, tempdir()))
+  expect_false(file.exists(tmp))
+})
+
+test_that("a failed collection.json download raises and leaves no file behind", {
+  tmp <- NULL
+  broken <- function(url, path) {
+    tmp <<- path
+    writeLines("<Error>partial</Error>", path)
+    stop("HTTP 403 Forbidden.")
+  }
+  expect_error(pc_readme_bucket_json(fetch = broken), "403")
+  expect_false(file.exists(tmp))
+})

@@ -145,10 +145,23 @@ pc_readme_bucket <- function(api_root = API_ROOT, collection = COLLECTION) {
   coll <- rstac::stac(paste0(api_root, "/")) |>
     rstac::collections(collection) |>
     rstac::get_request()
-  s3 <- jsonlite::fromJSON(paste0(BUCKET_URL, "/collection.json"), simplifyVector = FALSE)
+  s3 <- pc_readme_bucket_json()
+  list(ids = s3$ids, version = s3$version, api_version = coll$version)
+}
+
+#' The bucket's collection.json, read from a downloaded copy
+#'
+#' The file is 35 MB (0.3.0), and `fromJSON(<url>)` reads through an R URL connection, which
+#' stops at `getOption("timeout")`, 60 s: on a slow link that failed the render with
+#' `readBin(): cannot read from connection` (#18). `fetch(url, path)` is the transfer,
+#' swappable in tests.
+pc_readme_bucket_json <- function(fetch = pc_readme_fetch_file) {
+  tmp <- tempfile(fileext = ".json")
+  on.exit(unlink(tmp))
+  fetch(paste0(BUCKET_URL, "/collection.json"), tmp)
+  s3 <- jsonlite::fromJSON(tmp, simplifyVector = FALSE)
   hrefs <- vapply(Filter(\(l) identical(l$rel, "item"), s3$links), \(l) l$href, character(1))
-  list(ids = sub("\\.json$", "", gsub("%20", " ", basename(hrefs))),
-       version = s3$version, api_version = coll$version)
+  list(ids = sub("\\.json$", "", gsub("%20", " ", basename(hrefs))), version = s3$version)
 }
 
 #' Every published item, reduced to what the counts need
