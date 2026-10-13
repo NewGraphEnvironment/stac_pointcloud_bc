@@ -114,7 +114,7 @@ if (identical(params$rmd_on, FALSE)) {
 
 **`stac-pointcloud-bc`** is a searchable catalogue of British Columbia's lidar point clouds.
 
-Lidar measures the shape of the land and everything standing on it. The province's [LidarBC](https://lidar.gov.bc.ca/) program publishes lidar flown across BC since 2012, and each delivery is a record of a watershed at a point in time.
+Lidar measures the shape of the land and everything standing on it. The province's [LidarBC](https://lidar.gov.bc.ca/) program publishes lidar flown across BC since 2012, and each flight records the land as it was when it was flown.
 
 - A **bare-earth model** (DEM) shows the ground beneath the trees: floodplains, side channels and old channels, terraces, and the roads and embankments built across a river's path. It shows where water goes, and where it used to go.
 - A **surface model** (DSM) is the top of whatever stands there. With the ground subtracted, it becomes a **canopy height model** (CHM): how tall the streamside forest is, where it shades the water, and where it has been cleared or is coming back.
@@ -153,7 +153,7 @@ knitr::include_graphics("fig/maxan_chm.png")
 
 `r paste0("The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. Here the meadow reads 0 m, the creek meanders through it to the lake, and stands of trees grow on the delta and the slope to the south. Of the cells on land, ", round(100 * chm$share_2m), "% stand at least 2 m and ", round(100 * chm$share_10m), "% at least 10 m; the tallest 1% exceed ", chm$height_m$p99, " m, to a maximum of ", chm$height_m$max, " m. Light blue, ", round(100 * chm$cells_na / chm$cells), "% of the window, is the lake and the creek's channel.")`
 
-**Why from the point clouds.** LidarBC publishes its own canopy height models for 2023 and 2024 only (as of August 2026). Its surface models are made to specifications that differ between deliveries, so a DSM minus a DEM does not compare from one year to the next ([stac_dem_bc#47](https://github.com/NewGraphEnvironment/stac_dem_bc/issues/47)). Built from the point clouds, one method serves every flight, and comparing change over time needs exactly that. What this reach shows, its historic channels and the forest lost since 2017, is [floodplains#121](https://github.com/NewGraphEnvironment/floodplains/issues/121).
+**Why from the point clouds.** LidarBC publishes its own canopy height models for 2023 and 2024 only (as of August 2026). Its surface models are made to specifications that differ between deliveries, so a DSM minus a DEM does not compare from one year to the next ([stac_dem_bc#47](https://github.com/NewGraphEnvironment/stac_dem_bc/issues/47)). Built from the point clouds, the same method can be applied to every flight, and comparing change over time needs exactly that. What this reach shows, its historic channels and the forest lost since 2017, is [floodplains#121](https://github.com/NewGraphEnvironment/floodplains/issues/121).
 
 `r paste0("**How it was made.** A STAC search for a ", fmt(chm$window_m[[1]] / 1000), " × ", fmt(chm$window_m[[2]] / 1000), " km window, plus a ", chm$margin_m, " m margin, returned ", if (length(chm$items_found) == length(chm$items)) paste0("the ", length(chm$items), " items covering it, ", if (length(chm$items) == 2) "both" else "all", " from the ", chm$delivery, " delivery.") else paste0(length(chm$items_found), " items from more than one delivery; the ", length(chm$items), " from ", chm$delivery, " were used."), " None of them has a ")` `copc` `r paste0("asset, so each ")` `laz` `r paste0("was downloaded whole, once: ", fmt(round(chm$bytes_files / 1e6)), " MB holding ", fmt(round(chm$points_files / 1e6, 1)), " million points, ", fmt(round(chm$points_window / 1e6, 1)), " million of them in the window. ", round(100 * chm$share_ground), "% of those are ground returns (class 2) and ", round(100 * chm$share_class1), "% are class 1, unclassified, which is where LidarBC leaves most of its vegetation. Only noise and withheld points are left out; nothing is chosen by vegetation class. With [lidR](https://r-lidar.github.io/lidRbook/), heights are measured above a triangulated surface of the ground returns, and the first returns are rasterised pit-free at ", chm$cell_m, " m. A cell with no ground return within ", chm$ground_gap_m, " m, or no return at all, is left empty. The lake's surface returns are class 1 and level with its shore, so without that test the lake would read 0 m like the meadow.")`
 
@@ -183,9 +183,9 @@ The whole script, with the figure, is [`scripts/readme_chm.R`](https://github.co
 
 Items carry the [pointcloud](https://github.com/stac-extensions/pointcloud), [projection](https://github.com/stac-extensions/projection) and [file](https://github.com/stac-extensions/file) extensions. They also carry `las:` fields for facts about the LAS format and `lidarbc:` fields for LidarBC's paths and file names. An item with a class list also carries the [classification](https://github.com/stac-extensions/classification) extension.
 
-An item's date comes from its file name: the day flown (`datetime`); the first and last day flown, where the name carries two (`start_datetime` / `end_datetime`); or the whole year, where the name gives only a year. If any file name in a delivery carries a date that disagrees with its year directory, often a processing date rather than an acquisition date, none of that delivery's file-name dates are used and its items span the directory's year. `lidarbc:datetime_source` says which, and `lidarbc:filename_date` keeps the file name's own date.
+An item's date is when its tile was flown, as precisely as the file name says: the day (`datetime`), the first and last day where the name carries two (`start_datetime` / `end_datetime`), or the year. If any file name's date (for a pair, its first day) falls in another year than its directory, often because it is a processing date, no file-name date in that delivery is used. Those items, and any whose name carries no date, span the directory's year. `lidarbc:datetime_source` says which, and [`research/filename_dates.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/filename_dates.md) has how it was measured.
 
-Each item names its delivery in `lidarbc:delivery` (`<block>/<sheet>/<year>`, such as `092/092g/2016`), which keeps one flight apart from another where several cover the same place. The DEM and DSM items of [stac-elevation-bc](https://github.com/NewGraphEnvironment/stac_dem_bc) will carry the same key once stac_dem_bc publishes it ([stac_dem_bc#61](https://github.com/NewGraphEnvironment/stac_dem_bc/issues/61)), and this collection links it as `related`.
+Each item names its delivery in `lidarbc:delivery` (`<block>/<sheet>/<year>`, such as `092/092g/2016`), which keeps one delivery apart from another where several cover the same place. The DEM and DSM items of [stac-elevation-bc](https://github.com/NewGraphEnvironment/stac_dem_bc) will carry the same key once stac_dem_bc publishes it ([stac_dem_bc#61](https://github.com/NewGraphEnvironment/stac_dem_bc/issues/61)), and this collection links it as `related`.
 
 ### Which classes a file holds
 
@@ -294,12 +294,12 @@ The item is `r ex$item`. `r if (identical(ex$h_laz$las_version, ex$h_copc$las_ve
 
 - [`stac_dem_bc`](https://github.com/NewGraphEnvironment/stac_dem_bc) — the DEM and DSM rasters of the same LidarBC deliveries (`stac-elevation-bc`)
 - [`stac_floodplains_bc`](https://github.com/NewGraphEnvironment/stac_floodplains_bc) — floodplain land-cover change (`stac-floodplains-bc`)
-- [`stac_airphoto_bc`](https://github.com/NewGraphEnvironment/stac_airphoto_bc) — historic airphoto thumbnails, 1963–2019 (`stac-airphoto-bc`)
+- [`stac_airphoto_bc`](https://github.com/NewGraphEnvironment/stac_airphoto_bc) — historic airphoto thumbnails, 1967–2019 (`stac-airphoto-bc`)
 - [`stac_uav_bc`](https://github.com/NewGraphEnvironment/stac_uav_bc) — UAV imagery, organized by watershed (`imagery-uav-bc-prod`)
 
 ## Build and maintain
 
-The catalogue is built in Python. Each item is created by a pure function from a file's href and header (`scripts/laz_item.py`). The item JSON is published to `s3://stac-pointcloud-bc`, and [stacs](https://github.com/NewGraphEnvironment/stacs) registers and verifies it (`stacs.toml`).
+The catalogue is built in Python. Each item is created by a pure function (`scripts/laz_item.py`) from a file's href and header, and what the build measured about its delivery and its CanElevation copy. The item JSON is published to `s3://stac-pointcloud-bc`, and [stacs](https://github.com/NewGraphEnvironment/stacs) registers and verifies it (`stacs.toml`).
 
 ```bash
 uv sync

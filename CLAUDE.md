@@ -57,7 +57,7 @@ treating the repo as a Python package (#9).
   first and last day flown over that tile, and the year directory is the year of the first
   (GPS times, 2026-10-11, #2): the item carries the range. **9 deliveries name files with a
   date whose year disagrees with the directory**, so their items carry the directory year.
-  Only `092p/2017` mixes a day token with no token and keeps each file's own precision
+  `092p/2017` and `093c/2023` (one file) mix a day token with no token and keep each file's own precision
   (`lidarbc:datetime_source`).
 - **13,996 of the `pointcloud/*.laz` share a file name with a COPC in NRCan's CanElevation
   series**, in four of its projects (measured 2026-10-09; `research/canelevation_overlap.md`,
