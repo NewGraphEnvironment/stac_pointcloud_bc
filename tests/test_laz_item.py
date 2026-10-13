@@ -23,6 +23,7 @@ import catalogue_build
 import laz_item
 from laz_item import (
     ASSET_LAZ,
+    LONLAT_DECIMALS,
     PATH_S3,
     PATH_S3_STAC,
     date_parse,
@@ -249,6 +250,17 @@ def test_the_footprint_is_the_header_box_in_wgs84():
     assert it.bbox[0] == pytest.approx(min(c[0] for c in it.geometry["coordinates"][0]))
     # Fraser Valley, not somewhere a wrong zone would put it
     assert -123 < lon < -122 and 49 < lat < 49.5
+
+
+def test_the_footprint_is_rounded_so_a_linux_build_matches_a_mac_one():
+    """Unrounded, 75% of footprints differed in the last bits between macOS arm64 and
+    linux/amd64 (5.7e-14 degrees at most), so a monthly CI build would have rewritten them
+    (#4). 8 decimals is about 1 mm; a header box is stored to 1 cm."""
+    it = item_create(PC, _header(), COLL)
+    vals = [v for c in it.geometry["coordinates"][0] for v in c] + list(it.bbox)
+    assert LONLAT_DECIMALS == 8
+    assert all(round(v, LONLAT_DECIMALS) == v for v in vals)
+    assert any(round(v, LONLAT_DECIMALS - 1) != v for v in vals)  # rounded, not truncated
 
 
 UTM11_BOX = dict(mins=(324688.19, 5494147.55, 1497.05), maxs=(326539.47, 5495593.23, 1795.62))

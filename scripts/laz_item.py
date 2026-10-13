@@ -90,6 +90,8 @@ _NTS_ROWS = ("ABCD", "HGFE", "IJKL", "PONM")  # each written east -> west
 # there is no lower bound beyond a box of positive size. The upper bound is what catches a
 # box anchored at the UTM origin.
 TILE_SIDE_MAX_M = 5_000
+# Decimals of a footprint's lon/lat: about 1 mm, under the 1 cm a header box is stored to.
+LONLAT_DECIMALS = 8
 
 # <block>/<sheet>/<year>/<product>/<file>.laz
 _KEY = re.compile(r"^(\d{3})/(\d{3}[a-z])/(\d{4})/([a-z]+)/([^/]+\.laz)$")
@@ -346,7 +348,10 @@ def item_create(url: str, header: dict, collection_href: str,
     if not (0 < x1 - x0 <= hi and 0 < y1 - y0 <= hi):
         raise ValueError(f"implausible header box {header['mins']} - {header['maxs']} "
                          f"(sides {x1 - x0:.0f} x {y1 - y0:.0f} m): {url}")
-    corners = [to_wgs84.transform(x, y) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))]
+    # Rounded, so a build on another platform writes the same bytes (#4): unrounded, 75% of
+    # footprints differed between macOS arm64 and linux/amd64 in their last bits.
+    corners = [tuple(round(v, LONLAT_DECIMALS) for v in to_wgs84.transform(x, y))
+               for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))]
     lons, lats = [c[0] for c in corners], [c[1] for c in corners]
     geometry = {"type": "Polygon",
                 "coordinates": [[list(c) for c in corners] + [list(corners[0])]]}

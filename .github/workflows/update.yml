@@ -1,0 +1,174 @@
+name: Monthly update
+
+# Rebuild stac-pointcloud-bc from the LidarBC objectstore and publish what changed to
+# s3://stac-pointcloud-bc (#4), as stac_dem_bc's update.yml does for the rasters.
+#
+# The build is the whole catalogue every time (scripts/catalogue_build.py). It is warm
+# because it starts from the read caches in s3://stac-pointcloud-bc/build-cache/
+# (scripts/cache_sync.sh); cold it would not fit a runner. The publish uploads only the items
+# whose digest the bucket lacks (scripts/s3_publish.py), so an unchanged month sends nothing
+# and the collection keeps its release stamp.
+#
+# A red run is a build that refused something a person must look at (README, "Monthly
+# update"). Nothing is committed back: a new mapsheet-year is built and logged, and recorded
+# at the next release.
+#
+# Registration is NOT done here: no runner reaches the STAC host (tailnet). It is a
+# stateless upsert from a machine that can, `stacs register --config stacs.toml --mode
+# drift`, and the job summary gives the commands. A month nobody registers is caught up by
+# the next registration.
+#
+# AWS: OIDC into role_gha_stac_pointcloud_bc (rtj#362): Get, Put and List on the bucket, no
+# delete, trusted from main only. Its session lasts an hour, shorter than the build, so it is
+# assumed again before each step that writes. An hour also bounds one publish: the 40,000-item
+# ceiling (MAX_UPLOAD) is about 22 min of upload, and a full rewrite (95 min) is a release,
+# published from a local build.
+
+on:
+  schedule:
+    # The 6th, 10:17 UTC: off stac_dem_bc's 3rd, off the hour. GitHub may delay it.
+    - cron: '17 10 6 * *'
+  workflow_dispatch:
+    inputs:
+      dryrun:
+        description: >-
+          Build and plan the publish, and upload no catalogue file. The build cache is
+          still saved: it holds reads of public files, not anything published.
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write   # OIDC token for AWS
+  contents: read
+
+concurrency:
+  group: stac-pointcloud-update
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash   # -eo pipefail, so a failing build is not hidden by its tee
+
+env:
+  AWS_ROLE: arn:aws:iam::414155577829:role/role_gha_stac_pointcloud_bc
+  AWS_REGION: us-west-2
+  PYTHONUNBUFFERED: "1"
+  TQDM_MININTERVAL: "60"
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    # A warm build was 53 min on a 10-core Mac (#2); a 4-core runner is slower, and the first
+    # dispatch measures it. The build step has its own limit so the cache push gets its turn.
+    timeout-minutes: 345
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install
+        run: uv sync --frozen --python 3.12
+
+      - name: Tests
+        run: uv run --frozen pytest -q
+
+      - name: AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Pull the build cache
+        id: pull
+        run: bash scripts/cache_sync.sh pull
+
+      - name: Build
+        id: build
+        timeout-minutes: 240
+        run: |
+          mkdir -p logs
+          TIME=()
+          if [ -x /usr/bin/time ]; then TIME=(/usr/bin/time -v); fi   # peak RSS, workers included
+          PYTHONPATH=scripts "${TIME[@]}" uv run --frozen python scripts/catalogue_build.py \
+            --workers 16 2>&1 | tee logs/catalogue_build.log
+
+      # Whatever the build did, if the pull succeeded: the caches hold reads, not publication,
+      # so a failed or timed-out build keeps what it read. Not after a failed pull, which would
+      # push a short cache over a good one (cache_sync.sh refuses that too). A push that fails
+      # (a local push during the run, a transient error) costs next month a re-read, so it does
+      # not stop the publish of a good build; the summary reports it.
+      - name: AWS credentials (cache)
+        id: cache_creds
+        if: always() && steps.pull.outcome == 'success'
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Save the build cache
+        id: push
+        if: always() && steps.pull.outcome == 'success' && steps.cache_creds.outcome == 'success'
+        continue-on-error: true
+        run: bash scripts/cache_sync.sh push
+
+      # The count comes from the collection's item links, not from the directory audited.
+      - name: Audit the built items
+        run: |
+          N=$(uv run --frozen python -c 'import json; c = json.load(open("data/build/collection.json")); print(sum(l["rel"] == "item" for l in c["links"]))')
+          uv run --frozen stacs audit --config stacs.toml --dir data/build/items --expect "$N"
+
+      - name: AWS credentials (publish)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Publish
+        id: publish
+        run: |
+          export MAX_UPLOAD=40000
+          if [ "${{ inputs.dryrun }}" = "true" ]; then
+            bash scripts/s3_sync.sh --dryrun
+          else
+            bash scripts/s3_sync.sh
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## stac-pointcloud-bc monthly update"
+            echo
+            echo "| step | outcome |"
+            echo "|---|---|"
+            echo "| pull cache | ${{ steps.pull.outcome }} |"
+            echo "| build | ${{ steps.build.outcome }} |"
+            echo "| save cache | ${{ steps.push.outcome }} |"
+            echo "| publish | ${{ steps.publish.outcome }}$([ "${{ inputs.dryrun }}" = "true" ] && echo ' (dry run)') |"
+            echo
+            if [ -s data/build/publish_plan.json ]; then
+              python3 -c 'import json; p = json.load(open("data/build/publish_plan.json")); print("Built {built} items; {upload} to upload; collection {c}; {unbuilt} objects in the bucket no longer built (left in place).".format(c="changed" if p["collection"] else "unchanged", **p))'
+            fi
+            grep -E "ERROR|refus" logs/catalogue_build.log 2>/dev/null | tail -20 | sed 's/^/    /' || true
+            echo
+            echo "If items were published, register them from a tailnet machine:"
+            echo
+            echo '```'
+            echo 'cd ~/Projects/repo/stac_pointcloud_bc && git pull'
+            echo 'PYTHONUNBUFFERED=1 uv run stacs register --config stacs.toml --mode drift'
+            echo 'PYTHONUNBUFFERED=1 uv run stacs verify --config stacs.toml'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-logs
+          overwrite: true
+          path: |
+            logs/*.log
+            data/build/publish_plan.json
+          if-no-files-found: ignore

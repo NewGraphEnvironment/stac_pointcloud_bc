@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# Publish a built catalogue: item JSON first, then collection.json.
+# Publish a built catalogue: the item JSON the bucket lacks, then collection.json.
 #
+# What to upload is decided by digest (scripts/s3_publish.py): an item whose MD5 the
+# bucket's object already carries is not sent, and collection.json goes only when an item
+# does or it changed. The same path serves a local release and the monthly run (#4).
 # Items first, so a failure part-way leaves unreferenced items rather than a
 # collection.json linking items that are not there (as stac_dem_bc's s3_sync-ci.sh).
+# Nothing is deleted: an object the build no longer makes is reported and left.
 #
 # Usage: scripts/s3_sync.sh [--dryrun]    (from the repo root; uses the ambient AWS credentials)
+#   --dryrun still reads the bucket to plan, and uploads nothing.
 set -euo pipefail
 
 BUILD="data/build"
@@ -39,9 +44,33 @@ print(len(files))
 PY
 )
 
-echo "Uploading $ITEMS item JSON(s), then collection.json -> $BUCKET"
-aws s3 sync "$BUILD/items" "$BUCKET" --exclude ".*" --exclude "*.tmp" \
-  --content-type application/json ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
-aws s3 cp "$BUILD/collection.json" "$BUCKET/collection.json" \
-  --content-type application/json ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
-echo "Sync complete: $ITEMS item(s) + collection.json"
+# Python >= 3.12 (pyproject.toml), so through uv, not the system python3.
+PLAN=$(uv run --frozen python scripts/s3_publish.py --build "$BUILD" --bucket "${BUCKET#s3://}")
+read -r N_UPLOAD N_UNBUILT PUB_COLLECTION <<<"$PLAN"
+case "$N_UPLOAD:$N_UNBUILT:$PUB_COLLECTION" in
+  *[!0-9:]*|:*|*::*|*:) echo "ERROR: unreadable publish plan: '$PLAN'" >&2; exit 1 ;;
+esac
+
+# MAX_UPLOAD, when set (the monthly run sets it), caps the items one publish may send: more is
+# a rewrite of the catalogue, which is a release, not a month's growth.
+if [ -n "${MAX_UPLOAD:-}" ]; then
+  case "$MAX_UPLOAD" in
+    *[!0-9]*|??????????*) echo "ERROR: MAX_UPLOAD must be at most 9 digits, not '$MAX_UPLOAD'" >&2; exit 2 ;;
+  esac
+  if [ "$N_UPLOAD" -gt "$((10#$MAX_UPLOAD))" ]; then
+    echo "ERROR: $N_UPLOAD items to upload, over MAX_UPLOAD=$MAX_UPLOAD - a rewrite of the" \
+         "catalogue is a release; publish it deliberately" >&2
+    exit 1
+  fi
+fi
+
+echo "Built $ITEMS item(s): uploading $N_UPLOAD, collection.json $([ "$PUB_COLLECTION" = 1 ] && echo yes || echo no) -> $BUCKET"
+if [ "$N_UPLOAD" -gt 0 ]; then
+  aws s3 cp "$BUILD/upload" "$BUCKET" --recursive --only-show-errors \
+    --content-type application/json ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+fi
+if [ "$PUB_COLLECTION" = 1 ]; then
+  aws s3 cp "$BUILD/collection.json" "$BUCKET/collection.json" \
+    --content-type application/json ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+fi
+echo "Sync complete${EXTRA_ARGS[@]+ (dry run, nothing sent)}: $N_UPLOAD item(s) uploaded, collection.json $([ "$PUB_COLLECTION" = 1 ] && echo uploaded || echo unchanged), $N_UNBUILT unbuilt object(s) left in place"
