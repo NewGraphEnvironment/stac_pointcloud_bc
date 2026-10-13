@@ -80,3 +80,38 @@ These belong in `NEWS.md`, `research/`, the code, or a maintainer document, link
 - [ ] Detail moved off the page is linked from it.
 - [ ] `README.md` and `index.html` are re-rendered from `README.Rmd`, and the served page matches after the push.
 
+
+## Claim ledger (checked 2026-10-13)
+
+Claims the rewritten page keeps or adds. Live = `images.a11s.one` / `stac-pointcloud-bc.s3` read 2026-10-13.
+
+| claim | source | verdict |
+|---|---|---|
+| LidarBC lidar flown from 2012 on | collection temporal extent starts 2012-01-01 (live); `data/pointcloud_groups.json` years 2012-2026 | true |
+| Places flown more than once (tile level) | `data/readme_dem.json`: the same four Kanaka tiles (092g018_3_3_3/4, 092g028_1_1_1/2) are in the 2016 delivery and again in 2024/2025 | true; Maxan's CHM window has only 093l/2019 |
+| LidarBC publishes DSMs | stac_dem_bc PR #32 (dsm as a second asset on stac-elevation-bc) | true |
+| LidarBC publishes CHMs for 2023-24 only | stac_dem_bc#47: 264 tifs, 19 mapsheet-years, all 2023-24 | true |
+| Items give dates and CRS | live item properties `datetime`/`start_datetime`, `proj:code` | true |
+| Search from R, Python, QGIS 3.42+ | rstac, pystac-client (readme_dem.py uses it); QGIS changelog: 3.42 added STAC search in the Data Source Manager | true |
+| Read only the window from a `copc` | `data/readme_dem.json` bytes_read vs bytes_files | true |
+| `laz` stays on the province's objectstore; nothing copied | live item `laz` href on `nrs.objectstore.gov.bc.ca` | true |
+| `copc` linked only after point count, horizontal CRS and box within 0.05 m match | `catalogue_build.py` `COPC_BOX_TOLERANCE_M`, collection description | true |
+| COPC from four CanElevation projects | collection description (`catalogue_build.py:241`) | true |
+| `copc` carries its own `las:version`/`las:point_format`; `pc:schemas` describe the `laz` | `laz_item.py` | true (unchanged text) |
+| Extensions: pointcloud, projection, file, plus `lidarbc` and `las` schemas; `classification` where a class list is published | live item `stac_extensions`; `laz_item.py:27` | **page listed only three: fix** |
+| `lidarbc:delivery` matches stac_dem_bc's items | live stac-elevation-bc item `094-094o-2026-dem-bc_…` has only `datetime`, `proj:*`; stac_dem_bc#55 closed by PR #58 (code merged, not republished) | **not yet true: say "from its next full rebuild"** |
+| One item per `pointcloud/*.laz`, less named exceptions; `dsm/*.laz` not indexed | `catalogue_build.py` `EXCLUDE` (11), `EXCLUDE_DELIVERIES` (8 deliveries, 985 files) | true; "one item per .laz" overstated: fix |
+| Exclusion breakdown 4/3/3/1 | `EXCLUDE` reasons | true, but cut from the page |
+| LAS public header at most 375 bytes | LAS 1.4 spec header size 375 | true |
+| Header read with httr2 + base R, no LAS library | `readme_functions.R` `pc_readme_header` | true |
+| API serves exactly the ids collection.json links | `readme_functions.R:182-186` setdiff both ways | true |
+| Monthly run on the 6th, dispatch with `dryrun`, 40,000 ceiling, no registration | `update.yml:30-33,131` | true |
+| `s3_sync.sh` uploads changed items only, deletes nothing | `s3_sync.sh:9` | true |
+| Group listed under 90% of its count is refused | `catalogue_build.py:91` `GROUP_FLOOR = 0.9` | true |
+| Public repo schedule disabled after 60 days without activity | GitHub Actions docs | true |
+| Licence CC-BY-4.0; providers BC (producer, licensor, host), NRCan (host), NGE (processor) | live collection.json | true |
+| Landing page served | `https://www.newgraphenvironment.com/stac_pointcloud_bc/` HTTP 200 | true |
+| floodplains#121 link readable outside | `floodplains` is public | true |
+| Not re-measured: 2.5 h header re-read, ~20 MB caches, 9 min sync check | CLAUDE.md, 2026-10-11 measurements | moved to `maintaining.md` with their dates |
+
+Counts on the old page that the monthly run makes stale: the `items-` badge, "N items in M mapsheet-years", "N of M items" with copc, "9 minutes to check N items", "253 … 38" (0.3.0 class lists), the per-mapsheet-year table and its summary, and the Similkameen search count. The API reports no `numberMatched` (`/search?limit=1`, 2026-10-13), so no live count can replace them.

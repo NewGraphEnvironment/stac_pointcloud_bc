@@ -3,8 +3,8 @@
 The landing page (`README.Rmd` -> `README.md`, `index.html`) opens with what the catalogue is made of rather than why anyone would want it, prints counts the monthly update (#4) makes stale, says "client" where it means people and software, and carries maintainer detail a reader has to scroll past. Decided at the plan gate: drop the per-mapsheet-year table; keep a short build section at the end and move the rest to `maintaining.md`.
 
 ## Phase 1: Claim ledger
-- [ ] Write a findings table: each claim the page keeps, its source (code line, live API/bucket, research file, external doc), its verdict, and the date checked. Carry over the 2026-10-13 audit from #24.
-- [ ] Check the new opening's claims:
+- [x] Write a findings table: each claim the page keeps, its source (code line, live API/bucket, research file, external doc), its verdict, and the date checked. Carry over the 2026-10-13 audit from #24.
+- [x] Check the new opening's claims:
   - the year range comes from the collection's temporal extent and `data/pointcloud_groups.json`
   - "flown more than once" is shown at tile level for the two demo places (Kanaka 092g, Maxan 093l) from `data/readme_dem.json` and `data/readme_chm.json` items, not inferred from mapsheet-years
   - the CHM statement comes from stac_dem_bc#47
