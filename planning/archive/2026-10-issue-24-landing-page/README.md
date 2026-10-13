@@ -25,4 +25,4 @@ This replaced the page's earlier rule twice over. It also corrected `research/fi
 
 The claim ledger (`findings.md`) lists every kept claim with its source and verdict. The per-member enumeration of every summarising sentence is `review-round3.md`.
 
-Closed by: PR for #24 (number added on opening)
+Closed by: PR #26
