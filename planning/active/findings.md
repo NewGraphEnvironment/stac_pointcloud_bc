@@ -115,3 +115,17 @@ Claims the rewritten page keeps or adds. Live = `images.a11s.one` / `stac-pointc
 | Not re-measured: 2.5 h header re-read, ~20 MB caches, 9 min sync check | CLAUDE.md, 2026-10-11 measurements | moved to `maintaining.md` with their dates |
 
 Counts on the old page that the monthly run makes stale: the `items-` badge, "N items in M mapsheet-years", "N of M items" with copc, "9 minutes to check N items", "253 … 38" (0.3.0 class lists), the per-mapsheet-year table and its summary, and the Similkameen search count. The API reports no `numberMatched` (`/search?limit=1`, 2026-10-13), so no live count can replace them.
+
+## Code-check: how the review ended (2026-10-13)
+
+Rounds 2-5 each found a defect inside the previous round's fix, so the loop ended by enumeration rather than by a quiet round. Round 3 named the mechanism: summary sentences written from a prose ancestor drop the qualifiers that made them true for edge members. Round 3 walked every summarising claim on both pages (`review-round3.md`); rounds 4 and 5 walked the sentences each fix changed. The set that kept moving, item dates, was then enumerated from all 174,282 items of the 0.3.0 build:
+
+| shape | `datetime_source` | `filename_date` | items |
+|---|---|---|---|
+| day | filename | yes | 64,372 |
+| range of days (two-day names) | filename | yes | 44,744 |
+| year (year-only names) | filename | yes | 55,538 |
+| year (untrusted deliveries) | path | yes | 8,762 |
+| year (token the parser cannot read, #25) | path | no | 866 |
+
+`092p/2017`: 208 day, 127 path-year. `093c/2023`: 1,812 day, 1,156 range, 1 path-year. Nine untrusted deliveries, 8,769 items (7 of them also unread). The README date sentence, the CLAUDE.md delivery sentence and the `research/filename_dates.md` counts are written from this table. The item-creation sentence is written from the inputs of the three pure functions (`item_create`: href, header, delivery trust; `copc_asset_add`: the copy's header; `classes_add`: the whole-file class read).

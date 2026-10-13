@@ -35,9 +35,11 @@ is untrusted, and every file in it gets the directory year. In 0.3.0 that is 9 d
 
 ## Counts (0.3.0, 174,282 items)
 
-64,372 items carry a day, 44,744 a range of days, and 65,166 a year (year-only names, the
-untrusted deliveries, and 866 names whose token the parser cannot read, #25). Each says which in `lidarbc:datetime_source`, and keeps the name's last
-date token in `lidarbc:filename_date`.
+64,372 items carry a day, 44,744 a range of days, and 65,166 a year: 55,538 with year-only names,
+the 8,762 other items of the nine untrusted deliveries, and 866 whose token the parser cannot read
+(#25; 7 of them are in an untrusted delivery). `lidarbc:datetime_source` says whether the date came
+from the file name or the directory, and `lidarbc:filename_date` keeps the name's last date token
+wherever the parser read one (measured from the 0.3.0 build, 2026-10-13, #24).
 
 ## Not established
 

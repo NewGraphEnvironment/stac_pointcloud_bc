@@ -183,7 +183,7 @@ The whole script, with the figure, is [`scripts/readme_chm.R`](https://github.co
 
 Items carry the [pointcloud](https://github.com/stac-extensions/pointcloud), [projection](https://github.com/stac-extensions/projection) and [file](https://github.com/stac-extensions/file) extensions. They also carry `las:` fields for facts about the LAS format and `lidarbc:` fields for LidarBC's paths and file names. An item with a class list also carries the [classification](https://github.com/stac-extensions/classification) extension.
 
-An item's date comes from its file name wherever the build can read the date and trust it: a day (`datetime`) or a range (`start_datetime` / `end_datetime`), which for a name carrying two days is the first and last day flown. Otherwise the item spans the year of its directory, for example where a delivery's file names carry processing dates. `lidarbc:datetime_source` says which, and [`research/filename_dates.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/filename_dates.md) has the rules and how they were measured.
+An item's date comes from its file name wherever the build can read the date and trust it: the day (`datetime`); the first and last day flown, where the name carries two (`start_datetime` / `end_datetime`); or the year, where the name carries only a year. Otherwise the item spans the year of its directory, for example where a delivery's file names carry processing dates. `lidarbc:datetime_source` says whether the date came from the file name or the directory, and [`research/filename_dates.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/filename_dates.md) has the rules and how they were measured.
 
 Each item names its delivery in `lidarbc:delivery` (`<block>/<sheet>/<year>`, such as `092/092g/2016`), which keeps one delivery apart from another where several cover the same place. The DEM and DSM items of [stac-elevation-bc](https://github.com/NewGraphEnvironment/stac_dem_bc) will carry the same key once stac_dem_bc publishes it ([stac_dem_bc#61](https://github.com/NewGraphEnvironment/stac_dem_bc/issues/61)), and this collection links it as `related`.
 
@@ -299,7 +299,7 @@ The item is `r ex$item`. `r if (identical(ex$h_laz$las_version, ex$h_copc$las_ve
 
 ## Build and maintain
 
-The catalogue is built in Python. Items are created by pure functions (`scripts/laz_item.py`) from each file's href and header and what the build measured about it. The item JSON is published to `s3://stac-pointcloud-bc`, and [stacs](https://github.com/NewGraphEnvironment/stacs) registers and verifies it (`stacs.toml`).
+The catalogue is built in Python. Items are created by pure functions (`scripts/laz_item.py`) from a file's href and header, and what the build found about its delivery, its CanElevation copy and its classes. The item JSON is published to `s3://stac-pointcloud-bc`, and [stacs](https://github.com/NewGraphEnvironment/stacs) registers and verifies it (`stacs.toml`).
 
 ```bash
 uv sync
