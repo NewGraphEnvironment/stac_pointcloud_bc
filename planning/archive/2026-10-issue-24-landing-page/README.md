@@ -46,3 +46,8 @@ A review of the rewrite (`review-rev-round1.md`) found six overstatements:
 - a DSM-specification claim had lost its source
 
 Live stac-elevation-bc items now carry `lidarbc:delivery`, and a filter on `092/092g/2016` returns items from both collections, so the page says "carry" and NewGraphEnvironment/stac_dem_bc#61 is resolved.
+
+The revision took three review rounds (`review-rev-round1..3.md`). Rounds 2 and 3 each caught a dropped qualifier inside the previous fix, both in the CHM share: "some deliveries", then "one in a hundred tiles" (true only of the 18 deliveries that have any CHM; across all 2023–24 deliveries it is 264 of 72,814). It ended with the sentences written from the measured sets:
+- "only a few hundred tiles, all from 2023 and 2024" (264 CHM tifs)
+- "as almost all of LidarBC's files are" (1 of 174,282 is a `.copc.laz`)
+- "every item from a LidarBC delivery … (its province-wide mosaics do not)" (2,288 mosaic items without the key)
