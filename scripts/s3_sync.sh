@@ -51,6 +51,19 @@ case "$N_UPLOAD:$N_UNBUILT:$PUB_COLLECTION" in
   *[!0-9:]*|:*|*::*|*:) echo "ERROR: unreadable publish plan: '$PLAN'" >&2; exit 1 ;;
 esac
 
+# MAX_UPLOAD, when set (the monthly run sets it), caps the items one publish may send: more is
+# a rewrite of the catalogue, which is a release, not a month's growth.
+if [ -n "${MAX_UPLOAD:-}" ]; then
+  case "$MAX_UPLOAD" in
+    *[!0-9]*|??????????*) echo "ERROR: MAX_UPLOAD must be at most 9 digits, not '$MAX_UPLOAD'" >&2; exit 2 ;;
+  esac
+  if [ "$N_UPLOAD" -gt "$((10#$MAX_UPLOAD))" ]; then
+    echo "ERROR: $N_UPLOAD items to upload, over MAX_UPLOAD=$MAX_UPLOAD - a rewrite of the" \
+         "catalogue is a release; publish it deliberately" >&2
+    exit 1
+  fi
+fi
+
 echo "Built $ITEMS item(s): uploading $N_UPLOAD, collection.json $([ "$PUB_COLLECTION" = 1 ] && echo yes || echo no) -> $BUCKET"
 if [ "$N_UPLOAD" -gt 0 ]; then
   aws s3 cp "$BUILD/upload" "$BUCKET" --recursive --only-show-errors \
@@ -60,4 +73,4 @@ if [ "$PUB_COLLECTION" = 1 ]; then
   aws s3 cp "$BUILD/collection.json" "$BUCKET/collection.json" \
     --content-type application/json ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 fi
-echo "Sync complete: $N_UPLOAD item(s) uploaded, collection.json $([ "$PUB_COLLECTION" = 1 ] && echo uploaded || echo unchanged), $N_UNBUILT unbuilt object(s) left in place"
+echo "Sync complete${EXTRA_ARGS[@]+ (dry run, nothing sent)}: $N_UPLOAD item(s) uploaded, collection.json $([ "$PUB_COLLECTION" = 1 ] && echo uploaded || echo unchanged), $N_UNBUILT unbuilt object(s) left in place"

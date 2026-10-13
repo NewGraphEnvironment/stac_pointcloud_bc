@@ -62,13 +62,13 @@ What exploration found that shapes the work:
 
 ## Phase 2: Build cache in the bucket
 
-- [ ] `scripts/cache_sync.sh pull|push [--dryrun]` moves `headers.jsonl`,
+- [x] `scripts/cache_sync.sh pull|push [--dryrun]` moves `headers.jsonl`,
   `copc_headers.jsonl`, `classes.jsonl` and `classes_full.jsonl` (laz_classes_probe
   names), gzipped, to and from `build-cache/`.
   - `pull` refuses a missing object or a failed gunzip, rather than building cold
     without saying so.
   - `push` uploads each `.gz` as a whole object, never a partial one.
-- [ ] Seed `build-cache/` from this Mac's `data/build`, then pull it into scratch and `cmp`
+- [x] Seed `build-cache/` from this Mac's `data/build`, then pull it into scratch and `cmp`
   the round trip. This writes to the production bucket. If auto mode refuses it, I hand
   you the bare command.
 
@@ -114,7 +114,7 @@ What exploration found that shapes the work:
 ## Corrections from the plan review (`review-plan.md`)
 
 - [ ] Re-assume the role before the cache push and before the publish (1 h OIDC session, B1)
-- [ ] Push gated on a successful pull; refuse fewer lines than pulled; skip an unchanged `.gz` (B2)
+- [x] Push gated on a successful pull; refuse fewer lines than pulled; skip an unchanged `.gz` (B2)
 - [x] Cross-platform footprints (A1): linux/amd64 differs from the Mac in the last ulp for 75%
   of a 1-in-20 sample (findings.md). User chose rounding lon/lat to 8 dp (`LONLAT_DECIMALS`);
   after it, 0 of 8,713 differ. Every item changes once: a release (follow-up issue).

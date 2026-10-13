@@ -48,3 +48,11 @@ from `data/build/items`.
   about 1 mm; header boxes are stored to 1 cm). Same probe after the change: **0 of 8,713
   differ**. Every published item's geometry and bbox change once, so it ships as a release
   (rebuild, publish, verify, register), before the first scheduled run publishes it unstamped.
+
+## Build cache seeded (2026-10-13, 02:48:50Z to 02:49:03Z)
+
+`scripts/cache_sync.sh push` from this Mac's `data/build`: headers 175,318 lines (15.7 MB gz),
+COPC headers 13,996 (1.3 MB), class samples 35,055 (3.1 MB), whole reads 349 (37 KB). Pulled
+into an empty scratch tree: all four byte-identical to the local files. Guards exercised there:
+an unchanged push uploads nothing; a cache cut to 100 lines is refused; a tree that never
+pulled is refused; a pull over a local cache merges (175,318 + 175,318 -> 175,318).
