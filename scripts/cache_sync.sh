@@ -54,6 +54,8 @@ if [ "$MODE" = pull ]; then
     gunzip -c "$PULLED/$f.gz" > "$PULLED/$f"
     n=$(lines "$PULLED/$f")
     [ "$n" -gt 0 ] || { echo "ERROR: $PREFIX/$f.gz holds no lines" >&2; exit 1; }
+    # What the bucket holds, before any merge: a merged file differs from it and must push.
+    cksum < "$PULLED/$f" > "$PULLED/$f.cksum"
     if [ -s "$BUILD/$f" ]; then
       ends_whole "$BUILD/$f" || {
         echo "ERROR: $BUILD/$f ends mid-line; run the build once to repair it, then pull" >&2
@@ -67,7 +69,6 @@ if [ "$MODE" = pull ]; then
     rm -f "$PULLED/$f" "$PULLED/$f.gz"
     mv "$BUILD/$f.new" "$BUILD/$f"
     lines "$BUILD/$f" > "$PULLED/$f.lines"
-    cksum < "$BUILD/$f" > "$PULLED/$f.cksum"
     echo "$etag" > "$PULLED/$f.etag"
   done
   exit 0

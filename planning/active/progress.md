@@ -26,3 +26,4 @@
   (one publish must fit the 1 h session); cache push `continue-on-error` and in the summary;
   cache "unchanged" by uncompressed cksum; README CanElevation exception. Fetch path probed
   live: a re-serialised item with a space in its name left, a moved coordinate uploaded.
+- code-check round 2: 1 finding inside a round 1 fix (cksum of merged file), reproduced, fixed; marker sites enumerated (review-round2.md).
