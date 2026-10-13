@@ -16,3 +16,4 @@
   Asked the user (stored-data decision); continuing on Phases 2-4.
 - Rounded footprints to 8 dp (user's choice); probe after: 0 of 8,713 differ. Test red without the rounding.
 - Phase 2: `scripts/cache_sync.sh`; seeded `build-cache/` (20 MB); round trip identical; push guards exercised (findings.md). `s3_sync.sh` gained `MAX_UPLOAD`.
+- Phase 3: `.github/workflows/update.yml` (role re-assumed before cache push and publish, MAX_UPLOAD 40,000 unless `rewrite`, summary under always()), `tests.yml` (pytest on pull_request); actionlint clean. `cache_sync.sh push` cuts an interrupted record first.

@@ -41,6 +41,7 @@ remote_etag() {
 }
 
 lines() { wc -l < "$1" | tr -d ' '; }
+ends_whole() { [ "$(tail -c 1 "$1" | od -An -c | tr -d ' ')" = '\n' ]; }
 
 if [ "$MODE" = pull ]; then
   for f in "${FILES[@]}"; do
@@ -53,7 +54,7 @@ if [ "$MODE" = pull ]; then
     n=$(lines "$PULLED/$f")
     [ "$n" -gt 0 ] || { echo "ERROR: $PREFIX/$f.gz holds no lines" >&2; exit 1; }
     if [ -s "$BUILD/$f" ]; then
-      [ "$(tail -c 1 "$BUILD/$f" | od -An -c | tr -d ' ')" = '\n' ] || {
+      ends_whole "$BUILD/$f" || {
         echo "ERROR: $BUILD/$f ends mid-line; run the build once to repair it, then pull" >&2
         exit 1; }
       awk '!seen[$0]++' "$BUILD/$f" "$PULLED/$f" > "$BUILD/$f.new"
@@ -86,6 +87,13 @@ for f in "${FILES[@]}"; do
   fi
 done
 for f in "${FILES[@]}"; do
+  # A build killed mid-append (a timeout) leaves part of a record after the last newline.
+  # Cut it, as laz_classes_probe.cache_tail_repair does: merged into another copy it would
+  # become a malformed line mid-file, which the readers refuse.
+  if ! ends_whole "$BUILD/$f"; then
+    sed '$d' "$BUILD/$f" > "$BUILD/$f.whole" && mv "$BUILD/$f.whole" "$BUILD/$f"
+    echo "$f: dropped an interrupted record at its end"
+  fi
   gzip -n -c "$BUILD/$f" > "$BUILD/$f.gz"
   if [ -s "$PULLED/$f.gz" ] && cmp -s "$BUILD/$f.gz" "$PULLED/$f.gz"; then
     echo "$f: unchanged since pull, not uploaded"

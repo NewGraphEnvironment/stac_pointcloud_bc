@@ -74,12 +74,12 @@ What exploration found that shapes the work:
 
 ## Phase 3: Workflow
 
-- [ ] `.github/workflows/update.yml`:
+- [x] `.github/workflows/update.yml`:
   - Triggers: cron `17 10 6 * *` (6th of the month, staggered from stac_dem_bc's 3rd),
     plus `workflow_dispatch` with a `dryrun` boolean.
   - `permissions: {id-token: write, contents: read}`, a `concurrency` group,
     `timeout-minutes: 340`.
-- [ ] Steps, in order:
+- [x] Steps, in order:
   1. checkout → `astral-sh/setup-uv` → `uv sync --frozen` → `uv run pytest -q`;
   2. OIDC into the role → `cache_sync.sh pull`;
   3. the build, with `PYTHONUNBUFFERED=1` and its own step timeout so the cache push
@@ -91,7 +91,7 @@ What exploration found that shapes the work:
   7. job summary with upload, unlinked and collection counts, plus the register and
      verify commands;
   8. log artifact under `always()`.
-- [ ] Lint with `uvx --from actionlint-py actionlint` (nothing installed on the machine).
+- [x] Lint with `uvx --from actionlint-py actionlint` (nothing installed on the machine).
 
 ## Phase 4: Docs
 
@@ -113,16 +113,16 @@ What exploration found that shapes the work:
 
 ## Corrections from the plan review (`review-plan.md`)
 
-- [ ] Re-assume the role before the cache push and before the publish (1 h OIDC session, B1)
+- [x] Re-assume the role before the cache push and before the publish (1 h OIDC session, B1)
 - [x] Push gated on a successful pull; refuse fewer lines than pulled; skip an unchanged `.gz` (B2)
 - [x] Cross-platform footprints (A1): linux/amd64 differs from the Mac in the last ulp for 75%
   of a 1-in-20 sample (findings.md). User chose rounding lon/lat to 8 dp (`LONLAT_DECIMALS`);
   after it, 0 of 8,713 differ. Every item changes once: a release (follow-up issue).
-- [ ] Refuse a publish that uploads more than a monthly share unless dispatched to rewrite
+- [x] Refuse a publish that uploads more than a monthly share unless dispatched to rewrite
   (`MAX_UPLOAD`), so a merged item change cannot be published by the cron as if it were growth
-- [ ] Pin `ubuntu-24.04` and Python 3.12; `/usr/bin/time -v` on the build; `TQDM_MININTERVAL` (A2, A4, G6)
-- [ ] `--expect` from the collection's item links; summary under `always()`; dry run saves the cache (G3, G4, S1)
-- [ ] `tests.yml` on `pull_request`, no AWS (G5)
+- [x] Pin `ubuntu-24.04` and Python 3.12; `/usr/bin/time -v` on the build; `TQDM_MININTERVAL` (A2, A4, G6)
+- [x] `--expect` from the collection's item links; summary under `always()`; dry run saves the cache (G3, G4, S1)
+- [x] `tests.yml` on `pull_request`, no AWS (G5)
 - [ ] README: every red-run cause, the 60-day schedule rule, local pull-before-build (A5-A7, G7)
 
 ## Validation
