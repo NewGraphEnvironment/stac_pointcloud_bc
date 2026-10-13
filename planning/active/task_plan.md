@@ -54,7 +54,7 @@ Plan review (2026-10-13, `review-plan.md`) changed two things: Phases 2 and 3 la
 - [ ] Commit the renders.
 
 ## Phase 5: Out of scope, filed
-- [ ] The collection's `related` link title ("match items on lidarbc:delivery") is not true until stac_dem_bc republishes. Note it on stac_dem_bc#55 or file a follow-up there, rather than republishing `collection.json` here.
+- [x] The collection's `related` link title ("match items on lidarbc:delivery") is not true until stac_dem_bc republishes. Note it on stac_dem_bc#55 or file a follow-up there, rather than republishing `collection.json` here. Filed as NewGraphEnvironment/stac_dem_bc#61.
 
 ## Validation
 

@@ -104,7 +104,7 @@ Claims the rewritten page keeps or adds. Live = `images.a11s.one` / `stac-pointc
 | Exclusion breakdown 4/3/3/1 | `EXCLUDE` reasons | true, but cut from the page |
 | LAS public header at most 375 bytes | LAS 1.4 spec header size 375 | true |
 | Header read with httr2 + base R, no LAS library | `readme_functions.R` `pc_readme_header` | true |
-| API serves exactly the ids collection.json links | `readme_functions.R:182-186` setdiff both ways | true |
+| API serves exactly the ids collection.json links | was `readme_functions.R:182-186`; the check went with `pc_readme_fetch()` on this branch | claim removed from the page |
 | Monthly run on the 6th, dispatch with `dryrun`, 40,000 ceiling, no registration | `update.yml:30-33,131` | true |
 | `s3_sync.sh` uploads changed items only, deletes nothing | `s3_sync.sh:9` | true |
 | Group listed under 90% of its count is refused | `catalogue_build.py:91` `GROUP_FLOOR = 0.9` | true |

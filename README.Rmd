@@ -183,19 +183,19 @@ The whole script, with the figure, is [`scripts/readme_chm.R`](https://github.co
 
 Items carry the [pointcloud](https://github.com/stac-extensions/pointcloud), [projection](https://github.com/stac-extensions/projection) and [file](https://github.com/stac-extensions/file) extensions. They also carry `las:` fields for facts about the LAS format and `lidarbc:` fields for LidarBC's paths and file names. An item with a class list also carries the [classification](https://github.com/stac-extensions/classification) extension.
 
-An item's date comes from its file name when every name in the delivery agrees with its year directory. That is the day flown (`datetime`), or, where the name carries two days, the first and last day flown (`start_datetime` / `end_datetime`). Otherwise the item spans the directory's year, because some deliveries name files with processing dates rather than acquisition dates. `lidarbc:datetime_source` says which, and `lidarbc:filename_date` keeps the file name's own date.
+An item's date comes from its file name unless some file name in the delivery carries a date that disagrees with its year directory. That is the day flown (`datetime`), or, where the name carries two days, the first and last day flown (`start_datetime` / `end_datetime`). Otherwise the item spans the directory's year, because some deliveries name files with processing dates rather than acquisition dates. `lidarbc:datetime_source` says which, and `lidarbc:filename_date` keeps the file name's own date.
 
 Each item names its delivery in `lidarbc:delivery` (`<block>/<sheet>/<year>`, such as `092/092g/2016`), which keeps one flight apart from another where several cover the same place. The DEM and DSM items of [stac-elevation-bc](https://github.com/NewGraphEnvironment/stac_dem_bc) will carry the same key from that catalogue's next full rebuild ([stac_dem_bc#55](https://github.com/NewGraphEnvironment/stac_dem_bc/issues/55)), and this collection links it as `related`.
 
 ### Which classes a file holds
 
-A LAS header does not say which classes a file holds, and a few files lack what you would assume. Some have no ground returns at all, so they give no bare-earth surface, and some have only ground. The build samples the least dense files of each mapsheet-year, where such files gather, and reads in full each one the sample flags. Those items list every class present, with its point count, in the `laz` asset's `classification:classes`. The screen misses a few, so an item without a list has not been checked: look at its points before relying on its ground or vegetation classes. Most of LidarBC's vegetation is unclassified (class 1). Water can be class 1 too, as at Bulkley Lake above. The method and what it found are in [`research/laz_classes.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_classes.md).
+A LAS header does not say which classes a file holds, and a few files lack what you would assume. Some have no ground returns at all, so they give no bare-earth surface, and some have only ground. The build samples the least dense files of each mapsheet-year, where such files gather, and reads in full each one the sample flags. Those items list every class present, with its point count, in the `laz` asset's `classification:classes`. The screen misses a few, so an item without a list was not read in full: look at its points before relying on its ground or vegetation classes. Most of LidarBC's vegetation is unclassified (class 1). Water can be class 1 too, as at Bulkley Lake above. The method and what it found are in [`research/laz_classes.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_classes.md).
 
 ## What is indexed
 
 Every point-cloud file LidarBC publishes under `<block>/<sheet>/<year>/pointcloud/`, with two exceptions:
 
-- a few files whose header no item can be built from
+- a few files with a faulty header, or filed under the wrong mapsheet
 - eight 2017 deliveries that state no coordinate system; indexing them from the CRS their DEM declares is [#15](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/15)
 
 Each exception is named, with its reason, in [`scripts/catalogue_build.py`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/catalogue_build.py) (`EXCLUDE`, `EXCLUDE_DELIVERIES`).
