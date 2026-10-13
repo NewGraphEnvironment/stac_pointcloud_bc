@@ -44,3 +44,7 @@ from `data/build/items`.
 - So the first CI build would upload about 130k of 174k items and an unstamped collection,
   and Mac and CI builds would then rewrite each other's items. Caveat: amd64 was emulated;
   the first dry-run dispatch measures the real runner.
+- **Decision (user, 2026-10-13): round lon/lat to 8 decimals** (`laz_item.LONLAT_DECIMALS`,
+  about 1 mm; header boxes are stored to 1 cm). Same probe after the change: **0 of 8,713
+  differ**. Every published item's geometry and bbox change once, so it ships as a release
+  (rebuild, publish, verify, register), before the first scheduled run publishes it unstamped.

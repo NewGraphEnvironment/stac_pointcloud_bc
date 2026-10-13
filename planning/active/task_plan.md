@@ -115,8 +115,11 @@ What exploration found that shapes the work:
 
 - [ ] Re-assume the role before the cache push and before the publish (1 h OIDC session, B1)
 - [ ] Push gated on a successful pull; refuse fewer lines than pulled; skip an unchanged `.gz` (B2)
-- [ ] Cross-platform footprints (A1): linux/amd64 differs from the Mac in the last ulp for 75%
-  of a 1-in-20 sample (findings.md). Decision with the user; see findings.md.
+- [x] Cross-platform footprints (A1): linux/amd64 differs from the Mac in the last ulp for 75%
+  of a 1-in-20 sample (findings.md). User chose rounding lon/lat to 8 dp (`LONLAT_DECIMALS`);
+  after it, 0 of 8,713 differ. Every item changes once: a release (follow-up issue).
+- [ ] Refuse a publish that uploads more than a monthly share unless dispatched to rewrite
+  (`MAX_UPLOAD`), so a merged item change cannot be published by the cron as if it were growth
 - [ ] Pin `ubuntu-24.04` and Python 3.12; `/usr/bin/time -v` on the build; `TQDM_MININTERVAL` (A2, A4, G6)
 - [ ] `--expect` from the collection's item links; summary under `always()`; dry run saves the cache (G3, G4, S1)
 - [ ] `tests.yml` on `pull_request`, no AWS (G5)

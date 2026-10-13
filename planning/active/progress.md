@@ -14,3 +14,4 @@
   `review-plan.md`, corrections added to `task_plan.md`.
 - A1 probed: linux/amd64 footprints differ from the Mac's in the last ulp for 75% of items.
   Asked the user (stored-data decision); continuing on Phases 2-4.
+- Rounded footprints to 8 dp (user's choice); probe after: 0 of 8,713 differ. Test red without the rounding.
