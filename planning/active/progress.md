@@ -27,3 +27,4 @@
   cache "unchanged" by uncompressed cksum; README CanElevation exception. Fetch path probed
   live: a re-serialised item with a space in its name left, a moved coordinate uploaded.
 - code-check round 2: 1 finding inside a round 1 fix (cksum of merged file), reproduced, fixed; marker sites enumerated (review-round2.md).
+- code-check round 3: mechanism named (local value taken for the remote's state); its one other break, the push check-then-act window, fixed with a conditional PUT and probed on the bucket (412 refused; If-Match push recorded its own ETag).

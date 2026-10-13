@@ -74,9 +74,13 @@ if [ "$MODE" = pull ]; then
   exit 0
 fi
 
+# The ETag each check saw, which the upload then requires (If-Match), so a push landing
+# between this check and the upload is refused rather than overwritten.
+ETAGS=()
 for f in "${FILES[@]}"; do
   [ -s "$BUILD/$f" ] || { echo "ERROR: $BUILD/$f missing or empty; not pushing" >&2; exit 1; }
   etag=$(remote_etag "$f")
+  ETAGS+=("$etag")
   if [ -n "$etag" ] && [ "$etag" != "$(cat "$PULLED/$f.etag" 2>/dev/null || true)" ]; then
     echo "ERROR: $PREFIX/$f.gz is not the copy this tree last pulled or pushed; pull first" >&2
     exit 1
@@ -89,7 +93,10 @@ for f in "${FILES[@]}"; do
       exit 1; }
   fi
 done
+i=0
 for f in "${FILES[@]}"; do
+  expect="${ETAGS[$i]}"
+  i=$((i + 1))
   # A build killed mid-append (a timeout) leaves part of a record after the last newline.
   # Cut it, as laz_classes_probe.cache_tail_repair does: merged into another copy it would
   # become a malformed line mid-file, which the readers refuse.
@@ -101,13 +108,23 @@ for f in "${FILES[@]}"; do
     echo "$f: unchanged since pull, not uploaded"
   else
     gzip -n -c "$BUILD/$f" > "$BUILD/$f.gz"
-    aws s3 cp "$BUILD/$f.gz" "s3://$BUCKET/$PREFIX/$f.gz" --only-show-errors \
-      --content-type application/gzip ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
-    echo "$f: $(lines "$BUILD/$f") lines pushed${EXTRA_ARGS[@]+ (dry run, nothing sent)}"
-    if [ ${#EXTRA_ARGS[@]} -eq 0 ]; then
+    if [ ${#EXTRA_ARGS[@]} -gt 0 ]; then
+      echo "$f: $(lines "$BUILD/$f") lines to push (dry run, nothing sent)"
+    else
+      # The write is the compare-and-swap, and its own ETag is recorded: a listing after it
+      # could return another writer's. Single PUT: a cache is far under PutObject's 5 GB.
+      if [ -n "$expect" ]; then COND=(--if-match "$expect"); else COND=(--if-none-match '*'); fi
+      if ! new=$(aws s3api put-object --bucket "$BUCKET" --key "$PREFIX/$f.gz" \
+          --body "$BUILD/$f.gz" --content-type application/gzip "${COND[@]}" \
+          --query ETag --output text); then
+        echo "ERROR: $PREFIX/$f.gz was not written: it changed after the check (412), or the" \
+             "upload failed; pull first" >&2
+        exit 1
+      fi
       lines "$BUILD/$f" > "$PULLED/$f.lines"
       cksum < "$BUILD/$f" > "$PULLED/$f.cksum"
-      remote_etag "$f" > "$PULLED/$f.etag"
+      echo "$new" > "$PULLED/$f.etag"
+      echo "$f: $(lines "$BUILD/$f") lines pushed"
     fi
     rm -f "$BUILD/$f.gz"
   fi
