@@ -6,26 +6,29 @@ stac-pointcloud-bc
 ![status](https://img.shields.io/badge/status-province--wide-green)
 ![api](https://img.shields.io/badge/api-images.a11s.one-orange)
 
-**`stac-pointcloud-bc`** is a searchable catalogue of British Columbia’s lidar point clouds.
+[`stac_pointcloud_bc`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc) is a searchable index of British Columbia’s lidar point clouds, served as the `stac-pointcloud-bc` collection.
 
 Lidar measures the shape of the land and everything standing on it. The province’s [LidarBC](https://lidar.gov.bc.ca/) program publishes lidar flown across BC since 2012, and each flight records the land as it was when it was flown.
 
 - A **bare-earth model** (DEM) shows the ground beneath the trees: floodplains, side channels and old channels, terraces, and the roads and embankments built across a river’s path. It shows where water goes, and where it used to go.
 - A **surface model** (DSM) is the top of whatever stands there. With the ground subtracted, it becomes a **canopy height model** (CHM): how tall the streamside forest is, where it shades the water, and where it has been cleared or is coming back.
-- The same points can make products LidarBC does not publish. Examples are height above the channel to map a floodplain, or the density and layering of vegetation.
-- Where a place has been flown more than once, comparing flights turns change into something that can be measured and shown to others: a channel moving, forest lost or regrowing, a floodplain filled or reconnected. Each new delivery adds another point in time. Flights differ in density and in how their points were classified, so a comparison starts by checking that the two can be compared.
+- Where a place has been flown more than once, comparing flights turns change into something that can be measured and shown to others: a channel moving, forest lost or regrowing, a floodplain filled or reconnected. Flights differ in density and in how their points were classified, so a comparison starts by checking that the two can be compared.
 
-This catalogue makes that data easy to find and use, for people and for software. Search for a place from R, Python or QGIS and you get back the point-cloud files that cover it, with their dates and coordinate systems. Nothing has to be downloaded to find out what is there, and the files stay where the province publishes them. For the files that also have a cloud-optimised copy, you can read just the area you need. Anyone working to understand, conserve or restore a watershed can start from the data rather than from a hunt for it, and others can repeat the work and build on it.
+**Why the point clouds.** The ready-made products are uneven. LidarBC publishes DEMs, surface models for most tiles but not all, and canopy height models for 2023 and 2024 only. Each comes at the resolution and by the method LidarBC chose, and its surface models are made to specifications that differ between deliveries. The point clouds are the common source. From them you choose the product, its resolution and which returns go into it, and you can apply one method to every flight, so that years compare. They also give products LidarBC does not publish, such as height above the channel to map a floodplain, or the density and layering of vegetation.
 
-It is a [SpatioTemporal Asset Catalog](https://stacspec.org/) (STAC), an open standard for describing geospatial data so that it can be searched by place and time. The endpoint is <https://images.a11s.one>. It can be read with the [`rstac`](https://brazil-data-cube.github.io/rstac/) R package, `pystac-client` in Python, QGIS 3.42+, or any other STAC tool. Each item is one point-cloud file. Its footprint, point count, point format and coordinate reference system come from the file’s own header. The DEM and DSM rasters LidarBC publishes for the same deliveries are a sister collection on the same endpoint, [`stac-elevation-bc`](https://github.com/NewGraphEnvironment/stac_dem_bc).
+**Two sources.** Every file is LidarBC’s, on the province’s objectstore. For a minority of them, Natural Resources Canada’s [CanElevation](https://open.canada.ca/data/en/dataset/7069387e-9986-4297-9f55-0288e9676947) series publishes a cloud-optimised copy (COPC). A program can read one area of a COPC over the internet; any other file has to be downloaded whole before its points can be used. Each item links the LidarBC file and, where there is one, its COPC.
 
-## Bare earth: a DEM from one search, without downloading a file
+**An index, not a copy.** The catalogue holds one small record per file: where the file is, the area it covers, when it was flown, its coordinate system and its point count. No point data is copied, and the index is rebuilt each month from the province’s listing. People search it by place and time from R ([`rstac`](https://brazil-data-cube.github.io/rstac/)), Python (`pystac-client`), QGIS 3.42+ or any other [STAC](https://stacspec.org/) tool, and applications can be built on its API at <https://images.a11s.one>. The records are public: the bucket’s [collection.json](https://stac-pointcloud-bc.s3.us-west-2.amazonaws.com/collection.json) links every one, and [stacs](https://github.com/NewGraphEnvironment/stacs), the tool that loads them into this API’s PostgreSQL database (pgstac), can load them into anyone else’s. The DEM and DSM rasters LidarBC publishes for the same deliveries are a sister collection on the same API, [`stac-elevation-bc`](https://github.com/NewGraphEnvironment/stac_dem_bc).
+
+## Bare earth: a DEM read from the cloud-optimised copies
 
 <img src="fig/kanaka_dem.png" alt="A hillshaded bare-earth elevation model of the lower Kanaka Creek where it meets the Fraser River at Maple Ridge, built from lidar ground returns: the creek's meander, the terrace escarpment above the floodplain, and the highway and rail embankments, with water in light blue." width="100%" />
 
 The lower Kanaka Creek where it meets the Fraser at Maple Ridge, with the trees and buildings taken away. The creek meanders across its floodplain below a terrace escarpment, and the highway and rail embankments cross it. Light blue is where no ground was returned, which here is the water.
 
-**How it was made.** One STAC search for a 1.6 × 1.2 km window returned 8 items, because the place has been flown more than once; the 4 flown in 2016 were used. Reading only that window from each of those items’ `copc` asset transferred 74 MB of the 434 MB in those files: 6.8 million points, 1.5 million of them ground returns, gridded at 2 m. A `laz` asset has no spatial index, so the same window from it means downloading the whole file; the window read is what the `copc` asset adds. One of these 4 items returned ground points only in this window, so trees and buildings cannot be measured from it here (see [Which classes a file holds](#which-classes-a-file-holds)).
+Only the area shown was read, not the whole files, because every tile here has a CanElevation COPC. Most tiles do not have one, and for those a workflow has to download each file whole, as the canopy height model below does. That may change if LidarBC publishes cloud-optimised files itself.
+
+**How it was made.** One STAC search for a 1.6 × 1.2 km window returned 8 items, because the place has been flown more than once; the 4 flown in 2016 were used. Reading only that window from each of those items’ `copc` asset transferred 74 MB of the 434 MB in those files: 6.8 million points, 1.5 million of them ground returns, gridded at 2 m. One of these 4 items returned ground points only in this window, so trees and buildings cannot be measured from it here (see [Which classes a file holds](#which-classes-a-file-holds)).
 
 <details>
 
@@ -85,8 +88,6 @@ The whole script, with the gridding, is [`scripts/readme_dem.py`](https://github
 <img src="fig/maxan_chm.png" alt="A canopy height model of the Maxan Creek delta where the creek enters Bulkley Lake, built from lidar point clouds: open meadow at 0 m, the creek channel meandering through it to the lake, stands of trees up to 40 m tall on the delta, a forested slope along the south edge, and the lake on the east in light blue." width="100%" />
 
 The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. Here the meadow reads 0 m, the creek meanders through it to the lake, and stands of trees grow on the delta and the slope to the south. Of the cells on land, 37% stand at least 2 m and 12% at least 10 m; the tallest 1% exceed 27.8 m, to a maximum of 39.5 m. Light blue, 41% of the window, is the lake and the creek’s channel.
-
-**Why from the point clouds.** LidarBC publishes its own canopy height models for 2023 and 2024 only (as of August 2026). Its surface models are made to specifications that differ between deliveries, so a DSM minus a DEM does not compare from one year to the next ([stac_dem_bc#47](https://github.com/NewGraphEnvironment/stac_dem_bc/issues/47)). Built from the point clouds, the same method can be applied to every flight, and comparing change over time needs exactly that. What this reach shows, its historic channels and the forest lost since 2017, is [floodplains#121](https://github.com/NewGraphEnvironment/floodplains/issues/121).
 
 **How it was made.** A STAC search for a 1.2 × 1 km window, plus a 30 m margin, returned the 2 items covering it, both from the 093/093l/2019 delivery. None of them has a `copc` asset, so each `laz` was downloaded whole, once: 532 MB holding 107.8 million points, 23.4 million of them in the window. 33% of those are ground returns (class 2) and 67% are class 1, unclassified, which is where LidarBC leaves most of its vegetation. Only noise and withheld points are left out; nothing is chosen by vegetation class. With [lidR](https://r-lidar.github.io/lidRbook/), heights are measured above a triangulated surface of the ground returns, and the first returns are rasterised pit-free at 0.5 m. A cell with no ground return within 5 m, or no return at all, is left empty. The lake’s surface returns are class 1 and level with its shore, so without that test the lake would read 0 m like the meadow.
 
@@ -207,7 +208,7 @@ Items carry the [pointcloud](https://github.com/stac-extensions/pointcloud), [pr
 
 An item’s date comes from its file name wherever the build can read the date and trust it: the day (`datetime`); the first and last day flown, where the name carries two (`start_datetime` / `end_datetime`); or the year, where the name carries only a year. Otherwise the item spans the year of its directory, for example where a delivery’s file names carry processing dates. `lidarbc:datetime_source` says whether the date came from the file name or the directory, and [`research/filename_dates.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/filename_dates.md) has the rules and how they were measured.
 
-Each item names its delivery in `lidarbc:delivery` (`<block>/<sheet>/<year>`, such as `092/092g/2016`), which keeps one delivery apart from another where several cover the same place. The DEM and DSM items of [stac-elevation-bc](https://github.com/NewGraphEnvironment/stac_dem_bc) will carry the same key once stac_dem_bc publishes it ([stac_dem_bc#61](https://github.com/NewGraphEnvironment/stac_dem_bc/issues/61)), and this collection links it as `related`.
+Each item names its delivery in `lidarbc:delivery` (`<block>/<sheet>/<year>`, such as `092/092g/2016`), which keeps one delivery apart from another where several cover the same place. The DEM and DSM items of [stac-elevation-bc](https://github.com/NewGraphEnvironment/stac_dem_bc) will carry the same key once that catalogue publishes it, and this collection links it as `related`.
 
 ### Which classes a file holds
 
@@ -218,11 +219,11 @@ A LAS header does not say which classes a file holds, and a few files lack what 
 Every point-cloud file LidarBC publishes under `<block>/<sheet>/<year>/pointcloud/`, with two exceptions:
 
 - a few files whose header is faulty, or that lie outside the mapsheet they are filed under
-- eight 2017 deliveries that state no coordinate system; indexing them from the CRS their DEM declares is [\#15](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/15)
+- eight 2017 deliveries that state no coordinate system
 
 Each exception is named, with its reason, in [`scripts/catalogue_build.py`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/catalogue_build.py) (`EXCLUDE`, `EXCLUDE_DELIVERIES`).
 
-The `.laz` files under `dsm/` are not indexed. In every tile compared, they were an RGB-colourised copy of the point cloud, not a surface model ([\#3](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/issues/3), [`research/laz_header_read.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_header_read.md)).
+The `.laz` files under `dsm/` are not indexed. In every tile compared, they were an RGB-colourised copy of the point cloud, not a surface model ([`research/laz_header_read.md`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_header_read.md)).
 
 Each month the catalogue is rebuilt from the province’s listing and any new files are published; the API serves them once they are registered. [NEWS.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/NEWS.md) says what each release published.
 
