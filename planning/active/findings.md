@@ -22,3 +22,25 @@ The bucket and the OIDC role `stac_pointcloud_bc_update` exist (NewGraphEnvironm
 
 | Error | Resolution |
 |-------|------------|
+
+## Digest publish dry run (2026-10-13, 01:47Z to 01:56Z)
+
+`bash scripts/s3_sync.sh --dryrun` against `data/build` as published at 0.3.0: 174,282 built,
+174,283 objects in the bucket; **0 to upload, collection unchanged, 0 unbuilt**, in 9 min 17 s
+(the full `aws s3 sync` publish was 95 min). The 0 unbuilt proves the listing decodes the 143
+names with a space.
+
+## Footprints are not byte-identical across platforms (A1, 2026-10-13)
+
+Probe: `item_create` over every 20th url of `data/build/headers.jsonl`, sorted (8,713 items),
+writing geometry, bbox and `proj:*` as JSON, on the Mac (arm64, PROJ 9.8.1 from the
+pyproj wheel) and in `python:3.12` under `--platform linux/amd64` (QEMU, same uv.lock,
+PROJ 9.8.1). The probe reproduces the built items on the Mac: 0 of the first 2,000 differ
+from `data/build/items`.
+
+- **6,559 of 8,713 differ** (75%): geometry in all of them, bbox in 4,560, `proj:*` in none.
+- Largest difference **5.68e-14 degrees**: the last bits of a double (e.g. lat
+  49.05009440869304 vs 49.05009440869303).
+- So the first CI build would upload about 130k of 174k items and an unstamped collection,
+  and Mac and CI builds would then rewrite each other's items. Caveat: amd64 was emulated;
+  the first dry-run dispatch measures the real runner.

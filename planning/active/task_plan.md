@@ -43,20 +43,20 @@ What exploration found that shapes the work:
 
 ## Phase 1: Publish by digest
 
-- [ ] Tests first, in `tests/test_s3_publish.py`, for pure functions:
+- [x] Tests first, in `tests/test_s3_publish.py`, for pure functions:
   - items to upload: local MD5 ≠ bucket ETag, a multipart ETag, or absent from the bucket;
   - bucket item keys not built: reported, never deleted, with `build-cache/` and
     `collection.json` excluded;
   - the collection rule: it is published if any item uploads, or if it differs from the
     published one. `version` and the version-extension URI are ignored only when the
     build carries no `version`.
-- [ ] `scripts/s3_publish.py`:
+- [x] `scripts/s3_publish.py`:
   - list the bucket once (`aws s3api list-objects-v2`, one process);
   - hash the build;
   - fetch the published `collection.json`;
   - write a stage directory of hardlinks to the changed items, plus a plan line with the
     counts.
-- [ ] `scripts/s3_sync.sh` calls it, then `aws s3 cp --recursive` the stage (items first),
+- [x] `scripts/s3_sync.sh` calls it, then `aws s3 cp --recursive` the stage (items first),
   then `collection.json` only if the plan says so. It keeps the `--dryrun` contract and
   the linked-equals-files set check, and adds no `--delete`.
 
@@ -105,11 +105,22 @@ What exploration found that shapes the work:
 ## Phase 5: Verify locally
 
 - [ ] `uv run pytest` green, and each new guard shown red against a restored defect.
-- [ ] `bash scripts/s3_sync.sh --dryrun` against today's `data/build`, which is what 0.3.0
+- [x] `bash scripts/s3_sync.sh --dryrun` against today's `data/build`, which is what 0.3.0
   published. It must plan **0 items and no collection**, and I record how long it takes
   against the old 95 min.
 - [ ] Probe both directions: change one local item and one collection field in a scratch
   copy, and confirm the dry run plans exactly that one item, and then the collection.
+
+## Corrections from the plan review (`review-plan.md`)
+
+- [ ] Re-assume the role before the cache push and before the publish (1 h OIDC session, B1)
+- [ ] Push gated on a successful pull; refuse fewer lines than pulled; skip an unchanged `.gz` (B2)
+- [ ] Cross-platform footprints (A1): linux/amd64 differs from the Mac in the last ulp for 75%
+  of a 1-in-20 sample (findings.md). Decision with the user; see findings.md.
+- [ ] Pin `ubuntu-24.04` and Python 3.12; `/usr/bin/time -v` on the build; `TQDM_MININTERVAL` (A2, A4, G6)
+- [ ] `--expect` from the collection's item links; summary under `always()`; dry run saves the cache (G3, G4, S1)
+- [ ] `tests.yml` on `pull_request`, no AWS (G5)
+- [ ] README: every red-run cause, the 60-day schedule rule, local pull-before-build (A5-A7, G7)
 
 ## Validation
 

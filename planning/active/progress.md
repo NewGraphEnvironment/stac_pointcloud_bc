@@ -7,3 +7,10 @@
 - Created branch `4-monthly-update-in-github-actions-with-the` off main
 - Scaffolded PWF baseline from issue #4 with approved phases
 - Next: start Phase 1
+- Phase 1: `scripts/s3_publish.py` (plan by digest), `s3_sync.sh` uploads only the plan,
+  `tests/test_s3_publish.py` (12 tests). Dry run against 0.3.0: 0 items, collection
+  unchanged, 0 unbuilt, 9 min 17 s.
+- Plan review (Plan agent, spawned 01:45Z): 2 blockers, 7 assumptions, 7 gaps; triaged in
+  `review-plan.md`, corrections added to `task_plan.md`.
+- A1 probed: linux/amd64 footprints differ from the Mac's in the last ulp for 75% of items.
+  Asked the user (stored-data decision); continuing on Phases 2-4.
