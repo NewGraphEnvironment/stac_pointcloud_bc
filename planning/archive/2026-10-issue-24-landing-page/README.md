@@ -26,3 +26,23 @@ This replaced the page's earlier rule twice over. It also corrected `research/fi
 The claim ledger (`findings.md`) lists every kept claim with its source and verdict. The per-member enumeration of every summarising sentence is `review-round3.md`.
 
 Closed by: PR #26
+
+## Revision after review (2026-10-13)
+
+Feedback on the PR:
+- link the repo name at the top, as the sibling repos do
+- cut the Maxan "Why from the point clouds" paragraph and the issue links
+- say plainly why the point clouds matter: LidarBC's ready-made products are uneven, and from the points you choose the product and its resolution
+- say that NRCan's CanElevation COPC copies are the second source
+- say that the catalogue is a light index, rebuilt monthly, that applications can use and others can reproduce
+- say that the DEM demo's windowed read depends on those COPC copies
+
+A review of the rewrite (`review-rev-round1.md`) found six overstatements:
+- DEMs are missing for 12 of 233 mapsheet-years
+- CHMs exist in 19 of 48 mapsheet-years from 2023–24
+- a plain LAZ can be range-read by chunk, just not by area
+- the monthly run publishes but does not register
+- one method across flights is necessary for comparing years, not sufficient
+- a DSM-specification claim had lost its source
+
+Live stac-elevation-bc items now carry `lidarbc:delivery`, and a filter on `092/092g/2016` returns items from both collections, so the page says "carry" and NewGraphEnvironment/stac_dem_bc#61 is resolved.
