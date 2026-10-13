@@ -9,5 +9,6 @@ is the history.
 | [laz_classes.md](laz_classes.md) | Which point clouds are ground-only or hold no ground, measured by reading points; the build's density screen, and the random audit of what it misses; water returned as class 1, not 9 (093l/2019) |
 | [filename_dates.md](filename_dates.md) | What a file name's date tokens mean: two days are the first and last day flown, measured by GPS time |
 | [canelevation_overlap.md](canelevation_overlap.md) | Which LidarBC point clouds NRCan's CanElevation series republishes as COPC, and where its index is |
+| [build_reproducibility.md](build_reproducibility.md) | Whether a rebuild on another platform writes the same item bytes: unrounded footprints differ in their last bits (75%), and rounding leaves a few boundary cases; S3 ETags of items are their MD5 |
 
 Naming: `<topic>.md`, revised in place.
