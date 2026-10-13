@@ -20,7 +20,9 @@ name: Monthly update
 #
 # AWS: OIDC into role_gha_stac_pointcloud_bc (rtj#362): Get, Put and List on the bucket, no
 # delete, trusted from main only. Its session lasts an hour, shorter than the build, so it is
-# assumed again before each step that writes.
+# assumed again before each step that writes. An hour also bounds one publish: the 40,000-item
+# ceiling (MAX_UPLOAD) is about 22 min of upload, and a full rewrite (95 min) is a release,
+# published from a local build.
 
 on:
   schedule:
@@ -32,12 +34,6 @@ on:
         description: >-
           Build and plan the publish, and upload no catalogue file. The build cache is
           still saved: it holds reads of public files, not anything published.
-        type: boolean
-        default: false
-      rewrite:
-        description: >-
-          Lift the publish ceiling (MAX_UPLOAD, 40,000 items) for a deliberate rewrite of
-          the catalogue. A rewrite is a release; leave false for a monthly update.
         type: boolean
         default: false
 
@@ -99,16 +95,22 @@ jobs:
 
       # Whatever the build did, if the pull succeeded: the caches hold reads, not publication,
       # so a failed or timed-out build keeps what it read. Not after a failed pull, which would
-      # push a short cache over a good one (cache_sync.sh refuses that too).
+      # push a short cache over a good one (cache_sync.sh refuses that too). A push that fails
+      # (a local push during the run, a transient error) costs next month a re-read, so it does
+      # not stop the publish of a good build; the summary reports it.
       - name: AWS credentials (cache)
+        id: cache_creds
         if: always() && steps.pull.outcome == 'success'
+        continue-on-error: true
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.AWS_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Save the build cache
-        if: always() && steps.pull.outcome == 'success'
+        id: push
+        if: always() && steps.pull.outcome == 'success' && steps.cache_creds.outcome == 'success'
+        continue-on-error: true
         run: bash scripts/cache_sync.sh push
 
       # The count comes from the collection's item links, not from the directory audited.
@@ -126,7 +128,7 @@ jobs:
       - name: Publish
         id: publish
         run: |
-          if [ "${{ inputs.rewrite }}" != "true" ]; then export MAX_UPLOAD=40000; fi
+          export MAX_UPLOAD=40000
           if [ "${{ inputs.dryrun }}" = "true" ]; then
             bash scripts/s3_sync.sh --dryrun
           else
@@ -143,6 +145,7 @@ jobs:
             echo "|---|---|"
             echo "| pull cache | ${{ steps.pull.outcome }} |"
             echo "| build | ${{ steps.build.outcome }} |"
+            echo "| save cache | ${{ steps.push.outcome }} |"
             echo "| publish | ${{ steps.publish.outcome }}$([ "${{ inputs.dryrun }}" = "true" ] && echo ' (dry run)') |"
             echo
             if [ -s data/build/publish_plan.json ]; then

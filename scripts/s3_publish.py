@@ -7,6 +7,12 @@ current upload's ETag is its MD5 (SSE-S3, measured 2026-10-12, #4); a multipart 
 an MD5 and is treated as different. `aws s3 sync` cannot do this on a fresh runner: every file
 there is newer than its object, so it re-uploaded all 174k items (95 min).
 
+Rounding (laz_item.LONLAT_DECIMALS) leaves a few footprint values within an ulp of a half-way
+point, and those round one step apart on another platform (5 of the 0.3.0 items, #4). So when
+few items differ by digest, their published bodies are fetched, and one that differs only by
+one rounding step in `geometry` or `bbox` is left as published. Many differing items are a
+rewrite, and all of them upload.
+
 The collection is published when any item is, or when it differs from the published one.
 The release stamp (`version`, collection_version.py) is compared only when the build carries
 one: an unstamped build equal to the published collection but for its stamp is the same
@@ -25,6 +31,7 @@ Usage: python3 scripts/s3_publish.py [--build data/build] [--bucket stac-pointcl
 """
 
 import argparse
+import concurrent.futures
 import copy
 import hashlib
 import json
@@ -32,11 +39,20 @@ import os
 import shutil
 import subprocess
 import sys
+import urllib.parse
+
+import requests
 
 from collection_version import VERSION_EXT
+from laz_item import LONLAT_DECIMALS
 
 CACHE_PREFIX = "build-cache/"
 COLLECTION = "collection.json"
+# Up to this many differing items already in the bucket are fetched to check for rounding
+# flips; more is a rewrite, and every one uploads.
+SAME_CHECK_MAX = 2000
+STEP = 10.0 ** -LONLAT_DECIMALS
+FOOTPRINT_KEYS = ("geometry", "bbox")
 
 
 def etag_md5(etag: str | None) -> str | None:
@@ -58,6 +74,25 @@ def items_unbuilt(local: dict[str, str], bucket: dict[str, str]) -> list[str]:
                   if k not in local and k != COLLECTION and not k.startswith(CACHE_PREFIX))
 
 
+def _on_grid(x) -> bool:
+    return round(x, LONLAT_DECIMALS) == x
+
+
+def rounding_equivalent(a, b, footprint: bool = False) -> bool:
+    """Whether two JSON bodies are equal but for footprint values one rounding step apart:
+    numbers under a `geometry` or `bbox` key, both on the LONLAT_DECIMALS grid and at most
+    one step apart. Everything else must be equal."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(
+            rounding_equivalent(a[k], b[k], footprint or k in FOOTPRINT_KEYS) for k in a)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(rounding_equivalent(x, y, footprint) for x, y in zip(a, b))
+    if (footprint and isinstance(a, float) and isinstance(b, float)
+            and _on_grid(a) and _on_grid(b)):
+        return abs(a - b) <= 1.5 * STEP
+    return type(a) is type(b) and a == b
+
+
 def _unstamped(c: dict) -> dict:
     c = copy.deepcopy(c)
     c.pop("version", None)
@@ -71,13 +106,15 @@ def collection_differs(built: dict, published: dict | None) -> bool:
     if published is None:
         return True
     if "version" in built:
-        return built != published
-    return _unstamped(built) != _unstamped(published)
+        return not rounding_equivalent(built, published)
+    return not rounding_equivalent(_unstamped(built), _unstamped(published))
 
 
 def publish_plan(local: dict[str, str], bucket: dict[str, str], built: dict,
-                 published: dict | None) -> dict:
-    upload = items_to_upload(local, bucket)
+                 published: dict | None, same: set[str] = frozenset()) -> dict:
+    """`same`: items that differ by digest but were found rounding-equivalent to their
+    published body (same_items), so stay as published."""
+    upload = [n for n in items_to_upload(local, bucket) if n not in same]
     return {"upload": upload, "unbuilt": items_unbuilt(local, bucket),
             "collection": bool(upload) or collection_differs(built, published)}
 
@@ -110,6 +147,23 @@ def published_collection(bucket: str, listed: dict[str, str]) -> dict | None:
     return json.loads(r.stdout)
 
 
+def same_items(items_dir: str, names: list[str], bucket: str, workers: int = 16) -> set[str]:
+    """Of `names` (items that differ by digest and are in the bucket), those whose published
+    body is rounding_equivalent to the build's. Fetched over HTTPS, as the catalogue is public;
+    a failed fetch raises rather than counting the item as changed or as the same."""
+    session = requests.Session()
+    session.mount("https://", requests.adapters.HTTPAdapter(pool_maxsize=workers))
+
+    def one(n: str) -> bool:
+        r = session.get(f"https://{bucket}.s3.amazonaws.com/{urllib.parse.quote(n)}", timeout=60)
+        r.raise_for_status()
+        with open(os.path.join(items_dir, n)) as fh:
+            return rounding_equivalent(json.load(fh), r.json())
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        return {n for n, same in zip(names, ex.map(one, names)) if same}
+
+
 def stage_write(items_dir: str, names: list[str], stage: str) -> None:
     """Make `stage` hold exactly `names`, hard-linked from `items_dir`."""
     shutil.rmtree(stage, ignore_errors=True)
@@ -128,7 +182,16 @@ def main() -> int:
     listed = bucket_listing(args.bucket)
     with open(os.path.join(args.build, COLLECTION)) as fh:
         built = json.load(fh)
-    plan = publish_plan(local, listed, built, published_collection(args.bucket, listed))
+    changed = [n for n in items_to_upload(local, listed) if n in listed]
+    same = set()
+    if 0 < len(changed) <= SAME_CHECK_MAX:
+        same = same_items(items_dir, changed, args.bucket)
+        print(f"{len(same)} of {len(changed)} items that differ by digest match their published "
+              f"body to a rounding step; left as published", file=sys.stderr)
+    elif changed:
+        print(f"{len(changed)} changed items, over {SAME_CHECK_MAX}: a rewrite, not checked "
+              f"for rounding steps", file=sys.stderr)
+    plan = publish_plan(local, listed, built, published_collection(args.bucket, listed), same)
     stage_write(items_dir, plan["upload"], os.path.join(args.build, "upload"))
     with open(os.path.join(args.build, "publish_plan.json"), "w") as fh:
         json.dump({"built": len(local), "upload": len(plan["upload"]),

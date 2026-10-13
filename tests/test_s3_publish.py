@@ -13,6 +13,7 @@ from s3_publish import (
     items_unbuilt,
     local_digests,
     publish_plan,
+    rounding_equivalent,
     stage_write,
 )
 
@@ -109,3 +110,43 @@ def test_the_stage_holds_exactly_the_items_to_upload(tmp_path):
     assert sorted(p.name for p in stage.iterdir()) == ["b.json"]
     assert (stage / "b.json").read_bytes() == (items / "b.json").read_bytes()
 
+
+
+def _item(lon=-125.32498738, extra=None):
+    d = {"type": "Feature", "id": "x", "bbox": [lon, 49.0, -125.3, 49.1],
+         "geometry": {"type": "Polygon", "coordinates": [[[lon, 49.0], [-125.3, 49.0]]]},
+         "properties": {"proj:bbox": [1.5, 2.5, 3.5, 4.5], "pc:count": 10}}
+    d["properties"].update(extra or {})
+    return d
+
+
+def test_a_footprint_one_rounding_step_apart_is_the_same_item():
+    """A value within a few ulp of a half-way point rounds apart on two platforms (5 of the
+    0.3.0 items, #4): one grid step in geometry or bbox is not a change."""
+    assert rounding_equivalent(_item(-125.32498738), _item(-125.32498739))
+
+
+def test_more_than_one_step_or_an_off_grid_value_is_a_change():
+    assert not rounding_equivalent(_item(-125.32498738), _item(-125.32498740))
+    # the release that rounds: published unrounded, built rounded
+    assert not rounding_equivalent(_item(-125.32498738), _item(-125.324987385))
+
+
+def test_a_step_anywhere_but_the_footprint_is_a_change():
+    a = _item(extra={"proj:bbox": [1.5, 2.5, 3.5, 4.5]})
+    b = _item(extra={"proj:bbox": [1.50000001, 2.5, 3.5, 4.5]})
+    assert not rounding_equivalent(a, b)
+    assert not rounding_equivalent(_item(), _item(extra={"pc:count": 11}))
+    assert not rounding_equivalent(_item(), _item(extra={"new": 1}))
+
+
+def test_a_collection_extent_one_step_apart_is_unchanged():
+    a = _coll(extent={"spatial": {"bbox": [[-125.32498738, 49.0, -120.0, 55.0]]}})
+    b = _stamped(extent={"spatial": {"bbox": [[-125.32498739, 49.0, -120.0, 55.0]]}})
+    assert not collection_differs(a, b)
+
+
+def test_an_item_found_the_same_is_not_uploaded_and_does_not_move_the_collection():
+    local, bucket = {"x.json": A}, {"x.json": f'"{B}"', "collection.json": "e-5"}
+    plan = publish_plan(local, bucket, _coll(), _stamped(), same={"x.json"})
+    assert plan == {"upload": [], "unbuilt": [], "collection": False}

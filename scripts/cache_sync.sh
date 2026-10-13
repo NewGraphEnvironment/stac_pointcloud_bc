@@ -11,8 +11,9 @@
 #          ETag, so a merge loses no read and adds none that is not checked.
 #   push   upload each cache, refusing one with fewer lines than were pulled, and refusing
 #          to replace a remote cache that is not the one this tree last pulled or pushed (by
-#          ETag), so a local push cannot drop the reads a monthly run made. An unchanged cache
-#          is not uploaded.
+#          ETag), so a local push cannot drop the reads a monthly run made. A cache whose
+#          uncompressed bytes are unchanged since then is not uploaded (compressed bytes differ
+#          between Apple and GNU gzip).
 #
 # Usage: scripts/cache_sync.sh pull|push [--dryrun]   (from the repo root; ambient AWS credentials)
 set -euo pipefail
@@ -22,7 +23,7 @@ BUCKET="stac-pointcloud-bc"
 PREFIX="build-cache"
 # laz_classes_probe.CLASSES_SAMPLE and CLASSES_FULL, and catalogue_build's two header caches.
 FILES=(headers.jsonl copc_headers.jsonl classes.jsonl classes_full.jsonl)
-PULLED="$BUILD/cache_pulled"   # the last pulled or pushed <file>.gz, its .lines and .etag
+PULLED="$BUILD/cache_pulled"   # per file, as last pulled or pushed: .lines, .cksum, .etag
 EXTRA_ARGS=()
 case "$#:${1:-}:${2:-}" in
   1:pull:|1:push:) ;;
@@ -63,9 +64,10 @@ if [ "$MODE" = pull ]; then
       mv "$PULLED/$f" "$BUILD/$f.new"
       echo "$f: $n lines pulled"
     fi
-    rm -f "$PULLED/$f"
+    rm -f "$PULLED/$f" "$PULLED/$f.gz"
     mv "$BUILD/$f.new" "$BUILD/$f"
     lines "$BUILD/$f" > "$PULLED/$f.lines"
+    cksum < "$BUILD/$f" > "$PULLED/$f.cksum"
     echo "$etag" > "$PULLED/$f.etag"
   done
   exit 0
@@ -94,18 +96,18 @@ for f in "${FILES[@]}"; do
     sed '$d' "$BUILD/$f" > "$BUILD/$f.whole" && mv "$BUILD/$f.whole" "$BUILD/$f"
     echo "$f: dropped an interrupted record at its end"
   fi
-  gzip -n -c "$BUILD/$f" > "$BUILD/$f.gz"
-  if [ -s "$PULLED/$f.gz" ] && cmp -s "$BUILD/$f.gz" "$PULLED/$f.gz"; then
+  if [ "$(cksum < "$BUILD/$f")" = "$(cat "$PULLED/$f.cksum" 2>/dev/null || true)" ]; then
     echo "$f: unchanged since pull, not uploaded"
   else
+    gzip -n -c "$BUILD/$f" > "$BUILD/$f.gz"
     aws s3 cp "$BUILD/$f.gz" "s3://$BUCKET/$PREFIX/$f.gz" --only-show-errors \
       --content-type application/gzip ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
     echo "$f: $(lines "$BUILD/$f") lines pushed${EXTRA_ARGS[@]+ (dry run, nothing sent)}"
     if [ ${#EXTRA_ARGS[@]} -eq 0 ]; then
-      mv "$BUILD/$f.gz" "$PULLED/$f.gz"
       lines "$BUILD/$f" > "$PULLED/$f.lines"
+      cksum < "$BUILD/$f" > "$PULLED/$f.cksum"
       remote_etag "$f" > "$PULLED/$f.etag"
     fi
+    rm -f "$BUILD/$f.gz"
   fi
-  rm -f "$BUILD/$f.gz"
 done

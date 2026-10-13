@@ -19,3 +19,10 @@
 - Phase 3: `.github/workflows/update.yml` (role re-assumed before cache push and publish, MAX_UPLOAD 40,000 unless `rewrite`, summary under always()), `tests.yml` (pytest on pull_request); actionlint clean. `cache_sync.sh push` cuts an interrupted record first.
 - Phase 4: README.Rmd 'Monthly update' (rendered from cache, update_query = FALSE, so only prose changed); CLAUDE.md monthly-update facts.
 - Phase 5: plan probed with one item and the collection changed; mutation table all red (findings.md).
+- Filed #22 (release 0.4.0: publish the rounded footprints). /code-check branch round 1 spawned 03:00Z.
+- code-check round 1 (5 findings, all fixed; review-round1.md): rounding flips (reproduced: 5
+  items within 1 ulp of a half-way point, 9 within 4) -> `s3_publish.same_items` fetches up to
+  2,000 digest-changed items and leaves one equal to a rounding step; `rewrite` input dropped
+  (one publish must fit the 1 h session); cache push `continue-on-error` and in the summary;
+  cache "unchanged" by uncompressed cksum; README CanElevation exception. Fetch path probed
+  live: a re-serialised item with a space in its name left, a moved coordinate uploaded.

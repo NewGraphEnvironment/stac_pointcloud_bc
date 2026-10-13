@@ -5182,9 +5182,9 @@ nothing new publishes nothing, and the collection keeps its release
 <code>version</code>. A month that adds items publishes a
 <code>collection.json</code> with no <code>version</code> until the next
 release stamps one. More than 40,000 items in one run is refused as a
-rewrite, which is a release; dispatch with <code>rewrite</code> to
-publish one on purpose, or <code>dryrun</code> to plan without
-uploading. Registration is not in CI, because it needs the tailnet: run
+rewrite, which is a release, published from a local build; dispatch with
+<code>dryrun</code> to plan without uploading. Registration is not in
+CI, because it needs the tailnet: run
 <code>stacs register --mode drift</code>, then
 <code>stacs verify</code>, from a machine that can reach the host. The
 run’s summary gives the commands.</p>
@@ -5200,7 +5200,8 @@ screen requires. That last one can follow growth in an existing
 mapsheet-year, which moves its density screen; record it with
 <code>catalogue_build.py --classes-record</code>. A network error is
 retried by re-running, which reads only what is missing. A new
-mapsheet-year is built, not refused, and is recorded with
+mapsheet-year is built, not refused, unless its file names match
+CanElevation COPC (the pairing check), and is recorded with
 <code>--groups-record</code> at the next release.</p>
 <p>A local build shares the caches: <code>cache_sync.sh pull</code>
 before it and <code>push</code> after. <code>push</code> refuses to
