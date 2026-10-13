@@ -49,4 +49,4 @@ The research file is `research/build_reproducibility.md`.
 Reviews: `review-plan.md` and `review-round1.md` to `review-round4.md` in this directory.
 Probe scripts are described in `findings.md`; their outputs were scratch files, not kept.
 
-Closed by: PR (see `progress.md`)
+Closed by: PR #23
