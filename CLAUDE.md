@@ -610,6 +610,204 @@ repro and the exact lines, report it, and carry on if it is not blocking. The ru
 
 *5 lines of evidence for this rule are in `conventions/agent-operations.md`.*
 
+
+# CI Monitoring
+
+When this repo has GitHub Actions workflows, scan recent runs on session start. Catches failed pkgdown deploys, broken vignette builds, and stale citation regenerations that would otherwise linger until the user manually checks.
+
+## On Session Start
+
+```bash
+gh run list --limit 5 --json status,conclusion,name,createdAt,databaseId \
+  --jq '.[] | select(.conclusion == "failure")'
+```
+
+If any failures since the last visit, surface to the user before starting other work:
+
+> Workflow `<name>` failed `<time>` ago (run `<id>`). Investigate with `gh run view <id> --log-failed`. Fix or proceed with current task?
+
+User decides; do not auto-fix.
+
+## Particular Failures Worth Naming
+
+- **pkgdown** — docs site on GitHub Pages broken
+- **R-CMD-check** — package may not install
+- **Vignette / build-vignettes** — vignette docs incomplete
+- **update-citation-cff** — CITATION.cff stale
+
+## Why This Matters
+
+Without this scan, post-merge workflow failures linger until someone (often the user) notices a stale docs site or a missing vignette. The session-start sweep catches them on the first re-entry into the repo.
+
+## Pairs with `/gh-pr-merge`
+
+The skill watches workflows triggered by a fresh merge in real time — that's the targeted catch. This convention is the backstop for failures that landed when no one was watching (merges via web UI, scheduled triggers, manually-triggered workflows).
+
+## A green run does not mean the site is current
+
+CI conclusion and published content are two different facts. Check the second one
+directly when it matters — the deploy commit, not the run status:
+
+```bash
+git fetch -q origin gh-pages && git log -1 --format='%s' FETCH_HEAD
+# "Deploying to gh-pages from @ owner/repo@<sha> 🚀"  <- the last NON-BOT commit? A bot commit never deploys
+```
+
+GitHub can create a workflow run minutes after the push that triggered it, and
+out of order with a later push. Observed 2026-08-26 in `fly`: `7a7700c` built and
+deployed at 17:21, then its own *parent* `be77eca` had its run created at 17:22:52
+— twelve minutes after that push — and deployed over it. Both runs green, `gh run
+list` all success, published site one commit stale.
+
+Things that do **not** fix this, so don't reach for them:
+
+- `cancel-in-progress: true` — cancels an *overlapping* run. Here the runs never
+  overlapped (`created == started` on both, second created after first finished),
+  so there was nothing to cancel.
+- A `concurrency:` group — the r-lib pkgdown template already sets one at the job
+  level (`group: pkgdown-${{ github.event_name != 'pull_request' || github.run_id }}`).
+  Grepping for a top-level `concurrency:` key misses it and invites a redundant
+  "fix". Serializing runs doesn't order events that arrive late.
+
+There is no workflow-side fix, because the reordering happens before the workflow
+exists. The remedy is detection: check the deploy provenance, and re-dispatch
+(`gh workflow run <file> --ref main`) if it's behind. Harmless when the stale
+commit changed nothing the site publishes — confirm via `.Rbuildignore` / `_pkgdown.yml`
+rather than assuming.
+
+*2 lines of evidence for this rule are in `conventions/ci-monitoring.md`.*
+
+## Don't push to the default branch between a merge and its CI settling
+
+The r-lib templates set `concurrency` with `cancel-in-progress: true`, so a second push
+to `main` cancels the first push's still-running workflows. That is correct behaviour and
+it is not the problem; the problem is that a **cancelled** run and a **failed** run look
+the same in the status column, so a routine follow-up push turns a green merge into
+something the next person has to go read a log about — and the log does not exist.
+
+The routine follow-up is the one that bites, because it is the one nobody counts as a
+push: a `CLAUDE.md` drift sync, a typo fix, a `.gitignore` line. `/compact-prep` step 6
+runs `claude_md_drift.sh apply`, which **pushes**, and after `/gh-pr-merge` that lands
+seconds after the merge.
+
+Order them: watch the merge's runs to completion, *then* push anything else. Measured
+2026-09-08 in gq — the merge's pkgdown and R-CMD-check were allowed to finish green and
+the deploy provenance checked before the sync went out, and the sync's own runs then went
+green on their own SHA. Holding it cost about three minutes.
+
+Where a push has already gone out and cancelled something, `/gh-pr-merge` step 10 has the
+reading: `cancelled`/`skipped` is `⊘ superseded`, not `✗ failed`, and the thing to confirm
+is that the newest **non-bot** SHA's run passed. Do not re-dispatch the cancelled one.
+
+## Don't use `gh run watch` to wait
+
+It polls hard enough to trip GitHub's *secondary* rate limit, which `gh api
+/rate_limit` does not report — every primary bucket reads full while calls return
+403. Retrying extends it. Poll sparsely with `gh run view <id> --json status,conclusion`,
+and prefer `git fetch` over the REST API for anything git can answer.
+
+## A setup failure and a build failure look identical in the status column
+
+`gh pr checks` and the Actions UI report one word per job. A run that died fetching its
+own toolchain and a run that died because the code is broken both read `fail`, and only
+the second says anything about what you just shipped.
+
+```
+Error in download.file(...) : status was 'SSL connect error'
+download of package 'pak' failed
+Error in loadNamespace(x) : there is no package called 'pak'
+```
+
+That is `setup-r-dependencies` failing before the package was ever built. Seen
+2026-09-02 on a tagged spacehakr release, where the same workflow had passed on the merge
+commit minutes earlier with identical content — the natural but wrong reading is "the
+release is broken".
+
+**Read which step failed before drawing a conclusion**, especially on a release commit
+where the instinct is to distrust the tag:
+
+```bash
+gh run view <id> --log-failed | grep -iE 'error|fatal' | head
+```
+
+If it died in dependency setup, rerun once. If it dies the same way again it is the
+upstream CDN, and the honest move is to say so and stop — not to keep spending runs on
+something no change in the repo can fix.
+
+## A citation run failing "fetch first" beside a green twin lost a push race
+Before reading a red `Update CITATION.cff` as a broken release, find a green run of it on the same or a later SHA (not earlier), then confirm `git show origin/main:CITATION.cff` carries the released version and date.
+
+*5 lines of evidence for this rule are in `conventions/ci-monitoring.md`.*
+
+## A hung setup step holds the concurrency group for six hours
+A run `in_progress` long past its usual duration, with a newer run of it `pending` behind, is a hang: confirm no step moved (`gh run view <id> --json jobs`), then `gh run cancel <id>`; the lasting fix is `timeout-minutes:`.
+
+*4 lines of evidence for this rule are in `conventions/ci-monitoring.md`.*
+
+## A job-level `concurrency` group must vary with the matrix, or the jobs cancel each other
+
+`concurrency` at the **job** level is evaluated **per matrix job**, so a group string that
+does not vary with the matrix puts every runner in one group — and with
+`cancel-in-progress: true` they cancel each other. At most one platform runs per push,
+which is the entire justification for having a matrix.
+
+```yaml
+# WRONG: identical for all three entries
+concurrency:
+  group: check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# right
+  group: check-${{ github.workflow }}-${{ github.ref }}-${{ matrix.config.os }}
+```
+
+`fail-fast: false` does not help — that governs failures, not cancellation.
+
+**It fails in the quiet direction.** A cancelled run reports `cancelled`, not `failure`,
+which `/gh-pr-merge` step 10 correctly reads as `⊘ superseded` — so two platforms that
+never ran look like two platforms that were superseded by a newer push. Nothing is red and
+nothing says the coverage was lost.
+
+The decisive evidence is GitHub's own context-availability table: `matrix` is listed for
+`jobs.<job_id>.concurrency` and **not** for the top-level `concurrency`. If it were not
+evaluated per job, the context could not be in scope there.
+
+```bash
+curl -s https://raw.githubusercontent.com/github/docs/main/content/actions/reference/workflows-and-actions/contexts.md \
+  | grep 'concurrency'
+```
+
+Cheapest confirmation on a live workflow: the first run's job list. Three jobs
+`in_progress` at once is the pass; one running while two read `cancelled` is this.
+
+The entries above concern cancellation **between pushes**, which is the behaviour you
+want. This is cancellation **within one push**, which is never what you want.
+
+*4 lines of evidence for this rule are in `conventions/ci-monitoring.md`.*
+
+
+## A push `paths:` filter skips an empty commit, and dispatch and schedule run only from the default branch
+Before planning to re-run a workflow on a feature branch, check how it is triggered. An empty commit (`git commit --allow-empty`) changes no files, so a `push` trigger with a `paths:` filter skips it, and the skip is silent: no run is created, so nothing reports anything. `workflow_dispatch` only works for a workflow file already on the default branch, and `schedule` only fires from there. So a branch-only workflow is re-run in one of three ways: push trigger with no `paths:` (the branch filter scopes it), `gh run rerun <id>`, or a commit that touches a filtered path.
+
+*1 line of evidence for this rule is in `conventions/ci-monitoring.md`.*
+
+## A commit pushed by the Actions token starts no workflow, so wait on the SHA you pushed
+Key a CI waiter on the SHA you pushed, never on the default branch's tip: a bot commit made with `GITHUB_TOKEN` (an `update-citation-cff` auto-commit, a docs regen) lands on top of yours and, by GitHub's design, triggers no workflow run, so a loop waiting for runs on the tip waits forever.
+
+The tip moves seconds after a release push, which is exactly when a waiter is started. The bot commit also needs no check of its own when it only touches a file the site does not publish; confirm the deploy provenance instead (the `gh-pages` subject names the SHA that was built).
+
+*1 line of evidence for this rule is in `conventions/ci-monitoring.md`.*
+
+## A pending run cancelled by a `concurrency` group runs no steps, so its failure alarm never fires
+With `cancel-in-progress: false`, GitHub keeps one running and one pending run per group, and a newer run cancels the pending one before its job starts. An `if: failure() || cancelled()` alarm step is part of that job, so it never runs and the displaced run disappears silently. Count on the next scheduled run to pick the work up, or dispatch it by hand. Do not write that the alarm covers it.
+
+*1 line of evidence for this rule is in `conventions/ci-monitoring.md`.*
+
+## A deploy commit on `gh-pages` is not yet a served page
+Before telling anyone a Pages URL is live, fetch it and compare the bytes with the source: the deploy commit lands on `gh-pages` before the `pages-build-deployment` run publishes it, and until that run finishes the URL still answers 404.
+
+*1 line of evidence for this rule is in `conventions/ci-monitoring.md`.*
+
 # Code Check — R
 Traps in R: the language and base/utils behaviour, package internals (`R CMD build`, `.Rbuildignore`, roxygen, lintr, `data-raw/`, testthat, pak), and the DBI/duckdb/arrow data layer.
 
@@ -720,6 +918,9 @@ Construct instants explicitly: a `Date` always becomes UTC midnight whatever `tz
 ### A `for` loop that builds `aes()` captures the loop variable lazily
 `aes()` quotes its arguments, so `aes(fill = lab[i])` is not evaluated until the plot is drawn — by which time `i` holds its **last** value.
 
+### ggplot2: forcing a legend key for an unused factor level
+Keep `drop = FALSE` on the scale and give the layer a named `show.legend` that also sets `FALSE` for each other legend: `drop = FALSE` alone lists the unused level with no glyph, and `show.legend = TRUE` stamps the layer's glyph into every other legend.
+
 ### `paste()` with a zero-length argument returns length ONE, not zero
 `paste0("x", character(0))` is `"x"`, so a key built per element gains one phantom member when the vector is empty; guard the empty case before building keys.
 
@@ -774,6 +975,9 @@ A ~600-character free-text field in a `kable` cell wedged `pagedown::chrome_prin
 ### `stats::aggregate()` has three separate silent behaviours, and each fails in a different direction
 All three measured on R 4.5, all three met inside one 800-line script (drift#67).
 
+### `stats::mad()` is already scaled to an SD
+Use `stats::mad(x)` itself as the robust standard deviation, or `mad(x, constant = 1)` for the raw median absolute deviation: the default `constant = 1.4826` already scales it, so multiplying by 1.4826 again inflates the SD by half.
+
 ### `deparse(body(f))` excludes formal defaults, so a body scan cannot see a default
 A guard that scans function bodies for a forbidden literal is blind to that literal in a **signature**.
 
@@ -785,6 +989,9 @@ Scan R source for non-ASCII the way `R CMD check` does (`tools:::.check_package_
 
 ### `tryCatch(warning = )` DISCARDS the value the expression produced
 A `warning =` handler is not a filter — it replaces the whole expression, so a call that **succeeded** and merely warned returns the handler's value and the result is thrown away.
+
+### Do not abort inside a handler for a warning raised from C++; note it and abort after the call returns
+Record a flag in the `withCallingHandlers()` handler, `invokeRestart("muffleWarning")`, and raise once the call has returned: for a warning from `Rcpp::warning()`, an abort from inside the handler longjmps through the C++ frames and skips their destructors.
 
 ### `match()` treats NA as a matchable VALUE, so two unknowns join to each other
 `match(NA, c("1", NA))` is **2**.
@@ -1153,6 +1360,9 @@ If `bcdata::BBOX()` rejects a length-4 numeric bbox as not a length-4 numeric ve
 ### terra: operator dispatch and edge cases in package code
 - **SpatRaster `%in%` is not dispatched when terra is *imported* (only when *attached*).**
 
+### A classed abort raised while computing an argument to a terra S4 generic loses its class
+Compute an argument whose evaluation can abort before calling the terra generic: `pre <- f(); post <- g(); terra::cover(pre, post)`, never `terra::cover(f(), g())`.
+
 ### terra: `extract()` returns no row for ground beyond the raster, and counts cells by centre
 - Two traps in one call, and both make a partial result look complete.
 
@@ -1222,8 +1432,8 @@ A `NULL` `data` argument does not error and does not warn — the layer inherits
 ### terra: `app()` calls a vector-tolerant `fun` once per CELL, and reads a 5-column return on a 5-column raster as transposed
 Two contracts inside `terra::app()` that read as the opposite of what they are, both measured on terra 1.9.34 (drift#9, 2026-09-05):
 
-### terra: `levels<-` and `coltab<-` copy before they strip; `set.cats(NULL)` is the in-place form
-`levels<-` and `coltab<-` deep-copy before stripping, so a caller-untouched test cannot fail under them; `terra::set.cats(r, layer = i, value = NULL)` strips in place and mutates whatever raster it is given, so use it on a copy you own.
+### terra: `levels<-` and `coltab<-` copy first; `set.cats()` mutates in place, setting or stripping
+`terra::set.cats()` mutates the raster it is given whether it strips (`value = NULL`) or sets levels; `levels<-` and `coltab<-` deep-copy first, so on a caller's raster call `set.cats()` only on the copy one of them returned, or on a `deepcopy()` you own.
 
 ### terra `metags()`: the empty case is `NULL`, and the sidecar is half the artefact
 Three measured facts about raster **container** metadata, all of which fail quietly (floodplains#83, 2026-09-05, terra 1.9.34 / GDAL 3.8.5).
@@ -1257,6 +1467,9 @@ GDAL has two KML drivers and picks `KML` by default, which does not read the `<S
 
 ### GDAL applies `-srcnodata` and an alpha mask together, and the mask loses
 Two ways of saying "these pixels are not data" reach `gdalwarp` independently, and giving it both is not an error — it is an instruction to do both.
+
+### Check an alpha-masked raster by its mask flags, not its colorinterp
+Assert that rasterio's `ds.mask_flag_enums` is `[per_dataset, alpha]` on every image band, as an absolute check: `colorinterp[-1] == alpha` is a proxy, and a guard comparing output to source cannot see a NoData that overrides the alpha when both carry it.
 
 ### `parallel::mclapply()` over a remote raster aborts every fork on macOS, and the wrapper exits 0
 GDAL's curl handles do not survive a fork.
@@ -1303,8 +1516,11 @@ Pass `flat = TRUE` (with the interval in degrees) when densifying a lon/lat exte
 ### Planetary Computer STAC: a floodplain-scale read hits three limits a reach never does
 Query a large AOI by its convex hull, re-sign items before each tile, and give `datetime` explicit times (`…T00:00:00Z/…T23:59:59Z`).
 
-### gdalcubes reports failed chunk reads only on stderr, so a partial cube passes as complete
-Do not guard on it by capturing output.
+### gdalcubes records only a failed image OPEN; check `chunk_status`, and know what it misses
+Read the `chunk_status` variable of every `write_ncdf()` output with ncdf4 and abort on any value other than 0 or the netCDF int fill, and abort after the call returns on the R warning `could not be added to output`.
+
+### `gdalcubes::cube_view()` reads an aggregation or resampling it does not know as a default, with no error
+Validate `aggregation` and `resampling` against sets measured by round-tripping each value through `cube_view()`, not against `?cube_view`: an unknown aggregation silently becomes `"none"` and an unknown resampling `"near"`.
 
 ### terra reads a multi-variable gdalcubes NetCDF with its variables in alphabetical order
 Select layers by name after `terra::rast()` of a `gdalcubes::write_ncdf()` output, never by position.
@@ -1317,6 +1533,9 @@ Read with `promote_to_multi = FALSE` whenever a layer will be written back.
 
 ### `sf::st_make_valid()` rewrites geometry that was already valid
 Run it on the invalid rows only (`!st_is_valid(x)`), or keep the original geometry and use the made-valid copy just for the computation.
+
+### `st_union()` fails after `st_transform()` of a source mixing XY and XYZ rings
+Drop Z with `sf::st_zm()` before any `st_union()` or `st_combine()` on data that may mix XY and XYZ rings and has been through `st_transform()`: the union fails *"Points of LinearRing do not form a closed linestring"*, and `st_make_valid()` fails the same way.
 
 ### terra: `unique()` and `freq()` on a factor return its labels, not its codes
 Read a factor raster's codes from a copy with its levels stripped (`levels(y) <- NULL`), never from `terra::unique(x)[, 1]` or `terra::freq(x)$value`, which on a factor return the active category's labels.
@@ -1389,6 +1608,9 @@ Subtract a local origin before `pdist::pdist()`: at BC Albers magnitudes it retu
 
 ### FWA `upstream_route_measure` misses the next segment's start
 Take a segment's top from the next segment's `downstream_route_measure`, and compare measures from different sources within 1 mm.
+
+### FWA main flow is not edge type 1000 alone
+Select main flow with `edge_type IN (1000, 1050, 1200, 1250, 1450)`, and test what the layer is for rather than that it is non-empty: 1000 is single-line stream only, so a filter built on it draws no large river.
 
 # Code Check Conventions
 Structured checklist for reviewing diffs before commit.
@@ -1566,6 +1788,10 @@ On a collision, do not resolve conflicts file by file. The merge conflict hides 
 useful question, which is *which body of work survives*. Ask, then re-land the delta on
 top of what shipped; two independent attempts at one problem are usually complementary
 rather than redundant, and a mechanical resolution keeps whichever half git preferred.
+
+When main only moved under you, with other work and no duplicate, bring it in with
+`git merge origin/main`, not a rebase: `progress.md` and the archive README cite the
+branch's commit SHAs, and a rebase rewrites every one they name (soul#352, 2026-10-12).
 
 ## Re-read the issue body before the baseline
 
