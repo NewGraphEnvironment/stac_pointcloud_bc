@@ -90,9 +90,24 @@ treating the repo as a Python package (#9).
 - **Register the collection before its items, and never delete-then-load.**
   `pgstac.items.collection` is `ON DELETE CASCADE`.
 - Concatenating many item JSONs uses `find -exec cat {} +`, never a glob (ARG_MAX).
-- **A full publish of 174k items is about four hours** (0.3.0, 2026-10-11): `s3_sync.sh` 95 min,
-  each `stacs verify` 45 min (it fetches every item body), `stacs register --mode drift` 65 min.
-  Run them with `PYTHONUNBUFFERED=1`, or their logs stay empty until the end.
+- **A full publish of 174k items is about four hours** (0.3.0, 2026-10-11): uploading every item
+  95 min, each `stacs verify` 45 min (it fetches every item body), `stacs register --mode drift`
+  65 min. Run them with `PYTHONUNBUFFERED=1`, or their logs stay empty until the end.
+  `s3_sync.sh` now uploads only items whose MD5 the bucket's ETag lacks (#4): an unchanged
+  build is 9 min to check and sends nothing.
+
+## Monthly update (#4)
+
+- `.github/workflows/update.yml` rebuilds the whole catalogue on the 6th from the read caches
+  in `s3://stac-pointcloud-bc/build-cache/` (`scripts/cache_sync.sh`), publishes the digest diff
+  under a 40,000-item ceiling, and does not register. The role (`role_gha_stac_pointcloud_bc`)
+  is main-only, cannot delete, and its session is one hour, so the workflow assumes it before
+  each write.
+- **Footprints are rounded to 8 decimals** (`LONLAT_DECIMALS`) because unrounded, 75% differed
+  between macOS arm64 and linux/amd64 in their last bits, which would rewrite them every month.
+  Anything else computed in floating point and written to an item has the same hazard.
+- Pull the caches before a local build and push them after; `push` refuses to replace reads
+  the monthly run made since this tree last pulled.
 
 <!-- BEGIN SOUL CONVENTIONS — DO NOT EDIT BELOW THIS LINE -->
 

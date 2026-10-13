@@ -95,11 +95,11 @@ What exploration found that shapes the work:
 
 ## Phase 4: Docs
 
-- [ ] `README.Rmd`: add a "Monthly update" section covering what runs, where the cache
+- [x] `README.Rmd`: add a "Monthly update" section covering what runs, where the cache
   lives, what a red run means, and that registration is by hand from the tailnet. Update
   the publish block's timings. Re-render `README.md` and `index.html` with the `build`
   chunk.
-- [ ] `CLAUDE.md` (above the marker): replace the four-hour full-publish fact with the
+- [x] `CLAUDE.md` (above the marker): replace the four-hour full-publish fact with the
   digest publish, and add the cache prefix and the main-only, no-delete role.
 
 ## Phase 5: Verify locally
@@ -123,7 +123,7 @@ What exploration found that shapes the work:
 - [x] Pin `ubuntu-24.04` and Python 3.12; `/usr/bin/time -v` on the build; `TQDM_MININTERVAL` (A2, A4, G6)
 - [x] `--expect` from the collection's item links; summary under `always()`; dry run saves the cache (G3, G4, S1)
 - [x] `tests.yml` on `pull_request`, no AWS (G5)
-- [ ] README: every red-run cause, the 60-day schedule rule, local pull-before-build (A5-A7, G7)
+- [x] README: every red-run cause, the 60-day schedule rule, local pull-before-build (A5-A7, G7)
 
 ## Validation
 
