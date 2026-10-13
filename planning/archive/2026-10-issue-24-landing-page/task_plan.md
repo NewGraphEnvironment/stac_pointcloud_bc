@@ -61,4 +61,4 @@ Plan review (2026-10-13, `review-plan.md`) changed two things: Phases 2 and 3 la
 - [x] Tests pass
 - [x] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
 - [x] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] `/planning-archive` on completion

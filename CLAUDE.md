@@ -13,7 +13,9 @@ item JSON to `s3://stac-pointcloud-bc` and registers it with
 `stacs`. Change them there, not here.
 
 `README.md` and `index.html` (the GitHub Pages landing page) are generated from
-`README.Rmd`. Edit that and re-render with its `build` chunk; never edit the outputs. Its R
+`README.Rmd`. Edit that and re-render with its `build` chunk; never edit the outputs. The page prints no
+count of the collection, because the monthly update makes counts stale (#24); maintainer detail is
+in `maintaining.md`. Its R
 packages are declared in `scripts/DESCRIPTION`, not at the root, so `/gh-pr-merge` keeps
 treating the repo as a Python package (#9).
 
