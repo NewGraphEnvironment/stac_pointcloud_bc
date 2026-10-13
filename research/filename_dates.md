@@ -35,8 +35,8 @@ is untrusted, and every file in it gets the directory year. In 0.3.0 that is 9 d
 
 ## Counts (0.3.0, 174,282 items)
 
-64,372 items carry a day, 44,744 a range of days, and 65,166 a year (year-only names and the
-untrusted deliveries). Each says which in `lidarbc:datetime_source`, and keeps the name's last
+64,372 items carry a day, 44,744 a range of days, and 65,166 a year (year-only names, the
+untrusted deliveries, and 866 names whose token the parser cannot read, #25). Each says which in `lidarbc:datetime_source`, and keeps the name's last
 date token in `lidarbc:filename_date`.
 
 ## Not established
