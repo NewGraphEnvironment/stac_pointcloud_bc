@@ -9,9 +9,9 @@ name: Monthly update
 # whose digest the bucket lacks (scripts/s3_publish.py), so an unchanged month sends nothing
 # and the collection keeps its release stamp.
 #
-# A red run is a build that refused something a person must look at (README, "Monthly
-# update"). Nothing is committed back: a new mapsheet-year is built and logged, and recorded
-# at the next release.
+# A red run is a build that refused something a person must look at (maintaining.md,
+# "Monthly update"). Nothing is committed back: a new mapsheet-year is built and logged, and
+# recorded at the next release.
 #
 # Registration is NOT done here: no runner reaches the STAC host (tailnet). It is a
 # stateless upsert from a machine that can, `stacs register --config stacs.toml --mode

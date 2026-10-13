@@ -13,7 +13,9 @@ item JSON to `s3://stac-pointcloud-bc` and registers it with
 `stacs`. Change them there, not here.
 
 `README.md` and `index.html` (the GitHub Pages landing page) are generated from
-`README.Rmd`. Edit that and re-render with its `build` chunk; never edit the outputs. Its R
+`README.Rmd`. Edit that and re-render with its `build` chunk; never edit the outputs. The page prints no
+count of the collection, because the monthly update makes counts stale (#24); maintainer detail is
+in `maintaining.md`. Its R
 packages are declared in `scripts/DESCRIPTION`, not at the root, so `/gh-pr-merge` keeps
 treating the repo as a Python package (#9).
 
@@ -57,8 +59,9 @@ treating the repo as a Python package (#9).
   first and last day flown over that tile, and the year directory is the year of the first
   (GPS times, 2026-10-11, #2): the item carries the range. **9 deliveries name files with a
   date whose year disagrees with the directory**, so their items carry the directory year.
-  Only `092p/2017` mixes a day token with no token and keeps each file's own precision
-  (`lidarbc:datetime_source`).
+  In `092p/2017` (127 names such as `_201701024`) and `093c/2023` (one `.copc.laz` pair), names the
+  parser cannot read sit beside readable ones: those carry the directory year and the rest keep their
+  own precision (`lidarbc:datetime_source`, #25).
 - **13,996 of the `pointcloud/*.laz` share a file name with a COPC in NRCan's CanElevation
   series**, in four of its projects (measured 2026-10-09; `research/canelevation_overlap.md`,
   #6). A name is not proof: the build pairs by name, checks each copy's header (point count,

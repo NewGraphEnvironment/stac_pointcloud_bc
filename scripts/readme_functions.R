@@ -1,14 +1,13 @@
 # readme_functions.R — sourced by README.Rmd (#9).
 #
 # Everything the landing page shows comes from three caches, written when the page is rendered
-# with `update_query = TRUE`: data/readme_cache.rds (the published items reduced to counts,
-# the example's search result, two header reads) and data/readme_dem.json (written by
+# with `update_query = TRUE`: data/readme_cache.rds (the catalogue version, the example's
+# search result, two header reads) and data/readme_dem.json (written by
 # scripts/readme_dem.py) and data/readme_chm.json (scripts/readme_chm.R). A render with `update_query = FALSE` reads only those, so it needs
 # no network.
 
 API_ROOT <- "https://images.a11s.one"
 COLLECTION <- "stac-pointcloud-bc"
-BUCKET_URL <- "https://stac-pointcloud-bc.s3.us-west-2.amazonaws.com"
 CACHE <- "data/readme_cache.rds"
 DEM_JSON <- "data/readme_dem.json"
 CHM_JSON <- "data/readme_chm.json"
@@ -132,80 +131,17 @@ pc_readme_header_check <- function(h, item, tol = 0.05) {
 }
 
 
-# ---- the collection, fetched whole -------------------------------------------------------
+# ---- the catalogue version ---------------------------------------------------------------
 
-#' The item ids the bucket's collection.json links, and its version
+#' The `version` the API's collection carries, or NA when it carries none
 #'
-#' The API sends no `numberMatched` (measured 2026-10-09: only `numberReturned`), so the
-#' independent side of the completeness check is the bucket's own collection.json, written by
-#' the release from the same build. Ids are read the way scripts/s3_sync.sh and stacs read
-#' them: the file name of each `rel: item` link, `%20` decoded. `simplifyVector = FALSE`, or
-#' `links` comes back as a data.frame.
-pc_readme_bucket <- function(api_root = API_ROOT, collection = COLLECTION) {
+#' A monthly run that adds items publishes a collection with no `version` until the next
+#' release stamps one (#4), so a missing version is a state of the catalogue, not an error.
+pc_readme_version <- function(api_root = API_ROOT, collection = COLLECTION) {
   coll <- rstac::stac(paste0(api_root, "/")) |>
     rstac::collections(collection) |>
     rstac::get_request()
-  s3 <- pc_readme_bucket_json()
-  list(ids = s3$ids, version = s3$version, api_version = coll$version)
-}
-
-#' The bucket's collection.json, read from a downloaded copy
-#'
-#' The file is 35 MB (0.3.0), and `fromJSON(<url>)` reads through an R URL connection, which
-#' stops at `getOption("timeout")`, 60 s: on a slow link that failed the render with
-#' `readBin(): cannot read from connection` (#18). `fetch(url, path)` is the transfer,
-#' swappable in tests.
-pc_readme_bucket_json <- function(fetch = pc_readme_fetch_file) {
-  tmp <- tempfile(fileext = ".json")
-  on.exit(unlink(tmp))
-  fetch(paste0(BUCKET_URL, "/collection.json"), tmp)
-  s3 <- jsonlite::fromJSON(tmp, simplifyVector = FALSE)
-  hrefs <- vapply(Filter(\(l) identical(l$rel, "item"), s3$links), \(l) l$href, character(1))
-  list(ids = sub("\\.json$", "", gsub("%20", " ", basename(hrefs))), version = s3$version)
-}
-
-#' Every published item, reduced to what the counts need
-#'
-#' Refuses anything short of the whole collection: the fetched ids must equal the ids the
-#' bucket links, as sets in both directions, and the API and the bucket must serve the same
-#' catalogue version. A truncated page would otherwise report a smaller collection.
-pc_readme_fetch <- function(api_root = API_ROOT, collection = COLLECTION) {
-  r <- rstac::stac(paste0(api_root, "/")) |>
-    rstac::stac_search(collections = collection, limit = 1000) |>
-    rstac::post_request() |>
-    rstac::items_fetch(progress = FALSE)
-  ids <- vapply(r$features, \(f) f$id, character(1))
-  if (length(ids) == 0L) stop("search returned no items", call. = FALSE)
-  if (anyDuplicated(ids)) stop("search returned duplicate ids", call. = FALSE)
-
-  b <- pc_readme_bucket(api_root, collection)
-  missing <- setdiff(b$ids, ids)
-  extra <- setdiff(ids, b$ids)
-  if (length(missing) > 0L || length(extra) > 0L) {
-    stop("the API and the bucket disagree: ", length(missing), " linked in the bucket but ",
-         "not served, ", length(extra), " served but not linked", call. = FALSE)
-  }
-  if (is.null(b$api_version) || !identical(b$api_version, b$version)) {
-    stop("the API serves version ", b$api_version %||% "none", " but the bucket's ",
-         "collection.json says ", b$version %||% "none", call. = FALSE)
-  }
-
-  fp <- rstac::items_as_sf(r)
-  stopifnot(nrow(fp) == length(ids))
-  laz <- vapply(r$features, \(f) f$assets$laz$href, character(1))
-  copc <- vapply(r$features, \(f) f$assets$copc$href %||% NA_character_, character(1))
-  items <- sf::st_sf(
-    id = ids,
-    # gdwuts/<block>/<sheet>/<year>/pointcloud/<file>
-    group = sub("^.*/gdwuts/[^/]+/([^/]+)/([0-9]{4})/.*$", "\\1/\\2", laz),
-    copc = !is.na(copc),
-    points = as.numeric(fp[["pc:count"]]),
-    geometry = sf::st_geometry(fp)
-  )
-  if (any(!grepl("^[0-9]{3}[a-p]/[0-9]{4}$", items$group))) {
-    stop("an item's laz href is not under gdwuts/<block>/<sheet>/<year>/", call. = FALSE)
-  }
-  list(items = items[order(items$id), ], version = b$version, fetched_at = Sys.Date())
+  coll$version %||% NA_character_
 }
 
 
