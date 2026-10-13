@@ -56,3 +56,14 @@ COPC headers 13,996 (1.3 MB), class samples 35,055 (3.1 MB), whole reads 349 (37
 into an empty scratch tree: all four byte-identical to the local files. Guards exercised there:
 an unchanged push uploads nothing; a cache cut to 100 lines is refused; a tree that never
 pulled is refused; a pull over a local cache merges (175,318 + 175,318 -> 175,318).
+
+## Publish plan probed both ways (2026-10-13)
+
+`s3_publish.py --build data/build/probe` (hard links to the 0.3.0 items, one replaced by an
+edited copy): **1 to upload (that item), collection changed**. Item restored, collection
+unstamped: **0, unchanged**. Description edited too: **0, changed**. The bucket listed 174,287
+objects (174,283 + 4 cache), 0 unbuilt, so `build-cache/` is excluded.
+
+Mutation table (repo copy; `tests/test_s3_publish.py` and `tests/test_laz_item.py`): trusting a
+multipart ETag, counting the cache as unbuilt, always or never comparing the stamp, publishing
+the collection only on its own change, keeping a stale stage, removing the rounding: each RED.

@@ -104,11 +104,11 @@ What exploration found that shapes the work:
 
 ## Phase 5: Verify locally
 
-- [ ] `uv run pytest` green, and each new guard shown red against a restored defect.
+- [x] `uv run pytest` green, and each new guard shown red against a restored defect.
 - [x] `bash scripts/s3_sync.sh --dryrun` against today's `data/build`, which is what 0.3.0
   published. It must plan **0 items and no collection**, and I record how long it takes
   against the old 95 min.
-- [ ] Probe both directions: change one local item and one collection field in a scratch
+- [x] Probe both directions: change one local item and one collection field in a scratch
   copy, and confirm the dry run plans exactly that one item, and then the collection.
 
 ## Corrections from the plan review (`review-plan.md`)

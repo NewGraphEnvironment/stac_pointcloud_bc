@@ -18,3 +18,4 @@
 - Phase 2: `scripts/cache_sync.sh`; seeded `build-cache/` (20 MB); round trip identical; push guards exercised (findings.md). `s3_sync.sh` gained `MAX_UPLOAD`.
 - Phase 3: `.github/workflows/update.yml` (role re-assumed before cache push and publish, MAX_UPLOAD 40,000 unless `rewrite`, summary under always()), `tests.yml` (pytest on pull_request); actionlint clean. `cache_sync.sh push` cuts an interrupted record first.
 - Phase 4: README.Rmd 'Monthly update' (rendered from cache, update_query = FALSE, so only prose changed); CLAUDE.md monthly-update facts.
+- Phase 5: plan probed with one item and the collection changed; mutation table all red (findings.md).
