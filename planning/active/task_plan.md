@@ -47,18 +47,18 @@ The landing page (`README.Rmd` -> `README.md`, `index.html`) opens with what the
 Plan review (2026-10-13, `review-plan.md`) changed two things: Phases 2 and 3 landed in one commit, so the page never links a `maintaining.md` that does not exist; and the render no longer fetches the whole collection. `pc_readme_fetch()` existed for the counts, and its version check would fail every render after a monthly run that adds items (`collection.json` then has no `version`), so it is replaced by `pc_readme_version()`, which reads the API's version or NA.
 
 ## Phase 4: Render and check
-- [ ] `/code-check` on the diff (`README.Rmd`, `maintaining.md`).
-- [ ] Render both targets with the `build` chunk (`README.md` with `update_query = TRUE`, then `index.html`). Run `tests/readme_functions_test.R`.
-- [ ] Mechanical check: grep the rendered `README.md` and `index.html` for `174,282`, `13,970`, `225`, `233`, `253`, ` 38 `, `items-`, `mapsheet-years` and `a client`. Expect nothing (`pystac-client` is not a hit for `a client`).
-- [ ] Read the rendered `README.md` top to bottom against the claim ledger.
-- [ ] Commit the renders.
+- [x] `/code-check` on the diff (`README.Rmd`, `maintaining.md`). Five rounds (`review-round1..5.md`); ended by enumeration (findings.md, "how the review ended").
+- [x] Render both targets with the `build` chunk (`README.md` with `update_query = TRUE`, then `index.html`). Run `tests/readme_functions_test.R`.
+- [x] Mechanical check: grep the rendered `README.md` and `index.html` for `174,282`, `13,970`, `225`, `233`, `253`, ` 38 `, `items-`, `mapsheet-years` and `a client`. Expect nothing (`pystac-client` is not a hit for `a client`).
+- [x] Read the rendered `README.md` top to bottom against the claim ledger.
+- [x] Commit the renders.
 
 ## Phase 5: Out of scope, filed
 - [x] The collection's `related` link title ("match items on lidarbc:delivery") is not true until stac_dem_bc republishes. Note it on stac_dem_bc#55 or file a follow-up there, rather than republishing `collection.json` here. Filed as NewGraphEnvironment/stac_dem_bc#61.
 
 ## Validation
 
-- [ ] Tests pass
-- [ ] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
-- [ ] PWF checkboxes match landed work
+- [x] Tests pass
+- [x] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
