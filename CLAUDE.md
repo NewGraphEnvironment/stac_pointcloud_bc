@@ -95,7 +95,7 @@ treating the repo as a Python package (#9).
 - Concatenating many item JSONs uses `find -exec cat {} +`, never a glob (ARG_MAX).
 - **A full publish of 174k items is about four hours** (0.3.0, 2026-10-11): uploading every item
   95 min, each `stacs verify` 45 min (it fetches every item body), `stacs register --mode drift`
-  65 min. Run them with `PYTHONUNBUFFERED=1`, or their logs stay empty until the end.
+  65 min. 0.4.0 (2026-10-14) took 36, 26 and 42 min for the same three steps. Run them with `PYTHONUNBUFFERED=1`, or their logs stay empty until the end.
   `s3_sync.sh` now uploads only items whose MD5 the bucket's ETag lacks (#4): an unchanged
   build is 9 min to check and sends nothing.
 
@@ -106,6 +106,10 @@ treating the repo as a Python package (#9).
   under a 40,000-item ceiling, and does not register. The role (`role_gha_stac_pointcloud_bc`)
   is main-only, cannot delete, and its session is one hour, so the workflow assumes it before
   each write.
+  **Its first dispatch (2026-10-14) failed at the first AWS step**: this repo signs GitHub's
+  immutable OIDC subject (`repo:NewGraphEnvironment@46538103/stac_pointcloud_bc@1409685846:…`) and
+  the role trusts the older `repo:NewGraphEnvironment/stac_pointcloud_bc:…` form. Until the role's
+  trust is fixed, every run fails there; #22 stays open until a dispatch plans 0 items.
 - **Footprints are rounded to 8 decimals** (`LONLAT_DECIMALS`) because unrounded, 75% differed
   between macOS arm64 and linux/amd64 in their last bits, which would rewrite them every month.
   Anything else computed in floating point and written to an item has the same hazard.
