@@ -17,12 +17,13 @@ from pyproj import CRS
 # A hard import, not importorskip: an environment built without stacs must fail here.
 import stacs
 from stacs.cli import ConfigError, main as stacs_main, read_config
+from stacs.queryables import parse_queryables
 
 import laz_item
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "stacs.toml"
-STACS_VERSION = "0.1.1"
+STACS_VERSION = "0.2.0"
 
 
 @pytest.fixture(scope="module")
@@ -98,3 +99,11 @@ def test_an_item_without_the_laz_asset_fails_the_audit(tmp_path, capsys):
     rc, err = _audit(tmp_path, capsys, _item(drop_asset=True))
     assert rc != 0
     assert laz_item.ASSET_LAZ in err
+
+
+def test_the_delivery_queryable_matches_what_items_carry(cfg):
+    # parse_queryables refuses what pgstac would not serve as written (a backslash among it).
+    q = parse_queryables(cfg["queryables"])["lidarbc:delivery"]
+    assert q["type"] == "string"
+    assert q["pattern"] == laz_item.DELIVERY.pattern
+    assert laz_item.DELIVERY.match(_item()["properties"]["lidarbc:delivery"])

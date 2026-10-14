@@ -26,3 +26,12 @@ pg_port = 5432
 pg_user = "stac"
 password_env = "POSTGRES_PASSWORD"
 pypgstac = ["uv", "run", "pypgstac"]
+
+# The delivery key stac-elevation-bc items carry too, so one CQL2 filter returns a flight's
+# point clouds and its rasters (#5). The pattern is laz_item.DELIVERY's, pinned by
+# tests/test_stacs_config.py. `register` loads it; `verify` reports it missing until then.
+[queryables."lidarbc:delivery"]
+type = "string"
+title = "LidarBC delivery"
+description = "The objectstore path <block>/<sheet>/<year> of the LidarBC delivery a file came from, e.g. 092/092g/2016"
+pattern = "^[0-9]{3}/[0-9]{3}[a-p]/[0-9]{4}$"

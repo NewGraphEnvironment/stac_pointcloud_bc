@@ -5,6 +5,13 @@ and the `stac-pointcloud-bc` collection at <https://images.a11s.one>. A tag mean
 catalogue is in this state". Same convention as
 [`stac_dem_bc`](https://github.com/NewGraphEnvironment/stac_dem_bc).
 
+## Unreleased
+
+- `lidarbc:delivery` is declared as a queryable in `stacs.toml` (#5), so CQL2 clients can
+  discover the key at `/collections/stac-pointcloud-bc/queryables`. stacs moves from
+  v0.1.1, which predates queryables (stacs 0.1.2), to v0.2.0. The next `stacs register` loads it,
+  and until then `stacs verify` reports it missing.
+
 ## 0.3.0
 
 Every `pointcloud/*.laz` (#2): **174,282 items in 225 mapsheet-years**, up from 9,649 in 11.

@@ -27,7 +27,7 @@ readme = [
 ]
 
 [tool.uv.sources]
-stacs = { git = "https://github.com/NewGraphEnvironment/stacs", tag = "v0.1.1" }
+stacs = { git = "https://github.com/NewGraphEnvironment/stacs", tag = "v0.2.0" }
 
 # Scripts-only repo, not an installable package; uv manages the environment.
 [tool.uv]
