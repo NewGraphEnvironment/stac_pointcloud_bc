@@ -22,3 +22,22 @@ Steps, from a tailnet machine:
 
 | Error | Resolution |
 |-------|------------|
+
+## Plan review, checked (2026-10-14)
+
+- `review-plan.md` G5 said `register --mode drift --dryrun` exercises the host's `_db` path. It does not:
+  stacs v0.2.0 README, "--dryrun": a drift dryrun stops "after comparing every body with the API but
+  before the asset audit", and "none of them runs the script on the host, so the env file, pypgstac and
+  the database check are first exercised by a real load". It is still the right before-check (the full
+  comparison, no write); the first real exercise of v0.2.0's database check is the register itself.
+- Host pypgstac: 0.9.9 (`uv pip show pypgstac` on geopro, 2026-10-14), inside 0.9.6–0.10.0.
+
+## The compare's cross-checks (enumerated, 2026-10-14)
+
+Seven artifacts: the local copy's files, the published collection's links and extent; the build's
+items/, its collection's links and extent; and new items. Every pair the release depends on is
+checked: copy files = published links (`not_copied`, `unlinked`); build items/ = build links
+(`build_mismatch`); build extent = its items' envelope; published links vs build links (`only_pub`,
+`new`, and `pi - bi`); each shared item (rounding only); published extent vs built (rounding, or
+containment when something is new); each new item's rounding. Not checked: the published extent
+against the published items, which describes the state being replaced, not the one published.
