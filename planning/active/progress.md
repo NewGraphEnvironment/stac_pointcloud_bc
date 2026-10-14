@@ -50,3 +50,25 @@
 - Post-upload `s3_sync.sh --dryrun` (`..._0510_s3_sync_dryrun_post_v0.4.0.log`, 05:10–05:12 UTC):
   0 to upload, collection unchanged, 0 unbuilt, so every object's ETag is the build's MD5.
 - The 0.3.0 bodies stay in the session scratchpad (`published/`) until the final verify.
+- **Register dryrun** (`logs/20261014_0512_stacs_register_dryrun_v0.4.0.log`), 05:12–05:38 UTC, 25 min,
+  in place of the first verify: published 174,282, registered 174,282, missing 0, orphaned 0,
+  changed 174,282, collection changed, queryables 1 missing, 0 changed. Exactly the expected drift.
+- Register (`..._0538_stacs_register_v0.4.0.log`) started 05:38 UTC.
+- **Register** (`logs/20261014_0538_stacs_register_v0.4.0.log`), 05:38–06:20 UTC, 42 min (0.3.0: 65),
+  exit 0: 1 collection, 174,282 items and 1 queryable loaded, each "reached: stac" (stacs v0.2.0's
+  database check, its first live run); its own read-back: the collection and every item served with
+  the published body, "1 declared queryable(s) served as declared". The host's psycopg warns
+  `unknown PostgreSQL timezone: 'Canada/Pacific'; will use UTC`, as it did in 0.3.0's register.
+- Live, after the register: collection `version` 0.4.0, spatial extent rounded;
+  `/collections/stac-pointcloud-bc/queryables` lists `lidarbc:delivery` as declared;
+  `/collections/stac-elevation-bc/queryables` unchanged (`datetime`, `geometry`, `id`); the root
+  `/queryables` lists the key (stac-fastapi aggregates collections; no global row); a
+  `lidarbc:delivery='093/093l/2019'` filter returns items with 8-decimal bboxes.
+- Final verify (`..._0620_stacs_verify_post_v0.4.0.log`) started 06:20 UTC.
+- **Final verify** (`logs/20261014_0620_stacs_verify_post_v0.4.0.log`), 06:20–06:46 UTC, 26 min:
+  `IN SYNC: 174282 published, all registered with the published body, no orphans; 1 declared
+  queryable(s) served as declared`. #5's queryable box ticked in its body.
+- NEWS 0.4.0 written from the logs; README render started 06:48 UTC.
+- README render (`logs/20261014_0648_readme_render_v0.4.0.log`), 06:48–06:59 UTC, exit 0: the only
+  change to `README.md` and `index.html` is "rendered from catalogue version 0.4.0"; the demos'
+  figures and JSON are byte-identical, `data/readme_cache.rds` rewritten with the same size.

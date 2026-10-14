@@ -5,12 +5,24 @@ and the `stac-pointcloud-bc` collection at <https://images.a11s.one>. A tag mean
 catalogue is in this state". Same convention as
 [`stac_dem_bc`](https://github.com/NewGraphEnvironment/stac_dem_bc).
 
-## Unreleased
+## 0.4.0
+
+Footprints rounded to 8 decimals (#4), so a build on linux and one on macOS write the same item
+bytes, and the monthly update publishes only what changed. Every item's `geometry` and `bbox`
+moved, and the collection's spatial extent with them. Nothing else changed: the build listed the
+same 175,278 files and built the same 174,282 items as 0.3.0. Against a copy of the 0.3.0 bucket,
+all 2,439,948 coordinates equal the published value rounded to 8 decimals, the largest shift is
+5e-9 degrees (under 1 mm), and no other key of any item differs (`scripts/catalogue_compare.py`,
+rewritten for this release). Published 2026-10-14 and verified `IN SYNC` (174,282 ids equal in
+both directions, every body digest-equal). Before registration, `stacs register --dryrun` found
+exactly the expected drift: all 174,282 items changed, the collection changed, the queryable
+missing, nothing missing or orphaned.
 
 - `lidarbc:delivery` is declared as a queryable in `stacs.toml` (#5), so CQL2 clients can
-  discover the key at `/collections/stac-pointcloud-bc/queryables`. stacs moves from
-  v0.1.1, which predates queryables (stacs 0.1.2), to v0.2.0. The next `stacs register` loads it,
-  and until then `stacs verify` reports it missing.
+  discover the key at `/collections/stac-pointcloud-bc/queryables`. stacs moves from v0.1.1,
+  which predates queryables (stacs 0.1.2), to v0.2.0. This release's registration loaded it, and
+  stac-elevation-bc's queryables are unchanged (its own declaration is
+  NewGraphEnvironment/stac_dem_bc#62).
 
 ## 0.3.0
 

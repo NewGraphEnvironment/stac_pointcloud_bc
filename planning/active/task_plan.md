@@ -41,15 +41,15 @@ Out of scope, so "nothing else changes" holds: #25 (date parser), #15, #17, #3.
 
 ## Phase 5: Register
 - [x] Confirm the host's pypgstac is in 0.9.6–0.10.0 (stacs reads its private `_db`, G5): `ssh root@geopro 'cd /opt/geoserv/scripts && /root/.local/bin/uv pip show pypgstac'`, gated on what it prints.
-- [ ] `PYTHONUNBUFFERED=1 uv run stacs register --config stacs.toml --mode drift --dryrun`, logged, in place of the first verify (the same comparison, no write; G5). Expect published = registered = built, missing = new items, orphaned 0, changed = the compare's count, collection changed, queryables 1 missing (G6).
-- [ ] `PYTHONUNBUFFERED=1 uv run stacs register --config stacs.toml --mode drift`, logged (65 min in 0.3.0). This is the first queryables load on this database.
-- [ ] `stacs verify` again: `IN SYNC` with `1 declared queryable(s) served as declared`.
-- [ ] Live checks: collection `version` 0.4.0; `/collections/stac-pointcloud-bc/queryables` lists `lidarbc:delivery`; a served item's coordinates have at most 8 decimals; a `lidarbc:delivery` filter returns items.
-- [ ] Edit #5's body to tick its queryable box; it closes from this PR. #22 stays open until the dispatch below passes (O1).
+- [x] `PYTHONUNBUFFERED=1 uv run stacs register --config stacs.toml --mode drift --dryrun`, logged, in place of the first verify (the same comparison, no write; G5). Expect published = registered = built, missing = new items, orphaned 0, changed = the compare's count, collection changed, queryables 1 missing (G6).
+- [x] `PYTHONUNBUFFERED=1 uv run stacs register --config stacs.toml --mode drift`, logged (65 min in 0.3.0). This is the first queryables load on this database.
+- [x] `stacs verify` again: `IN SYNC` with `1 declared queryable(s) served as declared`.
+- [x] Live checks: collection `version` 0.4.0; `/collections/stac-pointcloud-bc/queryables` lists `lidarbc:delivery`; a served item's coordinates have at most 8 decimals; a `lidarbc:delivery` filter returns items.
+- [x] Edit #5's body to tick its queryable box; it closes from this PR. #22 stays open until the dispatch below passes (O1).
 
 ## Phase 6: Record and PR
-- [ ] `NEWS.md`: `## Unreleased` (the queryable and stacs v0.2.0) becomes `## 0.4.0`, with what was published and its verification, measured from the logs (not this issue).
-- [ ] After the final verify (O3), re-render `README.md` and `index.html` with the `build` chunk, so the page names catalogue version 0.4.0. Review the diff: expect only the version/date line and cache files (S1).
+- [x] `NEWS.md`: `## Unreleased` (the queryable and stacs v0.2.0) becomes `## 0.4.0`, with what was published and its verification, measured from the logs (not this issue).
+- [x] After the final verify (O3), re-render `README.md` and `index.html` with the `build` chunk, so the page names catalogue version 0.4.0. Review the diff: expect only the version/date line and cache files (S1).
 - [ ] Archive the PWF with `Measurement` and `Evidence` (logs prefix), then `/gh-pr-push`. The PR closes #5 and relates to #22.
 - [ ] After the merge, which is your call: tag v0.4.0 on main as 0.3.0 was (release commit bumping `pyproject.toml`/`uv.lock` to 0.4.0, then the tag), and dispatch `update.yml` with `dryrun`. `gh workflow run update.yml --ref main -f dryrun=true`. Pass: `publish_plan.json` built = the release's count, upload 0, unbuilt 0, collection false; the job log's "k of k items that differ by digest match their published body". `update.yml` has never run, so a red run may be infrastructure: read which step failed (A2). Then close #22. The dispatch pushes the build cache, so pull before any later local push (A3).
 
