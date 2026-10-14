@@ -35,9 +35,9 @@ Out of scope, so "nothing else changes" holds: #25 (date parser), #15, #17, #3.
 
 ## Phase 4: Publish to the bucket
 - [x] `bash scripts/s3_sync.sh --dryrun` with `MAX_UPLOAD` unset: expect uploading equal to the compare's changed count, 0 unbuilt, `collection.json yes` (G4).
-- [ ] `uv run python scripts/collection_version.py --version 0.4.0`, last, and assert `version == "0.4.0"` and the version extension in `data/build/collection.json` just before the upload. Re-stamp after any rebuild (G1, O2).
-- [ ] `bash scripts/s3_sync.sh` in the background, logged (95 min in 0.3.0). Read the log's own totals, not the wrapper's exit.
-- [ ] `bash scripts/s3_sync.sh --dryrun` again: expect uploading 0, `collection.json no`, 0 unbuilt, which proves the bucket holds the build (G2). Keep the scratch copy of the 0.3.0 bodies until the final verify (G7).
+- [x] `uv run python scripts/collection_version.py --version 0.4.0`, last, and assert `version == "0.4.0"` and the version extension in `data/build/collection.json` just before the upload. Re-stamp after any rebuild (G1, O2).
+- [x] `bash scripts/s3_sync.sh` in the background, logged (95 min in 0.3.0). Read the log's own totals, not the wrapper's exit.
+- [x] `bash scripts/s3_sync.sh --dryrun` again: expect uploading 0, `collection.json no`, 0 unbuilt, which proves the bucket holds the build (G2). Keep the scratch copy of the 0.3.0 bodies until the final verify (G7).
 
 ## Phase 5: Register
 - [x] Confirm the host's pypgstac is in 0.9.6–0.10.0 (stacs reads its private `_db`, G5): `ssh root@geopro 'cd /opt/geoserv/scripts && /root/.local/bin/uv pip show pypgstac'`, gated on what it prints.

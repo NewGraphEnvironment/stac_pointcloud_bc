@@ -43,3 +43,10 @@
   items to upload, collection changed, 0 unbuilt. The 2,000-item rounding check is skipped as a
   rewrite, which is this release.
 - Log names carry the planned start; the UTC times inside each log are the measured ones.
+- **Publish** (on the plan's approval). `collection_version.py --version 0.4.0`, asserted `version`
+  0.4.0 and the version extension in `data/build/collection.json` before the upload.
+  `s3_sync.sh` (`logs/20261014_0510_s3_sync_v0.4.0.log`), 04:34–05:10 UTC, 36 min (0.3.0: 95):
+  174,282 items and collection.json uploaded, 0 unbuilt, exit 0.
+- Post-upload `s3_sync.sh --dryrun` (`..._0510_s3_sync_dryrun_post_v0.4.0.log`, 05:10–05:12 UTC):
+  0 to upload, collection unchanged, 0 unbuilt, so every object's ETag is the build's MD5.
+- The 0.3.0 bodies stay in the session scratchpad (`published/`) until the final verify.
