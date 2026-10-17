@@ -2,8 +2,8 @@
 #
 # Reads the window of the canopy figure (scripts/readme_chm.R) from the 2019 DEM tile, builds a
 # 1 m TIN of the ground returns in the cached .laz (data/readme_laz/, written by readme_chm.R),
-# and compares the two with the DEM moved by each half-cell. Prints the table in
-# research/dem_alignment.md. From the repo root:
+# and compares the two: as GDAL reads the DEM (with and without its PixelIsPoint shift), and
+# moved by each half-cell. Prints every number in research/dem_alignment.md. From the repo root:
 #
 #     Rscript scripts/dem_alignment_probe.R
 
@@ -24,7 +24,12 @@ sf::gdal_utils("translate", paste0("/vsicurl/", DEM), pub_file,
                c("-projwin", win[1], win[4], win[3], win[2]))
 pub <- terra::rast(pub_file)
 if (terra::ncell(pub) == 0L) stop("no DEM read from ", DEM, call. = FALSE)
-cat("published origin as GDAL reads it:", terra::xmin(pub), terra::ymax(pub), "\n")
+tile <- terra::rast(paste0("/vsicurl/", DEM))
+cat(sprintf("tile origin as GDAL reads it: %.1f, %.1f\n", terra::xmin(tile), terra::ymax(tile)))
+terra::setGDALconfig("GTIFF_POINT_GEO_IGNORE", "TRUE")
+raw <- terra::rast(paste0("/vsicurl/", DEM))
+cat(sprintf("tile origin with GTIFF_POINT_GEO_IGNORE=TRUE: %.1f, %.1f\n", terra::xmin(raw), terra::ymax(raw)))
+terra::setGDALconfig("GTIFF_POINT_GEO_IGNORE", "")
 
 laz <- list.files(LAZ_DIR, pattern = "\\.laz$", full.names = TRUE)
 if (length(laz) == 0L) stop("no .laz in ", LAZ_DIR, ": run scripts/readme_chm.R first", call. = FALSE)
@@ -45,3 +50,24 @@ for (dx in c(-0.5, 0.5)) for (dy in c(-0.5, 0.5)) {
   cat(sprintf("%+.1f %+.1f %.3f %.3f %d\n", dx, dy, stats::median(v),
               stats::quantile(v, 0.95, names = FALSE), length(v)))
 }
+
+# Unshifted: a TIN on the DEM's own cells, as GDAL reads them. The offset shows only as a bias
+# that follows the slope: the difference against the DEM's gradient.
+own <- terra::crop(pub, e, snap = "in")
+tin0 <- lidR::rasterize_terrain(las, terra::rast(own), lidR::tin())
+terra::crs(tin0) <- terra::crs(own)
+z <- terra::values(own, mat = FALSE)
+d <- terra::values(tin0, mat = FALSE) - z
+dzdx <- terra::values(terra::focal(own, matrix(c(0, 0, 0, -0.5, 0, 0.5, 0, 0, 0), 3, byrow = TRUE)), mat = FALSE)
+dzdy <- terra::values(terra::focal(own, matrix(c(0, 0.5, 0, 0, 0, 0, 0, -0.5, 0), 3, byrow = TRUE)), mat = FALSE)
+on_land <- z > LAND_ABOVE & !is.na(d) & !is.na(dzdx) & !is.na(dzdy)
+cat(sprintf("unshifted, land: median diff %.3f m over %d cells\n", stats::median(d[on_land]), sum(on_land)))
+fit <- stats::lm(d[on_land] ~ dzdx[on_land] + dzdy[on_land])
+cat(sprintf("diff ~ dz/dx + dz/dy: %.3f, %.3f, r2 %.2f\n", stats::coef(fit)[2], stats::coef(fit)[3],
+            summary(fit)$r.squared))
+# The lake: the DEM's most common value, one flat level, against the TIN fanned across it.
+lake <- as.numeric(names(which.max(table(z))))
+flat <- !is.na(z) & abs(z - lake) < 1e-4
+cat(sprintf("lake: %.2f m in %.1f%% of the window; TIN minus DEM there p1 %.2f, p99 %.2f m\n",
+            lake, 100 * mean(flat), stats::quantile(d[flat], 0.01, na.rm = TRUE),
+            stats::quantile(d[flat], 0.99, na.rm = TRUE)))

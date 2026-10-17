@@ -224,6 +224,12 @@ test_that("water wins, shrubs tint, trees cover, and a bank is not darkened by i
   dist <- function(a, b) sqrt(sum((a - b)^2))
   expect_lt(dist(shrub, open), 0.5 * dist(ramp_rgb(CANOPY_PAL, 1 / 28), open))
   expect_error(pc_readme_relief(g$ground, terra::aggregate(chm, 2), level = 100), "one grid")
+  # Water the ground TIN does not reach is still water; land with no ground is blank.
+  ground <- g$ground
+  ground[terra::cellFromXY(ground, cbind(c(15.5, 10.5), c(10.5, 10.5)))] <- NA
+  rgb <- pc_readme_relief(ground, chm, level = 100, relief = 5)
+  expect_equal(cell_rgb(rgb, 15.5, 10.5), as.vector(grDevices::col2rgb(WATER_COL)))
+  expect_true(all(is.na(cell_rgb(rgb, 10.5, 10.5))))
 })
 
 test_that("the figure is drawn one cell to one pixel, with room for its scales", {

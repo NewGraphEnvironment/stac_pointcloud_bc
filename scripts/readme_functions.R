@@ -321,9 +321,10 @@ pc_readme_relief <- function(ground, chm, level, relief = 5, tree = 2, full = 15
   a <- opacity[1] + diff(opacity) * pmin((h[can] - tree) / (full - tree), 1)
   rgb[can, ] <- rgb[can, ] * (1 - a) + ramp(h[can], tree, top, CANOPY_PAL) * a
   rgb <- pmin(rgb * f, 1) * 255
+  # No ground under land is drawn blank; water is water whether or not the TIN reaches it.
+  rgb[is.na(z), ] <- NA
   wet <- which(is.na(h))
   rgb[wet, ] <- matrix(grDevices::col2rgb(WATER_COL), length(wet), 3, byrow = TRUE)
-  rgb[is.na(z), ] <- NA
   out <- terra::rast(ground, nlyrs = 3, names = c("red", "green", "blue"))
   terra::values(out) <- rgb
   out

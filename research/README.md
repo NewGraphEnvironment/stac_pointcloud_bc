@@ -10,6 +10,6 @@ is the history.
 | [filename_dates.md](filename_dates.md) | What a file name's date tokens mean: two days are the first and last day flown, measured by GPS time |
 | [canelevation_overlap.md](canelevation_overlap.md) | Which LidarBC point clouds NRCan's CanElevation series republishes as COPC, and where its index is |
 | [build_reproducibility.md](build_reproducibility.md) | Whether a rebuild on another platform writes the same item bytes: unrounded footprints differ in their last bits (75%), and rounding leaves a few boundary cases; S3 ETags of items are their MD5 |
-| [dem_alignment.md](dem_alignment.md) | A LidarBC DEM (093l/2019) is a TIN of its delivery's ground returns, but sits 0.5 m south-west of where GDAL reads it; found by differencing at half-cell shifts |
+| [dem_alignment.md](dem_alignment.md) | A LidarBC DEM (093l/2019) is a TIN of its delivery's ground returns, but GDAL reads it 0.5 m west and 0.5 m south of where those returns put it; found by differencing at half-cell shifts |
 
 Naming: `<topic>.md`, revised in place.

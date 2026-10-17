@@ -1,15 +1,15 @@
 # Where a LidarBC DEM sits against its own ground returns
 
 **Verified:** 2026-10-17 · **Issues:** #30 (found comparing DEMs for the canopy figure), stac_elevation_bc#69 ·
-**Produced by:** `scripts/dem_alignment_probe.R` (needs the `.laz` that `scripts/readme_chm.R`
-caches in `data/readme_laz/`).
+**Produced by:** `scripts/dem_alignment_probe.R`, which prints every number below (it needs the
+`.laz` that `scripts/readme_chm.R` caches in `data/readme_laz/`).
 
 One tile measured: `bc_093l040_xli1m_utm09_2019.tif` (`stac-elevation-bc` item
 `093-093l-2019-dem-bc_093l040_xli1m_utm09_2019`), against the ground returns (class 2) of the
 same delivery's point clouds `bc_093l040_3_4_1` and `_3_4_2`, over the 1.26 × 1.06 km window of
 the landing page's canopy figure at the Maxan Creek delta.
 
-## The DEM is a TIN of the ground returns, half a cell from where GDAL puts it
+## The DEM is a TIN of the ground returns, and GDAL puts it half a cell south-west of them
 
 The file is 1 m, Float32, uncompressed, strip-organised (`Block=13554x1`), nodata −32767, and
 tagged `AREA_OR_POINT=Point`. GDAL reads its origin as 681700.5, 6032224.5 (it moves a
@@ -29,11 +29,13 @@ against the DEM moved by each half-cell, land cells only (the DEM flattens the l
 Moved 0.5 m east and 0.5 m north of where GDAL reads it, the DEM is the TIN to the millimetre.
 So its true origin is 681701.0, 6032225.0. Neither GDAL reading gives that: the default is 0.71 m
 south-west of it, and ignoring PixelIsPoint fixes x but moves y the wrong way. The misplacement
-is invisible in a plain difference: unshifted, the median is 0.01 m, and the error shows only as
-a bias that follows aspect (difference ≈ 0.5 · dz/dx + 0.5 · dz/dy, r² 0.76).
+is invisible in a plain difference: against a TIN on the DEM's own cells as GDAL reads them, the
+median difference is 0.010 m (756,048 land cells), and the error shows only as a bias that follows
+the slope: TIN minus DEM ≈ −0.50 · dz/dx − 0.50 · dz/dy, r² 0.77. That is the DEM's value at each
+cell belonging half a cell east and north.
 
 Beyond the offset, the DEM's only departure from the TIN is the water: the lake is flattened to
-712.54 m, where a TIN fans across it 0.12-0.29 m higher.
+712.54 m (40.3% of the window), where a TIN fans across it 0.12-0.28 m higher (p1-p99).
 
 **Not known:** whether other LidarBC DEMs, other deliveries or other years share the offset. One
 tile is one tile.
