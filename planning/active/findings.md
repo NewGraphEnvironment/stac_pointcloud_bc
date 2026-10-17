@@ -2,7 +2,7 @@
 
 ## Issue context
 
-## Problem
+### Problem
 
 The landing page's canopy height figure (`fig/maxan_chm.png`, #19) shows the Maxan Creek delta as trees on a flat 0 m meadow. The ground under it is not flat: a quick draft of the ground returns from the same two 2019 tiles shows a looped low in the northwest that looks like an old meander, narrow channels under the forest on the south edge, and faint threads between the stands on the delta. The figure could show the forest *and* the old channels it grows among, which is what a floodplain reader comes for.
 
@@ -14,7 +14,7 @@ The draft (ground hillshade, ground below its ~100 m median in blues clamped at 
 
 A turbo-type ramp stretched over the floodplain's own range is known to bring these channels out in QGIS on the overlapping LidarBC DEM.
 
-## Explore first
+### Explore first
 
 1. **Which DEM.** Our 1 m TIN from the ground returns vs. LidarBC's published DEM for the same delivery (`stac-elevation-bc`). Both come from the same 2019 ground returns, so expect them to match; difference the two over the window and say whether either shows the channels better. Using our own keeps the page's point (products from the points), the published one is a STAC read instead of a computation.
 2. **Which surface.** Elevation stretched over the floodplain's range, vs. a relative elevation model (height above the creek's water surface), which takes out the valley's slope so one scale covers the whole delta.
@@ -22,7 +22,7 @@ A turbo-type ramp stretched over the floodplain's own range is known to bring th
 
 Straight lows in the hayfield-like block in the northwest and under the south forest may be ditches or a road, not old channels: the caption says only what the figure shows.
 
-## Done when
+### Done when
 
 - `fig/maxan_chm.png` (or a second figure beside it) shows canopy height over the floodplain's ground, with the old channels legible at page width.
 - `scripts/readme_chm.R` builds it from the same pinned delivery and window; `data/readme_chm.json` carries any number the caption quotes.
@@ -91,6 +91,93 @@ dev.off()
 - Tests are synthetic-LAS testthat in `tests/readme_functions_test.R`; README.Rmd excerpts code
   between `# --- … : begin/end` markers (`pc_readme_lines()`); figures render at `out.width = "100%"`.
 
+
+## Phase 1: our ground TIN vs LidarBC's published DEM (2026-10-17)
+
+Published: `stac-elevation-bc` item `093-093l-2019-dem-bc_093l040_xli1m_utm09_2019`, window read
+with `gdal_translate -projwin` over `/vsicurl/` in 12 s (1262 x 1062 cells, as requested, no
+nodata in the window). Ours: `lidR::rasterize_terrain(filter_ground(las), grid, tin())` at 1 m on
+cells aligned to the published grid (corners on .5 m), from the cached 2019 `.laz`. Both EPSG:3156,
+but `terra::same.crs()` is FALSE between lidR's WKT and GDAL's: set one CRS from the other before
+comparing. Probe scripts: scratchpad `p30_probe.R`, `p30_diff.R` (not committed).
+
+TIN minus published, 787,028 land cells (published > 712.55 m):
+
+| p1 | p5 | p25 | p50 | p75 | p95 | p99 |
+|---|---|---|---|---|---|---|
+| -0.25 | -0.10 | -0.02 | 0.01 | 0.04 | 0.17 | 0.33 m |
+
+15.5% of land cells differ by more than 0.1 m, 0.23% by more than 0.5 m. The differences sit on
+bank edges and on the forested south slope (where the ground returns are sparse and the two
+interpolations differ); the open delta is within noise. **The published DEM is hydro-flattened:**
+40% of the window is exactly 712.54 m (the lake), where our TIN fans across the water 0.12-0.29 m
+higher. That is the only systematic difference.
+
+Drawn with the same turbo stretch (712.6-718 m) and hillshade, the two show the same channels:
+the NW loop, the threads across the delta, the low along the lakeshore. Neither is better for the
+channels. **Verdict: our TIN**, with the lake masked by the CHM's existing water mask, which
+removes the one place it is worse. It keeps "products from the points" and adds no second STAC
+read of a 638 MB strip-organised file.
+
+Land elevations (published, lake excluded): p1 712.74, p5 713.19, p25 714.23, p50 715.24,
+p75 717.06, p90 734.23 m. The issue's "within about a metre of its median (713.7 m)" was taken over
+a window that included the lake; the delta itself rises about 5 m from the lakeshore westward.
+
+### Correction (same day): the 0.01 m median hid a half-cell shift (review G10)
+
+Regressing the difference on the published DEM's gradient gave difference = 0.50·(−dz/dy) +
+0.50·(−dz/dx), r² 0.76 (783,878 land cells): an aspect-dependent bias, not noise. Probe
+`p30_shift.R`: a 1 m TIN on cells with integer corners, against the published DEM shifted by each
+half-cell combination:
+
+| shift (x, y) | median abs | p95 abs |
+|---|---|---|
+| −0.5, −0.5 | 0.040 | 0.400 m |
+| −0.5, +0.5 | 0.030 | 0.200 m |
+| +0.5, −0.5 | 0.030 | 0.310 m |
+| **+0.5, +0.5** | **0.000** | **0.000 m** |
+
+(761,571 land cells.) **Shifted 0.5 m east and 0.5 m north, the published DEM equals a TIN of the
+ground returns to the millimetre.** Read as GDAL reads it by default (`AREA_OR_POINT=Point`, origin
+681700.5, 6032224.5), every value sits half a cell south-west of the ground it describes. Neither
+GDAL reading is right: `GTIFF_POINT_GEO_IGNORE=TRUE` gives origin 681701.0, 6032224.0, which is
+(+0.5, −0.5) and still wrong in y; the match needs 681701.0, 6032225.0. One tile measured
+(`bc_093l040_xli1m_utm09_2019`); how many LidarBC DEMs share it is not known.
+
+So the earlier table (bank edges and the south slope differing) was this shift, and the hydro-
+flattened lake is the only real difference. The verdict stands — our TIN, which is the same surface
+correctly placed — for a stronger reason: the published tile, as read, is misplaced by 0.71 m.
+
+## Phase 2: surface, stretch, blend (2026-10-17)
+
+**The water mask is the lake only.** `pc_readme_chm()`'s mask (no ground return within 5 m) is one
+8-connected patch of 1,947,056 cells (40.4% of the window); the creek is narrower than 10 m and is
+not in it. Its returns' per-cell medians: p1 712.65, p50 712.72, p99 712.78 m, so the lake surface
+is 712.72 m, level, and the water cells cannot measure the creek's fall (review G4).
+
+**The creek's fall**, measured instead from the FWA Maxan Creek line (EDGE_TYPE 1000) sampled every
+10 m, lowest TIN ground within 6 m (110 points, probe `p30_rem.R`): 715.9 m at the window's west
+edge to 712.9 m near the mouth, about 3 m over 0.6 km. Land rises ~5 m from the lake westward.
+
+Three REMs tried (renders `remA/B/C_turbo.png`, scratch):
+- A: lowest ground within ~100 m (5 m min, focal 41 min, 21 mean): halos and blotches; the delta
+  turns red against its own channels.
+- B: IDW of the creek-bed samples and lake-edge points: wedge and band artifacts from the IDW.
+- C: plane fitted to the creek-bed samples (resid sd 0.19 m), floored at the lake: the NW block
+  falls below the plane, so the trend is not planar there.
+
+None showed the channels better than elevation stretched over the floodplain's range, and each
+added either artifacts or a network read (FWA). **Choice: elevation, coloured as height above the
+lake's surface** (712.72 m measured from the water cells' returns), 0 to 5 m. Land elevations
+(published, lake excluded): p1 712.74, p50 715.24, p75 717.06, p90 734.23 m; 0-5 m above the lake
+(712.7-717.7 m) holds the delta's bulk, the south slope runs past it.
+
+**Canopy.** On a quick stand-in CHM (max z per 0.5 m cell minus the TIN) the delta is largely
+shrub 2-5 m, so an opaque canopy hides most of the delta's ground. Drawn instead with opacity
+growing with height (shrubs a light tint, trees ≥ 15 m nearly opaque) and the ground's hillshade
+multiplied through both, the threads stay legible under the shrubs. Ground ramp: plasma (no green,
+dark = low, so channels read as dark threads); canopy greens; water light blue. Turbo collides with
+green canopy (review G8).
 
 ## Errors Encountered
 
