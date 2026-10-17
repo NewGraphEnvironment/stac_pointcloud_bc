@@ -29,3 +29,4 @@ re-delivered files are sampled each month.
 | Error | Resolution |
 |-------|------------|
 | `gh`: `net/http: TLS handshake timeout`; curl to github.com times out | GitHub unreachable from this host; planned from local record, body diffed before PR |
+| `cache_sync.sh pull`: gunzip can't stat headers.jsonl.gz; aws s3 cp left only a temp part | network: S3 delivered 0 B in 60 s; nothing merged, local caches intact |

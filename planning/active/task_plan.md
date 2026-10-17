@@ -12,26 +12,27 @@ the #2 archive); the body is fetched and diffed before the PR.
 Decided at the plan gate (2026-10-17): the build samples every file, not a one-time research sweep.
 
 ## Phase 1: Tests first
-- [ ] `tests/test_laz_item.py`: the build's class step samples every kept file (replaces
+- [x] `tests/test_laz_item.py`: the build's class step samples every kept file (replaces
       `test_the_screen_is_the_research_percentile_within_each_group`); a kept file with no good
       sample refuses the build, whatever its density
-- [ ] A named carve-out for files the sampler cannot read: each entry carries its reason, is
+- [x] A named carve-out for files the sampler cannot read: each entry carries its reason, is
       left without a list, and refuses the build if it now samples good or leaves the build
       (same shape as `EXCLUDE`)
-- [ ] The collection description names no percentile and no audit, and says every file was sampled
+- [x] The collection description names no percentile and no audit, and says every file was sampled
 - [ ] Restore each defect (screen back to 10%, carve-out entry that now reads) and see each test go red
 
 ## Phase 2: Build samples everything
-- [ ] `scripts/catalogue_build.py`: `screened` becomes every kept file minus the carve-out;
+- [x] `scripts/catalogue_build.py`: `screened` becomes every kept file minus the carve-out;
       drop the `density_screen`/`SCREEN_PERCENTILE` imports and the "screened" log wording
 - [ ] Carve-out `CLASSES_UNREADABLE` in `catalogue_build.py`: `082e075_1_4_3` and `094j045_3_3_4`
-      (lazrs "no chunks available in chunk table", research/laz_classes.md); try a whole read of each
-      once first, and if that reads, they need no carve-out
-- [ ] `classes_check` / `classes_published` docstrings and messages; `--classes-record` help text
+      (lazrs "no chunks available in chunk table", research/laz_classes.md), each with its ETag.
+      Plan review B1: a whole read uses the same parallel lazrs backend, so it is no trial; a
+      sequential-backend read is a follow-up, not this issue
+- [x] `classes_check` / `classes_published` docstrings and messages; `--classes-record` help text
       (an audit flag is now derived, so `--force` drops it)
-- [ ] `scripts/laz_classes_probe.py`: keep `density_screen`, `audit_select` and `--audit` for the
+- [x] `scripts/laz_classes_probe.py`: keep `density_screen`, `audit_select` and `--audit` for the
       research record; comment that the build no longer uses the screen
-- [ ] `COLLECTION_DESCRIPTION` rewritten for sampling every file
+- [x] `COLLECTION_DESCRIPTION` rewritten for sampling every file
 - [ ] `maintaining.md`: drop "growth moves its density screen"; a monthly run samples new files
 
 ## Phase 3: The sweep (local, ~20 h)
@@ -41,6 +42,8 @@ Decided at the plan gate (2026-10-17): the build samples every file, not a one-t
       `data/classes_required.json`; commit it
 - [ ] Measure: files sampled, flagged, read whole, lists published, by verdict; the audit's two
       misses now flagged; how many new lists the screen missed (against the ~38 estimate)
+- [ ] `catalogue_compare.py` taught the expected #17 diff (new `classification:classes`, its
+      `stac_extensions`, the description), with its tests (plan review B2)
 - [ ] `catalogue_compare.py` against the published catalogue: only class lists and the collection change
 - [ ] `cache_sync.sh push` (**before merge**: a monthly run on code that samples everything and a
       cache that lacks the sweep would try 148k samples and hit its 240-min limit)
@@ -49,6 +52,10 @@ Decided at the plan gate (2026-10-17): the build samples every file, not a one-t
 - [ ] `research/laz_classes.md` revised in place: the full sample's verdicts, cost, what the screen
       missed (by density percentile), what it still does not establish; header line and README row
 - [ ] Classes across the collection from every file rather than the audit's 5% (the class 1 / 3–5 / 12 shares)
+- [ ] `README.Rmd` (renders README.md, index.html): the "build samples the least dense files"
+      paragraph; `scripts/cache_sync.sh` cold-cost comment; maintaining.md cache size and the
+      monthly ceiling of about 20k new files (plan review G1, CI cost)
+- [ ] Push the cache and merge back to back, with no monthly run between (plan review O1)
 - [ ] `NEWS.md` entry; `CLAUDE.md` source-facts bullet on classes (above the marker) with measured numbers
 - [ ] `tests/test_laz_item.py` `ITEM_PATHS` unchanged (no new field), confirmed by the suite
 

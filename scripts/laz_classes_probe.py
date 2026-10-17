@@ -29,7 +29,8 @@ Usage:
 
 The build (catalogue_build.py) now samples and reads whole by itself, through the functions
 here; this script is for the research runs: the #10 survey, `--summary`, and `--audit`, which
-tests the build's density screen on files it does not pick (#2).
+tested the density screen the build used until #17 on files it did not pick (#2). With no
+flags it samples every target into the build's own sample cache, as the build would.
 """
 
 import argparse
@@ -63,8 +64,9 @@ logger = logging.getLogger("laz_classes_probe")
 CLASS_TARGETS = "class_targets.jsonl"
 CLASSES_SAMPLE = "classes.jsonl"
 CLASSES_FULL = "classes_full.jsonl"
-# A file is screened, and its points sampled, when its point density (header point count over
-# header box area) is at or below this percentile of its mapsheet-year: the share of the group
+# The research screen: the build sampled only these files until #17, and samples every file now;
+# `--audit` still draws from outside it. A file is in it when its point density (header point
+# count over header box area) is at or below this percentile of its mapsheet-year: the share of the group
 # strictly less dense than it is at most SCREEN_PERCENTILE %. At 5 this caught all 58 groundless
 # or ground-only files of the first increment; 10 is the margin. A random 5% of the files it
 # leaves out found 2 misses in 7,834, one at the 96th percentile: the screen gathers such files
