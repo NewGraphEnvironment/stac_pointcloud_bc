@@ -16,3 +16,7 @@
   cache pull failed (aws s3 cp wrote no file); the sweep (Phase 3) cannot start
 - `catalogue_compare.py` accepts a class list added with its extension and a changed description; README.Rmd, README.md, index.html (rendered with update_query = FALSE: only the classes paragraph moved), maintaining.md, cache_sync.sh comment
 - `/code-check branch`, 3 rounds (review-round1..3.md): description direction, refusal-message overwrites (enumerated, 15 write sites), maintaining.md refusal list; suite 336 passed
+- 22:54 UTC: the objectstore waiter expired after 4 h with the objectstore still down (0 B in 30 s);
+  GitHub and pypi.org also time out, while example.com and google.com answer and S3 answers in 15 s.
+  New waiters, 8 h each, probing every 3 min: objectstore (to start the sweep) and GitHub (issue body,
+  branch rename, PR). Phase 3 onward waits on them.
