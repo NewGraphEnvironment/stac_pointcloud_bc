@@ -15,3 +15,4 @@
 - Network: GitHub, the LidarBC objectstore and S3 all unreachable or 0 B/s from 18:04 UTC; the
   cache pull failed (aws s3 cp wrote no file); the sweep (Phase 3) cannot start
 - `catalogue_compare.py` accepts a class list added with its extension and a changed description; README.Rmd, README.md, index.html (rendered with update_query = FALSE: only the classes paragraph moved), maintaining.md, cache_sync.sh comment
+- `/code-check branch`, 3 rounds (review-round1..3.md): description direction, refusal-message overwrites (enumerated, 15 write sites), maintaining.md refusal list; suite 336 passed

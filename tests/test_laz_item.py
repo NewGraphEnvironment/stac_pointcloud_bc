@@ -1379,6 +1379,19 @@ def test_classes_check_requires_every_whole_read_its_sample_does_not_flag_to_be_
     assert catalogue_build.classes_check({a}, ids, cur, samples, full, [], unrecorded=False) == {}
 
 
+def test_classes_check_keeps_every_cause_of_one_file():
+    """Two loops refusing one file each keep their message (code-check #17 round 3): a
+    required file whose sample and whole read both failed, and an empty laz sample whose COPC
+    flags the file and whose whole read is missing."""
+    p = catalogue_build.classes_check({PC}, {PC: "A"}, {"A": "a"},
+                                      {"A": {"id": "A", "error": "OSError: x"}}, {}, ["A"])
+    assert "no point sample" in p[PC] and "classes_required.json" in p[PC]
+    empty = _rec("A", {})
+    empty["copc_sample"] = {"classes": {"1": 5}}  # no ground: flags
+    p = catalogue_build.classes_check({PC}, {PC: "A"}, {"A": "a"}, {"A": empty}, {}, [])
+    assert "holds no points" in p[PC] and "flagged by its sample" in p[PC]
+
+
 @pytest.mark.parametrize("sample, why", [
     (None, "no point sample"), (_rec("A", {"1": 5, "2": 5}, etag="old"), "no point sample"),
     ({"id": "A", "error": "OSError: x"}, "(OSError: x)")])

@@ -660,6 +660,12 @@ def class_target(item: pystac.Item) -> dict:
     return {"id": item.id, "assets": {k: {"href": a.href} for k, a in item.assets.items()}}
 
 
+def problem_add(problems: dict[str, str], u: str, message: str) -> None:
+    """Add a refusal for `u` beside any it already has, so one file's causes all show at once
+    (code-check #17: two writers to one map each overwrote the other)."""
+    problems[u] = "; ".join(filter(None, [problems.get(u), message]))
+
+
 def classes_unreadable_check(ids: dict[str, str], etags: dict[str, str],
                              samples: dict[str, dict],
                              whole_build: bool = True) -> dict[str, str]:
@@ -711,8 +717,8 @@ def classes_check(to_sample: set[str], ids: dict[str, str], current: dict[str, s
     for u in sorted(to_sample):
         r = samples.get(ids[u])
         if r is None or not sample_good(r, current, copc):
-            problems[u] = ("no point sample at the current ETag and COPC"
-                           + (f" ({r['error']})" if r and "error" in r else ""))
+            problem_add(problems, u, "no point sample at the current ETag and COPC"
+                        + (f" ({r['error']})" if r and "error" in r else ""))
     by_id = {i: u for u, i in ids.items()}
     inside = {ids[u] for u in to_sample}
     good = {k: r for k, r in samples.items() if k in by_id and sample_good(r, current, copc)}
@@ -720,23 +726,22 @@ def classes_check(to_sample: set[str], ids: dict[str, str], current: dict[str, s
     # given one (0 of 35,035, 2026-10-17); one that does is a file to look at, not to pass.
     for k in sorted(good):
         if not any(counts_merge(*good[k]["laz_sample"]["samples"].values()).values()):
-            problems[by_id[k]] = "its point sample holds no points"
+            problem_add(problems, by_id[k], "its point sample holds no points")
     flagged = confirm_ids(good)
     for k in sorted(flagged | {k for k in required if k in by_id}):
         r = full.get(k)
         if r is None or not record_good(r, current):
             why = "flagged by its sample" if k in flagged else f"in {CLASSES_REQUIRED_PATH}"
-            problems[by_id[k]] = (f"{why}, with no whole-file read at the current ETag"
-                                  + (f" ({r['error']})" if r and "error" in r else ""))
+            problem_add(problems, by_id[k], f"{why}, with no whole-file read at the current ETag"
+                        + (f" ({r['error']})" if r and "error" in r else ""))
     published = classes_published(inside, flagged, required, by_id)
     read = {k for k, r in full.items() if k in by_id and record_good(r, current)}
     for k in sorted(((flagged - inside) | read) - published) if unrecorded else ():
         how = ("flagged by a sample of a file the build need not sample"
                if k in flagged and k not in inside
                else "read whole, but its sample does not flag it, and it is not recorded")
-        problems[by_id[k]] = "; ".join(filter(None, [
-            problems.get(by_id[k]), f"{how}, and not in {CLASSES_REQUIRED_PATH}; record it "
-            f"with --classes-record"]))
+        problem_add(problems, by_id[k], f"{how}, and not in {CLASSES_REQUIRED_PATH}; record it "
+                    f"with --classes-record")
     return problems
 
 
@@ -969,7 +974,7 @@ def main() -> int:
     problems = classes_unreadable_check(ids, etags, samples, whole_build=not args.limit)
     for u, e in classes_check(to_sample, ids, current, samples, full, required,
                               unrecorded=not args.limit, copc=copcs).items():
-        problems[u] = "; ".join(filter(None, [problems.get(u), e]))
+        problem_add(problems, u, e)
     if problems:
         for u, e in sorted(problems.items()):
             logger.error("class read: %s: %s", u, e)

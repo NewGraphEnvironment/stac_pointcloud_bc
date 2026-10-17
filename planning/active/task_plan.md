@@ -61,6 +61,6 @@ Decided at the plan gate (2026-10-17): the build samples every file, not a one-t
 
 ## Validation
 - [ ] Tests pass
-- [ ] `/code-check` clean (each commit, or once over the branch with `/code-check branch`)
+- [x] `/code-check` clean (each commit, or once over the branch with `/code-check branch`): 3 rounds over 3b8e543...2c28b34, ended by enumeration; the sweep's own changes get a further round
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion
