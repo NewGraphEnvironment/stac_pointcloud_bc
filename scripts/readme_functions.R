@@ -284,8 +284,9 @@ pc_readme_water_level <- function(las, chm) {
 }
 # --- the ground, shown on the landing page: end
 
-# The figure's colours. The ground ramp has no green, so it cannot be read as canopy.
-GROUND_PAL <- function(n) grDevices::hcl.colors(n, "Plasma")
+# The figure's colours. The ground ramp is Plasma without its last tenth, which turns
+# yellow-green: what is left has no hue between yellow and blue, so it cannot be read as canopy.
+GROUND_PAL <- function(n) grDevices::hcl.colors(ceiling(n / 0.9), "Plasma")[seq_len(n)]
 CANOPY_PAL <- function(n) grDevices::hcl.colors(n, "Greens 3", rev = TRUE)[ceiling(seq(n / 4, n, length.out = n))]
 WATER_COL <- "#C7DBF0"
 

@@ -1,8 +1,9 @@
 # Where a LidarBC DEM sits against its own ground returns
 
 **Verified:** 2026-10-17 · **Issues:** #30 (found comparing DEMs for the canopy figure), stac_elevation_bc#69 ·
-**Produced by:** `scripts/dem_alignment_probe.R`, which prints every number below (it needs the
-`.laz` that `scripts/readme_chm.R` caches in `data/readme_laz/`).
+**Produced by:** `scripts/dem_alignment_probe.R`, which prints the measurements below (it needs
+the `.laz` that `scripts/readme_chm.R` caches in `data/readme_laz/`); the file's format is from
+`gdalinfo`, and the window's size from the probe's constants.
 
 One tile measured: `bc_093l040_xli1m_utm09_2019.tif` (`stac-elevation-bc` item
 `093-093l-2019-dem-bc_093l040_xli1m_utm09_2019`), against the ground returns (class 2) of the
@@ -37,8 +38,11 @@ median difference is 0.010 m (756,048 land cells), and the error shows only as a
 the slope: TIN minus DEM ≈ −0.50 · dz/dx − 0.50 · dz/dy, r² 0.77. That is the DEM's value at each
 cell belonging half a cell east and north.
 
-Beyond the offset, the DEM's one systematic departure from the TIN is the water: the lake is flattened to
-712.54 m (40.3% of the window), where a TIN fans across it 0.12-0.28 m higher (p1-p99).
+Beyond the offset, the DEM departs from the TIN at the water and along its shore. The lake is
+flattened to 712.54 m (40.3% of the window), where a TIN fans across it 0.12-0.28 m higher
+(p1-p99). On the low ground between the lake and 712.9 m that is not the flattened lake (27,439
+cells), 20.6% differ by more than 1 mm, p95 0.25 m, max 0.45 m. Why they differ there was not
+examined.
 
 **Not known:** whether other LidarBC DEMs, other deliveries or other years share the offset. One
 tile is one tile.

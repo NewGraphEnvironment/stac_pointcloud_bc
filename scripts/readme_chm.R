@@ -30,11 +30,12 @@ CELL <- 0.5     # m
 MARGIN <- 30    # m read beyond the window, so the ground TIN has no edge inside it
 GROUND_GAP <- 5 # m. A cell with no ground return this near is water (pc_readme_chm())
 # The figure (pc_readme_relief(), #30): ground coloured from the water's surface to RELIEF m
-# above it, which holds the delta's land; canopy from TREE m, its colour ramp topping out at
-# TOP m; the ground shaded with its relief exaggerated EXAGGERATION times. Drawn at FIG_CELL m,
-# one cell to one pixel.
+# above it, which holds the delta's land; canopy from TREE m, more opaque up to OPAQUE m, its
+# colour ramp topping out at TOP m; the ground shaded with its relief exaggerated EXAGGERATION
+# times. Drawn at FIG_CELL m, one cell to one pixel.
 RELIEF <- 5
 TREE <- 2
+OPAQUE <- 15
 TOP <- 30
 EXAGGERATION <- 4
 FIG_CELL <- 1
@@ -131,6 +132,7 @@ main <- function() {
     water_level_m = level,
     relief_m = RELIEF,
     tree_m = TREE,
+    opaque_m = OPAQUE,
     exaggeration = EXAGGERATION,
     figure_cell_m = FIG_CELL,
     # The files as published, downloaded whole once: their `file:size` and `pc:count`.
@@ -152,8 +154,8 @@ main <- function() {
 }
 
 plot_chm <- function(ground, chm, level, path = CHM_PNG) {
-  rgb <- pc_readme_relief(ground, chm, level, relief = RELIEF, tree = TREE, top = TOP,
-                          exaggeration = EXAGGERATION)
+  rgb <- pc_readme_relief(ground, chm, level, relief = RELIEF, tree = TREE, full = OPAQUE,
+                          top = TOP, exaggeration = EXAGGERATION)
   # Averaged to FIG_CELL m, so each pixel is the mean of the cells under it rather than one
   # sampled cell, which would break the thinnest channels.
   rgb <- terra::aggregate(rgb, FIG_CELL / CELL, mean, na.rm = TRUE)

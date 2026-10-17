@@ -3,7 +3,8 @@
 # Reads the window of the canopy figure (scripts/readme_chm.R) from the 2019 DEM tile, builds a
 # 1 m TIN of the ground returns in the cached .laz (data/readme_laz/, written by readme_chm.R),
 # and compares the two: as GDAL reads the DEM (with and without its PixelIsPoint shift), and
-# moved by each half-cell. Prints every number in research/dem_alignment.md. From the repo root:
+# moved by each half-cell. Prints the measurements in research/dem_alignment.md; the file's
+# format there is gdalinfo's. From the repo root:
 #
 #     Rscript scripts/dem_alignment_probe.R
 
@@ -50,6 +51,15 @@ for (dx in c(-0.5, 0.5)) for (dy in c(-0.5, 0.5)) {
   cat(sprintf("%+.1f %+.1f %.3f %.3f %.4f %.2f %d\n", dx, dy, stats::median(v),
               stats::quantile(v, 0.95, names = FALSE), mean(v > 0.001), max(v), length(v)))
 }
+# The low ground the table leaves out: TIN at or below LAND_ABOVE, where the DEM is not the
+# flattened lake, at the shift that matches.
+p <- terra::values(terra::resample(terra::shift(pub, 0.5, 0.5), tin, method = "near"), mat = FALSE)
+t1 <- terra::values(tin, mat = FALSE)
+lake_z <- as.numeric(names(which.max(table(p))))
+low <- !land & !is.na(p) & !is.na(t1) & abs(p - lake_z) >= 1e-4
+v <- abs(t1 - p)[low]
+cat(sprintf("low ground at +0.5 +0.5: %d cells, %.1f%% over 1 mm, p95 %.2f, max %.2f m\n",
+            sum(low), 100 * mean(v > 0.001), stats::quantile(v, 0.95), max(v)))
 
 # Unshifted: a TIN on the DEM's own cells, as GDAL reads them. The offset shows only as a bias
 # that follows the slope: the difference against the DEM's gradient.

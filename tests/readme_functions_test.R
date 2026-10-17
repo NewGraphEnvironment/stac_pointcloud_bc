@@ -179,6 +179,11 @@ relief_grids <- function(n = 20) {
 cell_rgb <- function(rgb, x, y) unname(unlist(terra::extract(rgb, cbind(x, y))))
 ramp_rgb <- function(pal, t) as.vector(grDevices::col2rgb(pal(256)[round(t * 255) + 1]))
 
+test_that("the ground ramp has no green in it, so ground cannot be read as canopy", {
+  hue <- grDevices::rgb2hsv(grDevices::col2rgb(GROUND_PAL(256)))[1, ] * 360
+  expect_false(any(hue > 65 & hue < 180))
+})
+
 test_that("flat open ground keeps its ramp colour; the ramp's ends hold outside its range", {
   g <- relief_grids()
   rgb <- pc_readme_relief(g$ground, g$chm, level = 100, relief = 5)
