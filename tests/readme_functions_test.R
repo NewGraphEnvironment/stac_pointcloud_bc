@@ -339,6 +339,32 @@ test_that("open water is ground exactly level over a hectare or more, nothing sm
   expect_false(terra::extract(w, cbind(200.5, 80.5))[[1]])  # sloping floodplain
 })
 
+test_that("a bed surface standing above a hillside gives way to the lowest bed nearby", {
+  r <- terra::rast(ncols = 100, nrows = 100, xmin = 0, xmax = 100, ymin = 0, ymax = 100,
+                   crs = "EPSG:3156")
+  xy <- terra::xyFromCell(r, seq_len(terra::ncell(r)))
+  # A tributary's bed at 120 m along y = 90, the river's at 100 m along y = 10, and the ground
+  # between them at 105 m: a plane through the two beds stands 5 m above it at y = 50.
+  dem <- terra::setValues(r, ifelse(xy[, 2] > 85, 120, ifelse(xy[, 2] < 15, 100, 105)))
+  bed <- rbind(data.frame(x = seq(5, 95, 10), y = 90, z = 120),
+               data.frame(x = seq(5, 95, 10), y = 10, z = 100))
+  rem <- pc_readme_rem(dem, bed)
+  expect_equal(terra::extract(rem, cbind(50.5, 50.5))[[1]], 5, tolerance = 1e-6)
+  expect_gt(attr(rem, "bed_from")[["lowest"]], 0)
+  # Where the plane is not above the ground, it stays: the river's floodplain reads 0.
+  expect_equal(terra::extract(rem, cbind(50.5, 12.5))[[1]], 0, tolerance = 1e-6)
+})
+
+test_that("no water, or a sample every cell, is not an error", {
+  v <- synthetic_valley()
+  dry <- terra::setValues(v$dem, FALSE)
+  expect_gt(nrow(pc_readme_stream_bed(v$dem, v$stream, water = dry)), 0)
+  wet <- terra::setValues(v$dem, FALSE)
+  wet[1:3] <- TRUE
+  bed <- pc_readme_stream_bed(v$dem, v$stream, water = wet, spacing = 1)
+  expect_equal(sum(bed$y > 99), 3)
+})
+
 test_that("water cells count as stream bed at their own level", {
   v <- synthetic_valley()
   water <- terra::setValues(v$dem, FALSE)

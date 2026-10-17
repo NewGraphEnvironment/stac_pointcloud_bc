@@ -12,9 +12,16 @@
   "spacing_m": 10,
   "reach_m": 15,
   "bed_samples": 5597,
+  "above_m": 2,
+  "near_m": 1000,
+  "share_bed_tin": 0.893,
+  "share_bed_nearest": 0.102,
+  "share_bed_lowest": 0.005,
   "water_area_m2": 10000,
   "share_water": 0.07,
   "relief_m": 3,
   "exaggeration": 4,
-  "share_floor": 0.37
+  "share_floor": 0.413,
+  "share_below": 0.049,
+  "min_m": -2
 }

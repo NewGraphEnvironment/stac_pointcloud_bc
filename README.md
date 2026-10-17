@@ -87,7 +87,7 @@ The whole script, with the gridding, is [`scripts/readme_dem.py`](https://github
 
 <img src="fig/maxan_chm.png" alt="Canopy height drawn over the bare ground of the Maxan Creek delta where the creek enters Bulkley Lake, built from lidar point clouds. The ground is coloured by its height above the lake, from dark blue at the lake's level through purple and orange to yellow at 5 m and above, and shaded to show its shape. The creek meanders across the delta to the lake, and narrow channels show as dark threads across the low ground of the delta, under a light green tint of shrubs. Stands of trees up to 40 m tall are dark green on the delta, the forested slope along the south edge is green over yellow, and curving lows mark the higher ground in the northwest. The lake on the east is light blue." width="100%" />
 
-The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. The forest grows on ground that the creek has shaped, so the canopy is drawn over the bare ground, coloured by the ground’s height above the lake and shaded to show its relief. The creek meanders across the delta, and narrow channels thread the low ground between the stands of trees, under shrubs that are drawn as a light tint so the ground shows through them. Curving lows also mark the higher ground to the northwest. The straight line across the forest on the slope to the south is a road (it is in BC’s Digital Road Atlas), and the curved lows down that slope are gullies. Of the cells on land, 37% stand at least 2 m and 12% at least 10 m; the tallest 1% exceed 27.8 m, to a maximum of 39.5 m. Light blue, 41% of the window, is the lake and the creek’s channel.
+The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. The forest grows on ground that the creek has shaped, so the canopy is drawn over the bare ground, coloured by the ground’s height above the lake and shaded to show its relief. The creek meanders across the delta, and narrow channels thread the low ground between the stands of trees, under shrubs that are drawn as a light tint so the ground shows through them. Curving lows also mark the higher ground to the northwest. Two rough roads in BC’s Digital Road Atlas cross the forest on the slope to the south: the straight line, and a curve along the forest’s upper edge. The curved lows running down that slope are gullies. Of the cells on land, 37% stand at least 2 m and 12% at least 10 m; the tallest 1% exceed 27.8 m, to a maximum of 39.5 m. Light blue, 41% of the window, is the lake and the creek’s channel.
 
 **How it was made.** A STAC search for a 1.2 × 1 km window, plus a 30 m margin, returned the 2 items covering it, both from the 093/093l/2019 delivery. None of them has a `copc` asset, so each `laz` was downloaded whole, once: 532 MB holding 107.8 million points, 23.4 million of them in the window. 33% of those are ground returns (class 2) and 67% are class 1, unclassified, which is where LidarBC leaves most of its vegetation. Only noise and withheld points are left out; nothing is chosen by vegetation class. With [lidR](https://r-lidar.github.io/lidRbook/), heights are measured above a triangulated surface of the ground returns, and the first returns are rasterised pit-free at 0.5 m. A cell with no ground return within 5 m, or no return at all, is left empty. The lake’s surface returns are class 1 and level with its shore, so without that test the lake would read 0 m like the meadow.
 
@@ -232,11 +232,11 @@ The whole script, with the figure, is [`scripts/readme_chm.R`](https://github.co
 
 ## The valley floor: old channels upstream
 
-<img src="fig/maxan_rem.png" alt="The valley floors of Maxan Creek, Crow Creek and the Bulkley River around the west end of Bulkley Lake, from LidarBC's bare-earth elevation model, coloured by height above the nearest stream bed: dark blue at the bed through purple and orange to yellow at 3 m and above, and shaded to show the ground's shape. Maxan Creek's wide floodplain at the bottom centre is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor on the left, and the Bulkley River runs along the top. Curving old channels cross the cleared field west of the delta. Hills and terraces are yellow; Bulkley Lake on the right and a smaller lake on the left are light blue." width="100%" />
+<img src="fig/maxan_rem.png" alt="The valley floors of Maxan Creek, Crow Creek and the Bulkley River around the west end of Bulkley Lake, from LidarBC's bare-earth elevation model, coloured by height above the nearest stream bed: dark blue at or just below the bed through purple and orange to yellow at 3 m and above, and shaded to show the ground's shape. Maxan Creek's wide floodplain at the bottom centre is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor on the left, and the Bulkley River runs along the top. Curving old channels cross the cleared field west of the delta. Hills and terraces are yellow; Bulkley Lake on the right and a smaller lake on the left are light blue." width="100%" />
 
-The delta in the canopy figure is the right-hand edge of this 4 × 2.3 km view, where Maxan Creek meets Bulkley Lake. Further up the valley the old channels are clearer: Maxan Creek’s floodplain (bottom centre) is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor (left), and the Bulkley River runs along the top. Curving old channels also cross the cleared field west of the delta. The colour is height above the nearest stream bed, from 0 to 3 m, so one scale shows a valley floor that rises upstream; 37% of the land here lies within 3 m of a stream bed.
+The delta in the canopy figure is the right-hand quarter of this 4 × 2.3 km view, where Maxan Creek meets Bulkley Lake. Further up the valley the old channels are clearer: Maxan Creek’s floodplain (bottom centre) is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor (left), and the Bulkley River runs along the top. Curving old channels also cross the cleared field west of the delta. The colour is height above the nearest stream bed, from 0 to 3 m, so one scale shows a valley floor that rises upstream; 41% of the land here lies less than 3 m above a stream bed.
 
-**How it was made.** This view is wider than a demo should download point clouds for, so it reads the elevation model LidarBC made from the same 093/093l/2019 delivery, from the sister collection on the same API: the `stac-elevation-bc` item 093-093l-2019-dem-bc_093l040_xli1m_utm09_2019. Only the window’s rows were read, over HTTP, from the 638 MB file; its 1 m cells are averaged to 4 m. The streams are the Freshwater Atlas’s (Bulkley River, Crow Creek, Maxan Creek, Wiggins Creek and unnamed streams of Strahler order 2 and up). Every 10 m along each, the lowest ground within 15 m stands in for its bed, and open water, which the elevation model flattens to one level (found as level ground over 1 ha or more), counts as bed at its own level: 5,597 samples. A triangulated surface through them is the bed under every cell, and the colour is each cell’s height above it. The shading is the elevation model’s own, with its relief exaggerated 4 times. The model sits half a metre west and half a metre south of the points (see [research/dem_alignment.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/dem_alignment.md)), which does not show at this scale and is not corrected here.
+**How it was made.** This view is wider than a demo should download point clouds for, so it reads the elevation model LidarBC made from the same 093/093l/2019 delivery, from the sister collection on the same API: the `stac-elevation-bc` item 093-093l-2019-dem-bc_093l040_xli1m_utm09_2019. Only the window’s rows were read, over HTTP, from the 638 MB file; its 1 m cells are averaged to 4 m. The streams are the Freshwater Atlas’s (Bulkley River, Crow Creek, Maxan Creek, Wiggins Creek and unnamed streams of Strahler order 2 and up). Every 10 m along each, the lowest ground within 15 m stands in for its bed, and open water, which the elevation model flattens to one level (found as level ground over 1 ha or more), counts as bed at its own level: 5,597 samples. A triangulated surface through them is the bed under 89% of the window; outside the samples, at its corners (10%), it is the inverse-distance mean of the three nearest samples. Where either stands more than 2 m above the ground, as on a slope between a tributary high in its own valley and the creek below it, the bed is the lowest sample within 1 km instead (0.5% of the window). The colour is each cell’s height above that bed; 4.9% of the land lies up to 2 m below it and is drawn with the bed. The shading is the elevation model’s own, with its relief exaggerated 4 times. The model sits half a metre west and half a metre south of the points (see [research/dem_alignment.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/dem_alignment.md)), which does not show at this scale and is not corrected here.
 
 <details>
 
@@ -288,7 +288,7 @@ streams <- bcdata::bcdc_query_geodata("WHSE_BASEMAPPING.FWA_STREAM_NETWORKS_SP")
   sf::st_transform(crs)
 streams <- streams[streams$STREAM_ORDER >= MIN_ORDER, ]
 bed <- pc_readme_stream_bed(dem, streams, water = water, spacing = SPACING, reach = REACH)
-rem <- pc_readme_rem(dem, bed)
+rem <- pc_readme_rem(dem, bed, above = ABOVE, near = NEAR)
 ```
 
 `pc_readme_stream_bed()`, `pc_readme_flat_water()` and `pc_readme_rem()`, from [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R):
@@ -297,13 +297,16 @@ rem <- pc_readme_rem(dem, bed)
 pc_readme_stream_bed <- function(dem, lines, water = NULL, spacing = 10, reach = 15) {
   geom <- sf::st_cast(sf::st_geometry(sf::st_zm(lines)), "LINESTRING")
   pts <- sf::st_coordinates(sf::st_cast(sf::st_line_sample(geom, density = 1 / spacing), "POINT"))
-  w <- 2L * as.integer(ceiling(reach / terra::res(dem)[1])) + 1L
-  low <- terra::focal(dem, w = w, fun = "min", na.rm = TRUE)
+  # A circle of `reach` m: 1 inside, NA outside, so the minimum is taken over the circle only.
+  circle <- terra::focalMat(dem, reach, "circle")
+  circle[circle > 0] <- 1
+  circle[circle == 0] <- NA
+  low <- terra::focal(dem, w = circle, fun = "min", na.rm = TRUE)
   bed <- data.frame(x = pts[, 1], y = pts[, 2],
                     z = terra::extract(low, pts[, 1:2, drop = FALSE])[[1]])
   if (!is.null(water)) {
     k <- which(terra::values(water, mat = FALSE) %in% TRUE)
-    k <- k[seq(1, length(k), by = spacing)]
+    k <- k[(seq_along(k) - 1L) %% spacing == 0L]
     xy <- terra::xyFromCell(dem, k)
     bed <- rbind(bed, data.frame(x = xy[, 1], y = xy[, 2], z = terra::values(dem, mat = FALSE)[k]))
   }
@@ -329,8 +332,13 @@ pc_readme_flat_water <- function(dem, min_area = 1e4) {
 #' The TIN is linear between samples, so between two streams the bed surface runs as a plane
 #' rather than jumping at the line halfway between them. lidR leaves the cells beyond the
 #' samples' hull empty, so there the bed is the inverse-distance mean of the three nearest
-#' samples, on a grid `coarse` times the DEM's cell and interpolated back.
-pc_readme_rem <- function(dem, bed, coarse = 10) {
+#' samples, on a grid `coarse` times the DEM's cell and interpolated back. Between two streams
+#' at different heights, as a tributary high in its own valley and the river below it, either
+#' surface can run above the hillside that separates them; where it stands more than `above` m
+#' over the ground, the bed is instead the lowest sample within `near` m, when that is lower.
+#' Returns the height above the bed, with an attribute `bed_from`: the share of cells whose bed
+#' came from the TIN, the nearest samples, and the lowest nearby sample.
+pc_readme_rem <- function(dem, bed, coarse = 10, above = 0.5, near = 300) {
   pts <- data.table::data.table(X = bed$x, Y = bed$y, Z = bed$z, Classification = 2L)
   las <- suppressMessages(lidR::LAS(pts, crs = sf::st_crs(terra::crs(dem))))
   base <- suppressWarnings(lidR::rasterize_terrain(las, dem, lidR::tin()))
@@ -340,9 +348,33 @@ pc_readme_rem <- function(dem, bed, coarse = 10) {
     v$z <- bed$z
     diag <- sqrt(diff(terra::ext(dem)[1:2])^2 + diff(terra::ext(dem)[3:4])^2)
     far <- terra::interpIDW(g, v, "z", radius = diag, power = 1, maxPoints = 3)
+    from_far <- is.na(terra::values(base, mat = FALSE))
     base <- terra::cover(base, terra::resample(far, dem, method = "bilinear"))
+  } else {
+    from_far <- rep(FALSE, terra::ncell(dem))
   }
-  dem - base
+  # The lowest sample within `near` m: samples' minimum on the coarse grid, then a circle.
+  g <- terra::rast(terra::ext(dem), resolution = coarse * terra::res(dem), crs = terra::crs(dem))
+  lowest <- terra::rasterize(cbind(bed$x, bed$y), g, values = bed$z, fun = min)
+  circle <- terra::focalMat(lowest, near, "circle")
+  if (nrow(circle) >= 2 * min(dim(lowest)[1:2])) {
+    # A window as wide as the grid (a small test grid): every cell takes the lowest sample.
+    lowest <- terra::setValues(lowest, min(bed$z))
+  } else {
+    circle[circle > 0] <- 1
+    circle[circle == 0] <- NA
+    lowest <- terra::focal(lowest, w = circle, fun = "min", na.rm = TRUE)
+  }
+  lowest <- terra::resample(lowest, dem, method = "near")
+  z <- terra::values(dem, mat = FALSE)
+  b <- terra::values(base, mat = FALSE)
+  l <- terra::values(lowest, mat = FALSE)
+  over <- !is.na(l) & b - z > above & l < b
+  b[over] <- l[over]
+  rem <- dem - terra::setValues(dem, b)
+  attr(rem, "bed_from") <- c(tin = mean(!from_far & !over), nearest = mean(from_far & !over),
+                             lowest = mean(over))
+  rem
 }
 ```
 

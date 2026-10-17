@@ -24,10 +24,13 @@ SOUTH <- 1550
 NORTH <- 750
 CELL <- 4      # m, the figure's cell: the 1 m DEM averaged; about what the page width shows
 # Streams of this Strahler order and up set the bed (FWA); the lowest ground within REACH m of
-# each, every SPACING m. A smaller stream is a gully on a hillside, not a valley floor.
+# each, every SPACING m. A smaller stream is a gully on a hillside, not a valley floor. Where the
+# bed surface stands over ABOVE m above the ground, the lowest sample within NEAR m replaces it.
 MIN_ORDER <- 2
 SPACING <- 10
 REACH <- 15
+ABOVE <- 2
+NEAR <- 1000
 # Coloured from the bed to RELIEF m above it, which holds the valley floor.
 RELIEF <- 3
 EXAGGERATION <- 4
@@ -85,13 +88,14 @@ main <- function() {
     sf::st_transform(crs)
   streams <- streams[streams$STREAM_ORDER >= MIN_ORDER, ]
   bed <- pc_readme_stream_bed(dem, streams, water = water, spacing = SPACING, reach = REACH)
-  rem <- pc_readme_rem(dem, bed)
+  rem <- pc_readme_rem(dem, bed, above = ABOVE, near = NEAR)
   # --- the valley floor, shown on the landing page: end
 
   rgb <- pc_readme_relief(rem, terra::ifel(water, NA, 0), level = 0, relief = RELIEF,
                           exaggeration = EXAGGERATION, shape = dem)
   pc_readme_relief_png(rgb, REM_PNG, scale = CELL, legend = list(relief = RELIEF), bar_m = 1000,
                        ground_label = "above the\nstream bed (m)")
+  bed_from <- attr(rem, "bed_from")
   r <- terra::values(rem, mat = FALSE)[!terra::values(water, mat = FALSE)]
   if (anyNA(r)) stop("height above the stream bed is missing for ", sum(is.na(r)), " cells", call. = FALSE)
   out <- list(
@@ -108,12 +112,22 @@ main <- function() {
     spacing_m = SPACING,
     reach_m = REACH,
     bed_samples = nrow(bed),
+    above_m = ABOVE,
+    near_m = NEAR,
+    # Where each cell's bed came from: the TIN, beyond its hull the three nearest samples, or
+    # the lowest sample within NEAR m where those stood above the ground.
+    share_bed_tin = round(bed_from[["tin"]], 3),
+    share_bed_nearest = round(bed_from[["nearest"]], 3),
+    share_bed_lowest = round(bed_from[["lowest"]], 3),
     water_area_m2 = WATER_AREA,
     share_water = round(mean(terra::values(water, mat = FALSE)), 3),
     relief_m = RELIEF,
     exaggeration = EXAGGERATION,
-    # Land within RELIEF m of the stream bed: the valley floor as drawn.
-    share_floor = round(mean(r >= 0 & r < RELIEF), 3)
+    # Land less than RELIEF m above the stream bed, and the part of it below the bed: the
+    # valley floor as drawn, all of it below the ramp's top.
+    share_floor = round(mean(r < RELIEF), 3),
+    share_below = round(mean(r < 0), 3),
+    min_m = round(min(r), 2)
   )
   jsonlite::write_json(out, REM_JSON, auto_unbox = TRUE, pretty = TRUE, digits = NA)
 }
