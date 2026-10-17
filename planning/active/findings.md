@@ -17,3 +17,16 @@
   Maxan Creek's meander scars and oxbows upstream and the Bulkley River's floodplain; the
   nearest-sample surface leaves blotches in the field west of the delta.
 - The DEM tile's coverage ends on a curve at its south: a window must avoid its nodata.
+
+## The figure as built (2026-10-17)
+
+- Window 4.0 x 2.3 km west of the mouth (WEST 3400, EAST 600, SOUTH 1550, NORTH 750 m); SOUTH 1750
+  reached the tile's nodata corner (3,766 cells), 1600 was the first clear value, 1550 keeps a margin.
+- Read in ~30 s; whole script ~1 min. Drawn at 4 m (2 m gave a 3.5 MB PNG and a 10.2 MB index.html;
+  4 m: 0.9 MB, 6.8 MB). Two runs, same md5.
+- Fixes found by looking: lidR's TIN leaves cells beyond the samples' hull empty whatever its
+  `extrapolate` (a 50 x 50 test: 2,406 of 2,500 NA with `knnidw(3, 1, Inf)`), drawn white: filled by
+  `terra::interpIDW()` on a 10x coarser grid. Water as the most common value missed a second lake
+  (6.8 ha, flattened at 748.55 m): water is now any level patch of 1 ha or more. Shading the REM drew
+  the bed surface's triangle edges as lines: shading now comes from the DEM (`shape =`).
+- A SpatRaster `%in%` failed inside `terra::ifel()` (terra imported, not attached): on values instead.

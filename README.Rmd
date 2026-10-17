@@ -34,9 +34,10 @@ htmlwidgets::setWidgetIdSeed(42)
 # Both targets come from this file. `rmd_on` switches what differs between them;
 # `update_query` decides whether the network is used at all.
 #
-#   update_query = TRUE   the API, two header reads, the DEM demo and the CHM
-#                         demo -> data/readme_cache.rds, data/readme_dem.json,
-#                         fig/kanaka_dem.png, data/readme_chm.json, fig/maxan_chm.png
+#   update_query = TRUE   the API, two header reads, the DEM, CHM and valley-floor
+#                         demos -> data/readme_cache.rds, data/readme_dem.json,
+#                         fig/kanaka_dem.png, data/readme_chm.json, fig/maxan_chm.png,
+#                         data/readme_rem.json, fig/maxan_rem.png
 #                         (the CHM demo downloads ~0.5 GB of .laz to data/readme_laz/ once)
 #   update_query = FALSE  the cache only; no network
 #
@@ -74,6 +75,10 @@ if (isTRUE(params$update_query)) {
   if (system2(file.path(R.home("bin"), "Rscript"), "scripts/readme_chm.R") != 0L) {
     stop("scripts/readme_chm.R failed", call. = FALSE)
   }
+  # The valley floor: LidarBC's DEM from stac-elevation-bc, and the Freshwater Atlas.
+  if (system2(file.path(R.home("bin"), "Rscript"), "scripts/readme_rem.R") != 0L) {
+    stop("scripts/readme_rem.R failed", call. = FALSE)
+  }
   # No counts of the collection: the monthly update (#4) would make them stale (#24).
   saveRDS(list(
     version = pc_readme_version(),
@@ -84,7 +89,7 @@ if (isTRUE(params$update_query)) {
   ), CACHE)
 }
 # A missing cache must stop the render rather than produce a page with no numbers in it.
-for (f in c(CACHE, DEM_JSON, CHM_JSON)) {
+for (f in c(CACHE, DEM_JSON, CHM_JSON, REM_JSON)) {
   if (!file.exists(f)) {
     stop(f, " is missing — render once with params$update_query = TRUE", call. = FALSE)
   }
@@ -92,8 +97,11 @@ for (f in c(CACHE, DEM_JSON, CHM_JSON)) {
 cached <- readRDS(CACHE)
 dem <- jsonlite::fromJSON(DEM_JSON, simplifyVector = FALSE)
 chm <- jsonlite::fromJSON(CHM_JSON, simplifyVector = FALSE)
+rem <- jsonlite::fromJSON(REM_JSON, simplifyVector = FALSE)
 # paste0() drops a NULL silently, so a key the cached JSON lacks would leave a hole in a sentence.
-stopifnot(all(c("water_level_m", "relief_m", "exaggeration", "tree_m", "opaque_m", "figure_cell_m") %in% names(chm)))
+stopifnot(all(c("water_level_m", "relief_m", "exaggeration", "tree_m", "opaque_m", "figure_cell_m") %in% names(chm)),
+          all(c("item", "window_m", "cell_m", "dem_cell_m", "bytes_file", "streams", "min_order", "spacing_m",
+                "reach_m", "bed_samples", "water_area_m2", "relief_m", "exaggeration", "share_floor") %in% names(rem)))
 rows <- cached$rows
 ex <- cached$example
 fmt <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
@@ -156,7 +164,7 @@ The whole script, with the gridding, is [`scripts/readme_dem.py`](https://github
 knitr::include_graphics("fig/maxan_chm.png")
 ```
 
-`r paste0("The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. The forest grows on ground that the creek has shaped, so the canopy is drawn over the bare ground, coloured by the ground's height above the lake and shaded to show its relief. The creek meanders across the delta, and narrow channels thread the low ground between the stands of trees, under shrubs that are drawn as a light tint so the ground shows through them. Curving lows also mark the higher ground to the northwest. Of the cells on land, ", round(100 * chm$share_2m), "% stand at least 2 m and ", round(100 * chm$share_10m), "% at least 10 m; the tallest 1% exceed ", chm$height_m$p99, " m, to a maximum of ", chm$height_m$max, " m. Light blue, ", round(100 * chm$cells_na / chm$cells), "% of the window, is the lake and the creek's channel.")`
+`r paste0("The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. The forest grows on ground that the creek has shaped, so the canopy is drawn over the bare ground, coloured by the ground's height above the lake and shaded to show its relief. The creek meanders across the delta, and narrow channels thread the low ground between the stands of trees, under shrubs that are drawn as a light tint so the ground shows through them. Curving lows also mark the higher ground to the northwest. The straight line across the forest on the slope to the south is a road (it is in BC's Digital Road Atlas), and the curved lows down that slope are gullies. Of the cells on land, ", round(100 * chm$share_2m), "% stand at least 2 m and ", round(100 * chm$share_10m), "% at least 10 m; the tallest 1% exceed ", chm$height_m$p99, " m, to a maximum of ", chm$height_m$max, " m. Light blue, ", round(100 * chm$cells_na / chm$cells), "% of the window, is the lake and the creek's channel.")`
 
 `r paste0("**How it was made.** A STAC search for a ", fmt(chm$window_m[[1]] / 1000), " × ", fmt(chm$window_m[[2]] / 1000), " km window, plus a ", chm$margin_m, " m margin, returned ", if (length(chm$items_found) == length(chm$items)) paste0("the ", length(chm$items), " items covering it, ", if (length(chm$items) == 2) "both" else "all", " from the ", chm$delivery, " delivery.") else paste0(length(chm$items_found), " items from more than one delivery; the ", length(chm$items), " from ", chm$delivery, " were used."), " None of them has a ")` `copc` `r paste0("asset, so each ")` `laz` `r paste0("was downloaded whole, once: ", fmt(round(chm$bytes_files / 1e6)), " MB holding ", fmt(round(chm$points_files / 1e6, 1)), " million points, ", fmt(round(chm$points_window / 1e6, 1)), " million of them in the window. ", round(100 * chm$share_ground), "% of those are ground returns (class 2) and ", round(100 * chm$share_class1), "% are class 1, unclassified, which is where LidarBC leaves most of its vegetation. Only noise and withheld points are left out; nothing is chosen by vegetation class. With [lidR](https://r-lidar.github.io/lidRbook/), heights are measured above a triangulated surface of the ground returns, and the first returns are rasterised pit-free at ", chm$cell_m, " m. A cell with no ground return within ", chm$ground_gap_m, " m, or no return at all, is left empty. The lake's surface returns are class 1 and level with its shore, so without that test the lake would read 0 m like the meadow.")`
 
@@ -179,6 +187,31 @@ knitr::include_graphics("fig/maxan_chm.png")
 ```
 
 The whole script, with the figure, is [`scripts/readme_chm.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_chm.R).
+
+</details>
+
+## The valley floor: old channels upstream
+
+```{r rem-fig, echo=FALSE, fig.alt=paste0("The valley floors of Maxan Creek, Crow Creek and the Bulkley River around the west end of Bulkley Lake, from LidarBC's bare-earth elevation model, coloured by height above the nearest stream bed: dark blue at the bed through purple and orange to yellow at ", rem$relief_m, " m and above, and shaded to show the ground's shape. Maxan Creek's wide floodplain at the bottom centre is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor on the left, and the Bulkley River runs along the top. Curving old channels cross the cleared field west of the delta. Hills and terraces are yellow; Bulkley Lake on the right and a smaller lake on the left are light blue.")}
+knitr::include_graphics("fig/maxan_rem.png")
+```
+
+`r paste0("The delta in the canopy figure is the right-hand edge of this ", fmt(rem$window_m[[1]] / 1000), " × ", fmt(rem$window_m[[2]] / 1000), " km view, where Maxan Creek meets Bulkley Lake. Further up the valley the old channels are clearer: Maxan Creek's floodplain (bottom centre) is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor (left), and the Bulkley River runs along the top. Curving old channels also cross the cleared field west of the delta. The colour is height above the nearest stream bed, from 0 to ", rem$relief_m, " m, so one scale shows a valley floor that rises upstream; ", round(100 * rem$share_floor), "% of the land here lies within ", rem$relief_m, " m of a stream bed.")`
+
+`r paste0("**How it was made.** This view is wider than a demo should download point clouds for, so it reads the elevation model LidarBC made from the same ", chm$delivery, " delivery, from the sister collection on the same API: the ")` `stac-elevation-bc` `r paste0("item ", rem$item, ". Only the window's rows were read, over HTTP, from the ", fmt(round(rem$bytes_file / 1e6)), " MB file; its ", rem$dem_cell_m, " m cells are averaged to ", rem$cell_m, " m. The streams are the Freshwater Atlas's (", paste(unlist(rem$streams), collapse = ", "), " and unnamed streams of Strahler order ", rem$min_order, " and up). Every ", rem$spacing_m, " m along each, the lowest ground within ", rem$reach_m, " m stands in for its bed, and open water, which the elevation model flattens to one level (found as level ground over ", fmt(rem$water_area_m2 / 1e4), " ha or more), counts as bed at its own level: ", fmt(rem$bed_samples), " samples. A triangulated surface through them is the bed under every cell, and the colour is each cell's height above it. The shading is the elevation model's own, with its relief exaggerated ", rem$exaggeration, " times. The model sits half a metre west and half a metre south of the points (see [research/dem_alignment.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/dem_alignment.md)), which does not show at this scale and is not corrected here.")`
+
+<details>
+<summary>The code</summary>
+
+```{r rem-code, eval=FALSE, code=c(pc_readme_lines("scripts/readme_rem.R", "shown on the landing page"), "", pc_readme_lines("scripts/readme_rem.R", "the valley floor, shown on the landing page"))}
+```
+
+`pc_readme_stream_bed()`, `pc_readme_flat_water()` and `pc_readme_rem()`, from [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R):
+
+```{r rem-fn-code, eval=FALSE, code=pc_readme_lines("scripts/readme_functions.R", "the stream bed, shown on the landing page")}
+```
+
+The whole script, with the figure, is [`scripts/readme_rem.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_rem.R).
 
 </details>
 

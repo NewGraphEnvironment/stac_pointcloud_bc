@@ -1,0 +1,20 @@
+{
+  "item": "093-093l-2019-dem-bc_093l040_xli1m_utm09_2019",
+  "dem": "https://nrs.objectstore.gov.bc.ca/gdwuts/093/093l/2019/dem/bc_093l040_xli1m_utm09_2019.tif",
+  "delivery": "093/093l/2019",
+  "crs": "EPSG:3156",
+  "window_m": [4000, 2300],
+  "dem_cell_m": 1,
+  "cell_m": 4,
+  "bytes_file": 637566318,
+  "streams": ["Bulkley River", "Crow Creek", "Maxan Creek", "Wiggins Creek"],
+  "min_order": 2,
+  "spacing_m": 10,
+  "reach_m": 15,
+  "bed_samples": 5597,
+  "water_area_m2": 10000,
+  "share_water": 0.07,
+  "relief_m": 3,
+  "exaggeration": 4,
+  "share_floor": 0.37
+}

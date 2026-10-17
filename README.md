@@ -87,7 +87,7 @@ The whole script, with the gridding, is [`scripts/readme_dem.py`](https://github
 
 <img src="fig/maxan_chm.png" alt="Canopy height drawn over the bare ground of the Maxan Creek delta where the creek enters Bulkley Lake, built from lidar point clouds. The ground is coloured by its height above the lake, from dark blue at the lake's level through purple and orange to yellow at 5 m and above, and shaded to show its shape. The creek meanders across the delta to the lake, and narrow channels show as dark threads across the low ground of the delta, under a light green tint of shrubs. Stands of trees up to 40 m tall are dark green on the delta, the forested slope along the south edge is green over yellow, and curving lows mark the higher ground in the northwest. The lake on the east is light blue." width="100%" />
 
-The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. The forest grows on ground that the creek has shaped, so the canopy is drawn over the bare ground, coloured by the ground’s height above the lake and shaded to show its relief. The creek meanders across the delta, and narrow channels thread the low ground between the stands of trees, under shrubs that are drawn as a light tint so the ground shows through them. Curving lows also mark the higher ground to the northwest. Of the cells on land, 37% stand at least 2 m and 12% at least 10 m; the tallest 1% exceed 27.8 m, to a maximum of 39.5 m. Light blue, 41% of the window, is the lake and the creek’s channel.
+The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. The forest grows on ground that the creek has shaped, so the canopy is drawn over the bare ground, coloured by the ground’s height above the lake and shaded to show its relief. The creek meanders across the delta, and narrow channels thread the low ground between the stands of trees, under shrubs that are drawn as a light tint so the ground shows through them. Curving lows also mark the higher ground to the northwest. The straight line across the forest on the slope to the south is a road (it is in BC’s Digital Road Atlas), and the curved lows down that slope are gullies. Of the cells on land, 37% stand at least 2 m and 12% at least 10 m; the tallest 1% exceed 27.8 m, to a maximum of 39.5 m. Light blue, 41% of the window, is the lake and the creek’s channel.
 
 **How it was made.** A STAC search for a 1.2 × 1 km window, plus a 30 m margin, returned the 2 items covering it, both from the 093/093l/2019 delivery. None of them has a `copc` asset, so each `laz` was downloaded whole, once: 532 MB holding 107.8 million points, 23.4 million of them in the window. 33% of those are ground returns (class 2) and 67% are class 1, unclassified, which is where LidarBC leaves most of its vegetation. Only noise and withheld points are left out; nothing is chosen by vegetation class. With [lidR](https://r-lidar.github.io/lidRbook/), heights are measured above a triangulated surface of the ground returns, and the first returns are rasterised pit-free at 0.5 m. A cell with no ground return within 5 m, or no return at all, is left empty. The lake’s surface returns are class 1 and level with its shore, so without that test the lake would read 0 m like the meadow.
 
@@ -227,6 +227,126 @@ pc_readme_water_level <- function(las, chm) {
 ```
 
 The whole script, with the figure, is [`scripts/readme_chm.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_chm.R).
+
+</details>
+
+## The valley floor: old channels upstream
+
+<img src="fig/maxan_rem.png" alt="The valley floors of Maxan Creek, Crow Creek and the Bulkley River around the west end of Bulkley Lake, from LidarBC's bare-earth elevation model, coloured by height above the nearest stream bed: dark blue at the bed through purple and orange to yellow at 3 m and above, and shaded to show the ground's shape. Maxan Creek's wide floodplain at the bottom centre is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor on the left, and the Bulkley River runs along the top. Curving old channels cross the cleared field west of the delta. Hills and terraces are yellow; Bulkley Lake on the right and a smaller lake on the left are light blue." width="100%" />
+
+The delta in the canopy figure is the right-hand edge of this 4 × 2.3 km view, where Maxan Creek meets Bulkley Lake. Further up the valley the old channels are clearer: Maxan Creek’s floodplain (bottom centre) is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor (left), and the Bulkley River runs along the top. Curving old channels also cross the cleared field west of the delta. The colour is height above the nearest stream bed, from 0 to 3 m, so one scale shows a valley floor that rises upstream; 37% of the land here lies within 3 m of a stream bed.
+
+**How it was made.** This view is wider than a demo should download point clouds for, so it reads the elevation model LidarBC made from the same 093/093l/2019 delivery, from the sister collection on the same API: the `stac-elevation-bc` item 093-093l-2019-dem-bc_093l040_xli1m_utm09_2019. Only the window’s rows were read, over HTTP, from the 638 MB file; its 1 m cells are averaged to 4 m. The streams are the Freshwater Atlas’s (Bulkley River, Crow Creek, Maxan Creek, Wiggins Creek and unnamed streams of Strahler order 2 and up). Every 10 m along each, the lowest ground within 15 m stands in for its bed, and open water, which the elevation model flattens to one level (found as level ground over 1 ha or more), counts as bed at its own level: 5,597 samples. A triangulated surface through them is the bed under every cell, and the colour is each cell’s height above it. The shading is the elevation model’s own, with its relief exaggerated 4 times. The model sits half a metre west and half a metre south of the points (see [research/dem_alignment.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/dem_alignment.md)), which does not show at this scale and is not corrected here.
+
+<details>
+
+<summary>
+
+The code
+</summary>
+
+``` r
+api <- rstac::stac(paste0(API_ROOT, "/"))
+at_mouth <- api |>
+  rstac::stac_search(collections = ELEVATION, limit = 100,
+                     intersects = list(type = "Point", coordinates = c(MOUTH_LON, MOUTH_LAT))) |>
+  rstac::post_request()
+items <- Filter(\(f) identical(f$properties[["lidarbc:delivery"]], DELIVERY) &&
+                  !is.null(f$assets$dem), at_mouth$features)
+if (length(items) != 1L) stop(length(items), " ", DELIVERY, " DEM items at the mouth", call. = FALSE)
+item <- items[[1]]
+crs <- paste0("EPSG:", item$properties[["proj:epsg"]])
+xy <- sf::st_sfc(sf::st_point(c(MOUTH_LON, MOUTH_LAT)), crs = 4326) |>
+  sf::st_transform(crs) |>
+  sf::st_coordinates()
+# On the DEM's own cell edges, so the read is not resampled.
+tf <- unlist(item$properties[["proj:transform"]])
+snap <- \(v, o) o + round(v - o)
+box <- c(snap(xy[1] - WEST, tf[3]), snap(xy[2] - SOUTH, tf[6]),
+         snap(xy[1] + EAST, tf[3]), snap(xy[2] + NORTH, tf[6]))
+bb <- unlist(item$properties[["proj:bbox"]])
+if (box[1] < bb[1] || box[2] < bb[2] || box[3] > bb[3] || box[4] > bb[4]) {
+  stop(item$id, " does not cover the window", call. = FALSE)
+}
+# Only the window's rows are read from the file, over HTTP.
+tif <- tempfile(fileext = ".tif")
+sf::gdal_utils("translate", paste0("/vsicurl/", item$assets$dem$href), tif,
+               c("-projwin", box[1], box[4], box[3], box[2]))
+dem <- terra::rast(tif)
+
+dem <- terra::aggregate(dem, CELL, mean)
+water <- pc_readme_flat_water(dem, min_area = WATER_AREA)
+# The streams, from the Freshwater Atlas.
+# In BC Albers before the query: bcdata cannot translate a transform inside its filter.
+aoi <- sf::st_as_sfc(sf::st_bbox(setNames(box, c("xmin", "ymin", "xmax", "ymax")),
+                                 crs = sf::st_crs(crs))) |>
+  sf::st_transform(3005)
+streams <- bcdata::bcdc_query_geodata("WHSE_BASEMAPPING.FWA_STREAM_NETWORKS_SP") |>
+  bcdata::filter(bcdata::INTERSECTS(aoi)) |>
+  bcdata::select(GNIS_NAME, STREAM_ORDER) |>
+  bcdata::collect() |>
+  sf::st_transform(crs)
+streams <- streams[streams$STREAM_ORDER >= MIN_ORDER, ]
+bed <- pc_readme_stream_bed(dem, streams, water = water, spacing = SPACING, reach = REACH)
+rem <- pc_readme_rem(dem, bed)
+```
+
+`pc_readme_stream_bed()`, `pc_readme_flat_water()` and `pc_readme_rem()`, from [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R):
+
+``` r
+pc_readme_stream_bed <- function(dem, lines, water = NULL, spacing = 10, reach = 15) {
+  geom <- sf::st_cast(sf::st_geometry(sf::st_zm(lines)), "LINESTRING")
+  pts <- sf::st_coordinates(sf::st_cast(sf::st_line_sample(geom, density = 1 / spacing), "POINT"))
+  w <- 2L * as.integer(ceiling(reach / terra::res(dem)[1])) + 1L
+  low <- terra::focal(dem, w = w, fun = "min", na.rm = TRUE)
+  bed <- data.frame(x = pts[, 1], y = pts[, 2],
+                    z = terra::extract(low, pts[, 1:2, drop = FALSE])[[1]])
+  if (!is.null(water)) {
+    k <- which(terra::values(water, mat = FALSE) %in% TRUE)
+    k <- k[seq(1, length(k), by = spacing)]
+    xy <- terra::xyFromCell(dem, k)
+    bed <- rbind(bed, data.frame(x = xy[, 1], y = xy[, 2], z = terra::values(dem, mat = FALSE)[k]))
+  }
+  bed[!is.na(bed$z), ]
+}
+
+#' Open water in a hydro-flattened DEM: patches of exactly level ground of `min_area` m² or more
+#'
+#' A DEM made from lidar flattens each lake to one level, while no ground is level to the
+#' millimetre over a hectare. Returns a logical raster on the grid of `dem`.
+pc_readme_flat_water <- function(dem, min_area = 1e4) {
+  span <- terra::focal(dem, w = 3, fun = \(x) max(x) - min(x))
+  flat <- terra::classify(span == 0, cbind(0, NA))
+  p <- terra::patches(flat, directions = 8)
+  f <- terra::freq(p)
+  big <- f$value[f$count * prod(terra::res(dem)) >= min_area]
+  # On values: a SpatRaster's `%in%` does not dispatch unless terra is attached.
+  terra::setValues(dem, terra::values(p, mat = FALSE) %in% big)
+}
+
+#' Height above the stream bed: `dem` minus a TIN through the bed samples
+#'
+#' The TIN is linear between samples, so between two streams the bed surface runs as a plane
+#' rather than jumping at the line halfway between them. lidR leaves the cells beyond the
+#' samples' hull empty, so there the bed is the inverse-distance mean of the three nearest
+#' samples, on a grid `coarse` times the DEM's cell and interpolated back.
+pc_readme_rem <- function(dem, bed, coarse = 10) {
+  pts <- data.table::data.table(X = bed$x, Y = bed$y, Z = bed$z, Classification = 2L)
+  las <- suppressMessages(lidR::LAS(pts, crs = sf::st_crs(terra::crs(dem))))
+  base <- suppressWarnings(lidR::rasterize_terrain(las, dem, lidR::tin()))
+  if (anyNA(terra::values(base, mat = FALSE))) {
+    g <- terra::rast(terra::ext(dem), resolution = coarse * terra::res(dem), crs = terra::crs(dem))
+    v <- terra::vect(cbind(bed$x, bed$y), crs = terra::crs(dem))
+    v$z <- bed$z
+    diag <- sqrt(diff(terra::ext(dem)[1:2])^2 + diff(terra::ext(dem)[3:4])^2)
+    far <- terra::interpIDW(g, v, "z", radius = diag, power = 1, maxPoints = 3)
+    base <- terra::cover(base, terra::resample(far, dem, method = "bilinear"))
+  }
+  dem - base
+}
+```
+
+The whole script, with the figure, is [`scripts/readme_rem.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_rem.R).
 
 </details>
 
