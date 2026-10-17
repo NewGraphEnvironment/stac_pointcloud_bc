@@ -9,4 +9,4 @@ The landing page's canopy figure (`fig/maxan_chm.png`) now draws the Maxan delta
 - `scripts/readme_chm.R` end to end: 10.5 min, not the 42 min the issue's probe took (its CHM was 9 min of that). Two runs give a byte-identical PNG; every #19 number in `data/readme_chm.json` reproduced.
 - PNG 397 KB → 1.6 MB; index.html 5.6 MB.
 
-Closed by: PR for #30
+Closed by: PR #31
