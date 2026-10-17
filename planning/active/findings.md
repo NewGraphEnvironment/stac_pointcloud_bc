@@ -30,3 +30,17 @@
   (6.8 ha, flattened at 748.55 m): water is now any level patch of 1 ha or more. Shading the REM drew
   the bed surface's triangle edges as lines: shading now comes from the DEM (`shape =`).
 - A SpatRaster `%in%` failed inside `terra::ifel()` (terra imported, not attached): on values instead.
+
+## Below the bed (review p2 round 1, 2026-10-17)
+
+The TIN bed between Crow Creek's upstream end (745 m) and Maxan Creek (728 m) ran over a hillside:
+4.5% of land below the bed, to -8.9 m. Patches below -1 m (probe `p32_below.R`): 3.6 ha at -3.6 m
+370 m from any mapped stream (a hollow on Maxan's floodplain), 0.6 ha at -9.0 m on the south edge
+(nearest samples 640 m away, the artifact), and four of 0.2 ha or less.
+
+| rule (bed above ground by > ABOVE, replaced by lowest sample within NEAR) | below bed | min | replaced |
+|---|---|---|---|
+| none | 4.5% | -8.94 m | 0 |
+| ABOVE 0.5, NEAR 300 | 3.7% | -9.01 m | 1.7% (no sample within 300 m of the artifact) |
+| ABOVE 0.5, NEAR 1000 | 2.9% | -0.5 m | 2.3%, but real floodplain hollows jumped to the lake's level: yellow patches inside the valley floors |
+| **ABOVE 2, NEAR 1000** | 4.9% | -2.0 m | 0.5%; floors clean, the artifact corner yellow |
