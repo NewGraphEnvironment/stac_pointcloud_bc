@@ -3915,14 +3915,16 @@ mosaics do not), and this collection links it as
 <p>A LAS header does not say which classes a file holds, and a few files
 lack what you would assume. Some have no ground returns at all, so they
 give no bare-earth surface, and some have only ground. The build samples
-the least dense files of each mapsheet-year, where such files gather,
-and reads in full each one the sample flags. Those items list every
-class present, with its point count, in the <code>laz</code> asset’s
-<code>classification:classes</code>. The screen misses a few, so an item
-without a list was not read in full: look at its points before relying
-on its ground or vegetation classes. Most of LidarBC’s vegetation is
-unclassified (class 1). Water can be class 1 too, as at Bulkley Lake
-above. The method and what it found are in <a href="https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_classes.md"><code>research/laz_classes.md</code></a>.</p>
+the points of every file and reads in full each one the sample flags.
+Those items list every class present, with its point count, in the
+<code>laz</code> asset’s <code>classification:classes</code>. A sample
+can miss a class but never add one, so an item without a list holds
+ground and at least one class besides ground, noise and water, except
+for a few files the sampler cannot read. It says nothing about how much
+of each: look at the points before relying on their ground or vegetation
+classes. Most of LidarBC’s vegetation is unclassified (class 1). Water
+can be class 1 too, as at Bulkley Lake above. The method and what it
+found are in <a href="https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/laz_classes.md"><code>research/laz_classes.md</code></a>.</p>
 </div>
 </div>
 <div id="what-is-indexed" class="section level2">

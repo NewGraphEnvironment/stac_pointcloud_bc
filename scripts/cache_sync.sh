@@ -2,9 +2,9 @@
 # Move the build's read caches to and from s3://stac-pointcloud-bc/build-cache/ (#4).
 #
 # The build reads every header, COPC header and class sample it has not cached at the
-# file's current ETag. Cold, that is about 2.5 h of headers and 3 h of samples, more than a
-# GitHub runner's 6 h, so the monthly run starts from these. They hold reads of public
-# files, nothing published, so they live beside the catalogue (gzipped, about 20 MB).
+# file's current ETag. Cold, that is about 2.5 h of headers and a day of samples (every file is
+# sampled, #17), far more than a GitHub runner's 6 h, so the monthly run starts from these. They
+# hold reads of public files, nothing published, so they live beside the catalogue (gzipped).
 #
 #   pull   fetch each cache. Where data/build already has one (a local build), the two are
 #          merged, local lines first: every reader keeps a key's last line and re-checks its

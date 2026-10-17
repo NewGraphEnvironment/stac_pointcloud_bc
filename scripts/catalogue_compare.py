@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Compare a built catalogue with the published one: this release's change, and nothing else.
 
-0.4.0 (#22) publishes footprints rounded to `laz_item.LONLAT_DECIMALS` (#4). So a published
-item and its build may differ only in `geometry` and `bbox`, and there only by the rounding:
-each built coordinate carries at most LONLAT_DECIMALS decimals and lies within half a unit
-of its last place of the published one (plus float slack, `TOLERANCE`), with the same
-structure. Every other key must be equal, `copc` asset included. (The 0.3.0 version of this
-script, which checked #2's changes, is at tag v0.3.0.)
+#17 samples every file's classes, so a build may give an item that had no class list one: the
+`laz` asset's `classification:classes` and the classification extension, both added together.
+A list the published item already carries must be unchanged, and none may be dropped. The
+collection's `description` may change (it says how the lists were made).
+
+Footprints were rounded to `laz_item.LONLAT_DECIMALS` in 0.4.0 (#22, #4), and are still held
+to that: `geometry` and `bbox` may differ only by the rounding, each built coordinate carrying
+at most LONLAT_DECIMALS decimals and lying within half a unit of its last place of the
+published one (plus float slack, `TOLERANCE`), with the same structure. Every other key must
+be equal, `copc` asset included. (The 0.3.0 version of this script, which checked #2's changes,
+is at tag v0.3.0.)
 
 Items `links` are dropped from both sides, as stacs digests bodies without them. The published
 items are the ones the published collection.json links; each must be in the local copy, and the
@@ -31,12 +36,25 @@ import json
 import os
 import sys
 
+from pystac.extensions.classification import ClassificationExtension
+
 from collection_version import VERSION_EXT
-from laz_item import LONLAT_DECIMALS
+from laz_item import ASSET_LAZ, LONLAT_DECIMALS
 
 # Half a unit in the last kept place, plus slack for the binary form of either value.
 TOLERANCE = 0.5 * 10 ** -LONLAT_DECIMALS + 1e-12
 ROUNDED = ("geometry", "bbox")
+CLASSES = "classification:classes"
+CLASSIFICATION_EXT = ClassificationExtension.get_schema_uri()
+
+
+def classes_added(pub: dict, built: dict) -> bool:
+    """Whether the build gives the item a class list it had none of (#17): the list on the laz
+    asset and the classification extension, where the published item carries neither."""
+    pa, ba = pub.get("assets", {}).get(ASSET_LAZ, {}), built.get("assets", {}).get(ASSET_LAZ, {})
+    return (CLASSES in ba and CLASSES not in pa
+            and CLASSIFICATION_EXT in built.get("stac_extensions", [])
+            and CLASSIFICATION_EXT not in pub.get("stac_extensions", []))
 
 
 def items_load(d: str) -> dict[str, dict]:
@@ -142,6 +160,9 @@ def item_expected_diff(pub: dict, built: dict) -> list[str]:
     for k in ROUNDED:
         p.pop(k, None)
         b.pop(k, None)
+    if classes_added(p, b):
+        b["assets"][ASSET_LAZ].pop(CLASSES)
+        b["stac_extensions"].remove(CLASSIFICATION_EXT)
     if p != b:
         keys = sorted({x for x in p.keys() | b.keys() if p.get(x) != b.get(x)})
         for x in ("properties", "assets"):
@@ -181,7 +202,9 @@ def collection_diff(pub: dict, built: dict, new: int) -> tuple[list[str], list[s
     if exts(pub) != exts(built):
         problems.append(f"stac_extensions: {exts(pub)} -> {exts(built)}")
     for k in sorted(pub.keys() | built.keys()):
-        if (k not in ("links", "version", "extent", "stac_extensions")
+        if k == "description" and pub.get(k) != built.get(k):
+            changes.append("description changed")
+        elif (k not in ("links", "version", "extent", "stac_extensions", "description")
                 and pub.get(k) != built.get(k)):
             problems.append(f"{k}: changed")
     return problems, changes
@@ -225,6 +248,8 @@ def main() -> int:
           f"new {len(new)}; published items whose bbox the rounding moved {moved}")
     print(f"coordinates compared {len(pairs)}, equal to the published rounded to "
           f"{LONLAT_DECIMALS} decimals {exact}; largest shift {shift:.3g} degrees")
+    gained = sum(classes_added(pub[k], built[k]) for k in shared)
+    print(f"published items given a class list they had none of: {gained}")
     print(f"published items differing beyond the rounding: {len(bad)}")
     for k, e in list(bad.items())[:20]:
         print(f"  {k}: {'; '.join(e[:3])}")

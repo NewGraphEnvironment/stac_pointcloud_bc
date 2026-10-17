@@ -33,7 +33,7 @@ Decided at the plan gate (2026-10-17): the build samples every file, not a one-t
 - [x] `scripts/laz_classes_probe.py`: keep `density_screen`, `audit_select` and `--audit` for the
       research record; comment that the build no longer uses the screen
 - [x] `COLLECTION_DESCRIPTION` rewritten for sampling every file
-- [ ] `maintaining.md`: drop "growth moves its density screen"; a monthly run samples new files
+- [x] `maintaining.md`: drop "growth moves its density screen"; a monthly run samples new files
 
 ## Phase 3: The sweep (local, ~20 h)
 - [ ] Commit, `cache_sync.sh pull`, then `PYTHONUNBUFFERED=1` build `--workers 16` to a log under
@@ -42,7 +42,7 @@ Decided at the plan gate (2026-10-17): the build samples every file, not a one-t
       `data/classes_required.json`; commit it
 - [ ] Measure: files sampled, flagged, read whole, lists published, by verdict; the audit's two
       misses now flagged; how many new lists the screen missed (against the ~38 estimate)
-- [ ] `catalogue_compare.py` taught the expected #17 diff (new `classification:classes`, its
+- [x] `catalogue_compare.py` taught the expected #17 diff (new `classification:classes`, its
       `stac_extensions`, the description), with its tests (plan review B2)
 - [ ] `catalogue_compare.py` against the published catalogue: only class lists and the collection change
 - [ ] `cache_sync.sh push` (**before merge**: a monthly run on code that samples everything and a
@@ -52,7 +52,7 @@ Decided at the plan gate (2026-10-17): the build samples every file, not a one-t
 - [ ] `research/laz_classes.md` revised in place: the full sample's verdicts, cost, what the screen
       missed (by density percentile), what it still does not establish; header line and README row
 - [ ] Classes across the collection from every file rather than the audit's 5% (the class 1 / 3–5 / 12 shares)
-- [ ] `README.Rmd` (renders README.md, index.html): the "build samples the least dense files"
+- [x] `README.Rmd` (renders README.md, index.html): the "build samples the least dense files"
       paragraph; `scripts/cache_sync.sh` cold-cost comment; maintaining.md cache size and the
       monthly ceiling of about 20k new files (plan review G1, CI cost)
 - [ ] Push the cache and merge back to back, with no monthly run between (plan review O1)
