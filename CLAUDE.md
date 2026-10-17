@@ -82,6 +82,11 @@ treating the repo as a Python package (#9).
   **Water can be class 1 too**: Bulkley Lake's surface returns in `093l/2019` are class 1 at the
   height of its shore, so a canopy height model reads the lake as 0 m unless water is masked by
   its missing ground returns (#19, `research/laz_classes.md`).
+- **LidarBC's 2019 DEM for 093l040 is a TIN of its delivery's ground returns, misplaced:** GDAL
+  reads it 0.5 m west and 0.5 m south of them (`AREA_OR_POINT=Point`), and a plain difference hides
+  it (median 0.010 m). One tile measured; `research/dem_alignment.md`, stac_elevation_bc#69. The
+  landing page's valley-floor figure (`scripts/readme_rem.R`) reads that DEM and says it is not
+  corrected; its canopy figure builds its ground from the points.
 - **Source URLs are `https://`.** `ngr::ngr_s3_keys_get()` returned `https:/` before ngr
   0.0.3 (ngr#38). Anything that reads a URL list refuses the one-slash form; never
   repair it silently (stac_dem_bc#51).
