@@ -41,14 +41,14 @@ tin <- lidR::rasterize_terrain(las, terra::rast(e, resolution = 1, crs = terra::
 terra::crs(tin) <- terra::crs(pub)
 land <- terra::values(tin, mat = FALSE) > LAND_ABOVE
 
-cat("shift_x shift_y median_abs_m p95_abs_m cells\n")
+cat("shift_x shift_y median_abs_m p95_abs_m share_over_1mm max_abs_m cells\n")
 for (dx in c(-0.5, 0.5)) for (dy in c(-0.5, 0.5)) {
   # Moved by half a cell, the DEM's cells land on the TIN's: "near" only picks them up.
   p <- terra::resample(terra::shift(pub, dx, dy), tin, method = "near")
   v <- abs(terra::values(tin, mat = FALSE) - terra::values(p, mat = FALSE))[land %in% TRUE]
   v <- v[!is.na(v)]
-  cat(sprintf("%+.1f %+.1f %.3f %.3f %d\n", dx, dy, stats::median(v),
-              stats::quantile(v, 0.95, names = FALSE), length(v)))
+  cat(sprintf("%+.1f %+.1f %.3f %.3f %.4f %.2f %d\n", dx, dy, stats::median(v),
+              stats::quantile(v, 0.95, names = FALSE), mean(v > 0.001), max(v), length(v)))
 }
 
 # Unshifted: a TIN on the DEM's own cells, as GDAL reads them. The offset shows only as a bias
