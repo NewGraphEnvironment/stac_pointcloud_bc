@@ -44,22 +44,22 @@ A turbo-type ramp stretched over the floodplain's own range is known to bring th
       page shows them; restore-the-bug check that each test goes red
 - [x] Draw at one cell per device pixel (`maxcell`, review B2), the figure's DEM on the CHM's own
       grid (review B1), two hand-drawn legends (G6); a test that every README marker resolves (G9)
-- [ ] `research/`: the published DEM vs the ground TIN, dated (review S1)
+- [x] `research/`: the published DEM vs the ground TIN, dated (review S1)
 - [x] `scripts/readme_chm.R`: build the ground surface from the same `las`, rewrite `plot_chm()`,
       add to `data/readme_chm.json` every number the caption will quote (stretch limits, floodplain
       definition, DEM source, water-surface fall, DEM difference if quoted)
 
 ## Phase 4: The page
-- [ ] README.Rmd: caption, alt text and "How it was made" describe what is shown (straight lows
+- [x] README.Rmd: caption, alt text and "How it was made" describe what is shown (straight lows
       that may be ditches or a road are not called channels); code excerpts updated
-- [ ] Run `scripts/readme_chm.R` once (background), then render README.md and index.html with
+- [x] Run `scripts/readme_chm.R` once (background), then render README.md and index.html with
       `update_query = FALSE`, so unrelated caches do not move (review O3)
-- [ ] Check the PNG at ~880 px for the issue's three features; index.html's embedded PNG md5
+- [x] Check the PNG at ~880 px for the issue's three features; index.html's embedded PNG md5
       equals `fig/maxan_chm.png`; every caption number traces to `data/readme_chm.json` (AC1-AC4)
 
 ## Validation
-- [ ] `Rscript -e 'testthat::test_file("tests/readme_functions_test.R")'` and `uv run pytest` pass
-- [ ] The figure plots twice to the same md5 from the same rasters (review A1)
+- [x] `Rscript -e 'testthat::test_file("tests/readme_functions_test.R")'` and `uv run pytest` pass
+- [x] The figure plots twice to the same md5 from the same rasters (review A1)
 - [ ] `/code-check` clean (once over the branch)
 - [ ] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion, then `/gh-pr-push`

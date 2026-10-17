@@ -92,6 +92,8 @@ for (f in c(CACHE, DEM_JSON, CHM_JSON)) {
 cached <- readRDS(CACHE)
 dem <- jsonlite::fromJSON(DEM_JSON, simplifyVector = FALSE)
 chm <- jsonlite::fromJSON(CHM_JSON, simplifyVector = FALSE)
+# paste0() drops a NULL silently, so a key the cached JSON lacks would leave a hole in a sentence.
+stopifnot(all(c("water_level_m", "relief_m", "exaggeration", "tree_m", "figure_cell_m") %in% names(chm)))
 rows <- cached$rows
 ex <- cached$example
 fmt <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
@@ -150,13 +152,15 @@ The whole script, with the gridding, is [`scripts/readme_dem.py`](https://github
 
 ## Canopy height: the forest along a stream
 
-```{r chm-fig, echo=FALSE, fig.alt=paste0("A canopy height model of the Maxan Creek delta where the creek enters Bulkley Lake, built from lidar point clouds: open meadow at 0 m, the creek channel meandering through it to the lake, stands of trees up to ", round(chm$height_m$max), " m tall on the delta, a forested slope along the south edge, and the lake on the east in light blue.")}
+```{r chm-fig, echo=FALSE, fig.alt=paste0("Canopy height drawn over the bare ground of the Maxan Creek delta where the creek enters Bulkley Lake, built from lidar point clouds. The ground is coloured by its height above the lake, from dark blue at the lake's level through purple and orange to yellow at ", chm$relief_m, " m and above, and shaded to show its shape. The creek meanders across the delta to the lake, and narrow channels show as dark threads across the low ground of the delta, under a light green tint of shrubs. Stands of trees up to ", round(chm$height_m$max), " m tall are dark green on the delta, the forested slope along the south edge is green over yellow, and curving lows mark the higher ground in the northwest. The lake on the east is light blue.")}
 knitr::include_graphics("fig/maxan_chm.png")
 ```
 
-`r paste0("The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. Here the meadow reads 0 m, the creek meanders through it to the lake, and stands of trees grow on the delta and the slope to the south. Of the cells on land, ", round(100 * chm$share_2m), "% stand at least 2 m and ", round(100 * chm$share_10m), "% at least 10 m; the tallest 1% exceed ", chm$height_m$p99, " m, to a maximum of ", chm$height_m$max, " m. Light blue, ", round(100 * chm$cells_na / chm$cells), "% of the window, is the lake and the creek's channel.")`
+`r paste0("The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. The forest grows on ground that the creek has shaped, so the canopy is drawn over the bare ground, coloured by the ground's height above the lake and shaded to show its relief. The creek meanders across the delta, and narrow channels thread the low ground between the stands of trees, under shrubs that are drawn as a light tint so the ground shows through them. Curving lows also mark the higher ground to the northwest. Of the cells on land, ", round(100 * chm$share_2m), "% stand at least 2 m and ", round(100 * chm$share_10m), "% at least 10 m; the tallest 1% exceed ", chm$height_m$p99, " m, to a maximum of ", chm$height_m$max, " m. Light blue, ", round(100 * chm$cells_na / chm$cells), "% of the window, is the lake and the creek's channel.")`
 
 `r paste0("**How it was made.** A STAC search for a ", fmt(chm$window_m[[1]] / 1000), " × ", fmt(chm$window_m[[2]] / 1000), " km window, plus a ", chm$margin_m, " m margin, returned ", if (length(chm$items_found) == length(chm$items)) paste0("the ", length(chm$items), " items covering it, ", if (length(chm$items) == 2) "both" else "all", " from the ", chm$delivery, " delivery.") else paste0(length(chm$items_found), " items from more than one delivery; the ", length(chm$items), " from ", chm$delivery, " were used."), " None of them has a ")` `copc` `r paste0("asset, so each ")` `laz` `r paste0("was downloaded whole, once: ", fmt(round(chm$bytes_files / 1e6)), " MB holding ", fmt(round(chm$points_files / 1e6, 1)), " million points, ", fmt(round(chm$points_window / 1e6, 1)), " million of them in the window. ", round(100 * chm$share_ground), "% of those are ground returns (class 2) and ", round(100 * chm$share_class1), "% are class 1, unclassified, which is where LidarBC leaves most of its vegetation. Only noise and withheld points are left out; nothing is chosen by vegetation class. With [lidR](https://r-lidar.github.io/lidRbook/), heights are measured above a triangulated surface of the ground returns, and the first returns are rasterised pit-free at ", chm$cell_m, " m. A cell with no ground return within ", chm$ground_gap_m, " m, or no return at all, is left empty. The lake's surface returns are class 1 and level with its shore, so without that test the lake would read 0 m like the meadow.")`
+
+`r paste0("**The ground under it** is the same triangulated surface of the ground returns, on the same ", chm$cell_m, " m grid. Its colour is its height above the lake's surface, ", chm$water_level_m, " m, which is the median height of the returns over the water: from 0 at the lake to ", chm$relief_m, " m, which holds the delta, while the slope to the south runs past it. It is shaded as if lit from the northwest, with its relief exaggerated ", chm$exaggeration, " times. Canopy of ", chm$tree_m, " m and up is drawn over it in greens, more opaque the taller it stands, and the ground's shading runs through the canopy too. Each pixel of the figure is the average of the ", chm$cell_m, " m cells in its ", chm$figure_cell_m, " m square, so a thin channel is not lost to sampling. LidarBC publishes a DEM for this delivery, and it is the same surface, but read as published it sits half a metre south-west of the points (see [research/dem_alignment.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/dem_alignment.md)), so the ground here is built from the points.")`
 
 <details>
 <summary>The code</summary>
@@ -167,6 +171,11 @@ knitr::include_graphics("fig/maxan_chm.png")
 `pc_readme_chm()`, from [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R):
 
 ```{r chm-fn-code, eval=FALSE, code=pc_readme_lines("scripts/readme_functions.R", "the CHM, shown on the landing page")}
+```
+
+`pc_readme_ground()` and `pc_readme_water_level()`, from the same file:
+
+```{r ground-fn-code, eval=FALSE, code=pc_readme_lines("scripts/readme_functions.R", "the ground, shown on the landing page")}
 ```
 
 The whole script, with the figure, is [`scripts/readme_chm.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_chm.R).

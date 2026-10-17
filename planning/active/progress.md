@@ -17,3 +17,10 @@
   `pc_readme_relief_png()` with 7 tests; restore-the-bug table, 8 mutations each caught by at
   least one test (canopy-opacity needed a tint test added). The README-marker test fails until
   Phase 4 adds the ground excerpt.
+- Phase 4: `readme_chm.R` run twice end to end (10.5 min each); the PNG is byte-identical across
+  the two runs (md5 63318fb2…), and every #19 number in the JSON reproduced. README.md and
+  index.html rendered with `update_query = FALSE`: only the CHM section changed; index.html embeds
+  the new PNG (md5 match), 5.6 MB. R tests 19/19, pytest 321 passed.
+- Filed stac_elevation_bc#69 (the DEM's half-cell offset); `research/dem_alignment.md` and its
+  probe `scripts/dem_alignment_probe.R`.
+- Next: `/code-check branch`, archive, PR.

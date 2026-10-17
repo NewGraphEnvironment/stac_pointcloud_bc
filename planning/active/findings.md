@@ -179,7 +179,23 @@ multiplied through both, the threads stay legible under the shrubs. Ground ramp:
 dark = low, so channels read as dark threads); canopy greens; water light blue. Turbo collides with
 green canopy (review G8).
 
+## Phase 3-4: the shipped figure (2026-10-17)
+
+- `scripts/readme_chm.R` end to end: 10.5 min (10:12:40-10:23:11Z), downloads cached. Every #19
+  number in `data/readme_chm.json` reproduced exactly; new keys `water_level_m` 712.72,
+  `relief_m` 5, `tree_m` 2, `exaggeration` 4, `figure_cell_m` 1.
+- `fig/maxan_chm.png`: 1530 x 1000 px (1200 x 1000 map at 1 m, 330 px of scales), 1.6 MB, up
+  from 397 KB; index.html embeds it as base64 (~2.2 MB).
+- At 880 px (GitHub's column), the threads across the delta, the creek and the curving lows on the
+  northwest block read; the straight lines under the south forest are left unnamed in the caption.
+- Defaults chosen by eye, at page scale, from scratch renders through the shipping helpers (`p30_fig.R`): shrub opacity
+  0.15 (0.25 greyed the delta), exaggeration 4 (3 left the NW scars faint), relief 5 m (4 m put
+  the NW block's top into the ramp's end).
+
 ## Errors Encountered
 
 | Error | Resolution |
 |-------|------------|
+| `[mask] CRS do not match` (lidR WKT vs GDAL's for EPSG:3156; `same.crs()` FALSE) | Set one raster's CRS from the other, or compare values |
+| `color intensity -1, not in 0:255` from `as.raster()` | `terra::shade()` goes negative facing away from the sun: clamp the shade factor at 0 |
+| Pixel test compared integer to double with `identical()` | Compare by `==` |

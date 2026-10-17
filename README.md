@@ -85,11 +85,13 @@ The whole script, with the gridding, is [`scripts/readme_dem.py`](https://github
 
 ## Canopy height: the forest along a stream
 
-<img src="fig/maxan_chm.png" alt="A canopy height model of the Maxan Creek delta where the creek enters Bulkley Lake, built from lidar point clouds: open meadow at 0 m, the creek channel meandering through it to the lake, stands of trees up to 40 m tall on the delta, a forested slope along the south edge, and the lake on the east in light blue." width="100%" />
+<img src="fig/maxan_chm.png" alt="Canopy height drawn over the bare ground of the Maxan Creek delta where the creek enters Bulkley Lake, built from lidar point clouds. The ground is coloured by its height above the lake, from dark blue at the lake's level through purple and orange to yellow at 5 m and above, and shaded to show its shape. The creek meanders across the delta to the lake, and narrow channels show as dark threads across the low ground of the delta, under a light green tint of shrubs. Stands of trees up to 40 m tall are dark green on the delta, the forested slope along the south edge is green over yellow, and curving lows mark the higher ground in the northwest. The lake on the east is light blue." width="100%" />
 
-The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. Here the meadow reads 0 m, the creek meanders through it to the lake, and stands of trees grow on the delta and the slope to the south. Of the cells on land, 37% stand at least 2 m and 12% at least 10 m; the tallest 1% exceed 27.8 m, to a maximum of 39.5 m. Light blue, 41% of the window, is the lake and the creek’s channel.
+The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, canopy height is the forest that shades the water, holds the banks and drops wood into the channel. The forest grows on ground that the creek has shaped, so the canopy is drawn over the bare ground, coloured by the ground’s height above the lake and shaded to show its relief. The creek meanders across the delta, and narrow channels thread the low ground between the stands of trees, under shrubs that are drawn as a light tint so the ground shows through them. Curving lows also mark the higher ground to the northwest. Of the cells on land, 37% stand at least 2 m and 12% at least 10 m; the tallest 1% exceed 27.8 m, to a maximum of 39.5 m. Light blue, 41% of the window, is the lake and the creek’s channel.
 
 **How it was made.** A STAC search for a 1.2 × 1 km window, plus a 30 m margin, returned the 2 items covering it, both from the 093/093l/2019 delivery. None of them has a `copc` asset, so each `laz` was downloaded whole, once: 532 MB holding 107.8 million points, 23.4 million of them in the window. 33% of those are ground returns (class 2) and 67% are class 1, unclassified, which is where LidarBC leaves most of its vegetation. Only noise and withheld points are left out; nothing is chosen by vegetation class. With [lidR](https://r-lidar.github.io/lidRbook/), heights are measured above a triangulated surface of the ground returns, and the first returns are rasterised pit-free at 0.5 m. A cell with no ground return within 5 m, or no return at all, is left empty. The lake’s surface returns are class 1 and level with its shore, so without that test the lake would read 0 m like the meadow.
+
+**The ground under it** is the same triangulated surface of the ground returns, on the same 0.5 m grid. Its colour is its height above the lake’s surface, 712.72 m, which is the median height of the returns over the water: from 0 at the lake to 5 m, which holds the delta, while the slope to the south runs past it. It is shaded as if lit from the northwest, with its relief exaggerated 4 times. Canopy of 2 m and up is drawn over it in greens, more opaque the taller it stands, and the ground’s shading runs through the canopy too. Each pixel of the figure is the average of the 0.5 m cells in its 1 m square, so a thin channel is not lost to sampling. LidarBC publishes a DEM for this delivery, and it is the same surface, but read as published it sits half a metre south-west of the points (see [research/dem_alignment.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/dem_alignment.md)), so the ground here is built from the points.
 
 <details>
 
@@ -157,6 +159,10 @@ laz <- vapply(seq_along(items), \(i) {
 las <- lidR::readLAS(laz, select = "xyzrc",
                      filter = paste("-drop_withheld -keep_xy", paste(read_box, collapse = " ")))
 chm <- pc_readme_chm(las, box, res = CELL, ground_gap = GROUND_GAP)
+# The bare ground on the same grid, and the lake's surface from the returns over the water,
+# so the ground can be coloured by its height above the lake.
+ground <- pc_readme_ground(las, box, res = CELL)
+level <- round(pc_readme_water_level(las, chm), 2)
 ```
 
 `pc_readme_chm()`, from [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R):
@@ -188,6 +194,35 @@ pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5), ground_gap 
   chm <- terra::crop(chm, terra::ext(box[1], box[3], box[2], box[4]))
   # A return a few cm under the interpolated ground is not a negative height.
   terra::clamp(chm, lower = 0, values = TRUE)
+}
+```
+
+`pc_readme_ground()` and `pc_readme_water_level()`, from the same file:
+
+``` r
+pc_readme_ground <- function(las, box, res = 0.5) {
+  keep <- las$Classification %in% c(2L, 9L)
+  if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag
+  g <- lidR::filter_poi(las, keep)
+  b <- box + 2 * res * c(-1, -1, 1, 1)
+  grid <- terra::rast(terra::ext(b[1], b[3], b[2], b[4]), resolution = res,
+                      crs = lidR::st_crs(las)$wkt)
+  dem <- lidR::rasterize_terrain(g, grid, lidR::tin())
+  terra::crop(dem, terra::ext(box[1], box[3], box[2], box[4]))
+}
+
+#' The water's surface: the median height of the returns in the cells the CHM calls water
+#'
+#' Those cells have no ground return near them (`pc_readme_chm()`), so their unclassified
+#' returns are the water's surface, with the odd crown overhanging the shore, which the median
+#' ignores. NA when the window holds no water.
+pc_readme_water_level <- function(las, chm) {
+  keep <- !las$Classification %in% c(2L, 9L, NOISE_CLASSES)
+  if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag
+  cell <- terra::cellFromXY(chm, cbind(las$X[keep], las$Y[keep]))
+  wet <- !is.na(cell) & is.na(terra::values(chm, mat = FALSE)[cell])
+  if (!any(wet)) return(NA_real_)
+  stats::median(las$Z[keep][wet])
 }
 ```
 
