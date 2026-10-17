@@ -37,15 +37,15 @@ A turbo-type ramp stretched over the floodplain's own range is known to bring th
       "or a second figure" kept as fallback only if one panel cannot carry both)
 
 ## Phase 3: Build it (tests first)
-- [ ] Failing tests in `tests/readme_functions_test.R` on synthetic LAS for each new helper
+- [x] Failing tests in `tests/readme_functions_test.R` on synthetic LAS for each new helper
       (ground DEM on the CHM's grid; water surface / REM if chosen; the stretch-and-multiply blend:
       percentile clamp, NA water stays the water colour, hillshade darkens, canopy layer placement)
-- [ ] Implement the helpers in `scripts/readme_functions.R`, inside a landing-page marker where the
+- [x] Implement the helpers in `scripts/readme_functions.R`, inside a landing-page marker where the
       page shows them; restore-the-bug check that each test goes red
-- [ ] Draw at one cell per device pixel (`maxcell`, review B2), the figure's DEM on the CHM's own
+- [x] Draw at one cell per device pixel (`maxcell`, review B2), the figure's DEM on the CHM's own
       grid (review B1), two hand-drawn legends (G6); a test that every README marker resolves (G9)
 - [ ] `research/`: the published DEM vs the ground TIN, dated (review S1)
-- [ ] `scripts/readme_chm.R`: build the ground surface from the same `las`, rewrite `plot_chm()`,
+- [x] `scripts/readme_chm.R`: build the ground surface from the same `las`, rewrite `plot_chm()`,
       add to `data/readme_chm.json` every number the caption will quote (stretch limits, floodplain
       definition, DEM source, water-surface fall, DEM difference if quoted)
 

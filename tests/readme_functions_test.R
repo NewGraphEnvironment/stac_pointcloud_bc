@@ -139,6 +139,123 @@ test_that("withheld returns are dropped like noise", {
   expect_lt(max(terra::values(chm), na.rm = TRUE), 20.1)
 })
 
+# ---- the ground under the canopy (#30) ----------------------------------------------------
+
+test_that("the ground is the plane under the trees, on the CHM's grid, cell for cell", {
+  las <- synthetic_las()
+  box <- c(2.3, 2.1, 17.3, 17.1)  # an origin off the 0.5 m lattice, as the real window's is
+  ground <- pc_readme_ground(las, box, res = 0.5)
+  chm <- pc_readme_chm(las, box, res = 0.5)
+  expect_true(terra::compareGeom(ground, chm, crs = FALSE))
+  # At each cell centre, the plane Z = 100 + 0.5 X: a half-cell shift would be 0.125 m off.
+  xy <- terra::xyFromCell(ground, seq_len(terra::ncell(ground)))
+  expect_lt(max(abs(terra::values(ground, mat = FALSE) - (100 + 0.5 * xy[, 1]))), 0.01)
+  # Under the tree, the ground, not the crown.
+  expect_equal(terra::extract(ground, cbind(5.55, 15.55))[[1]], 100 + 0.5 * 5.55, tolerance = 0.01)
+})
+
+test_that("the water level is the median of the returns in the cells the CHM calls water", {
+  las <- synthetic_las()
+  d <- las@data
+  lake <- d$X > 8 & d$X < 17.9 & d$Y > 6 & d$Y < 13.9
+  d$Classification[lake & d$Classification == 2L] <- 1L
+  d$Z[lake] <- 104
+  # A few crowns over the water, which the median ignores.
+  crown <- which(lake)[1:20]
+  d$Z[crown] <- 125
+  las <- suppressMessages(lidR::LAS(d, crs = lidR::st_crs(las)))
+  chm <- pc_readme_chm(las, c(2, 2, 18, 18), res = 1, ground_gap = 3)
+  expect_equal(pc_readme_water_level(las, chm), 104)
+  # No water in the window: NA, not a number.
+  dry <- pc_readme_chm(synthetic_las(), c(2, 2, 18, 18), res = 1)
+  expect_true(is.na(pc_readme_water_level(synthetic_las(), dry)))
+})
+
+# Rasters for the drawing: a flat plane 2.5 m above a water level of 100 m.
+relief_grids <- function(n = 20) {
+  r <- terra::rast(ncols = n, nrows = n, xmin = 0, xmax = n, ymin = 0, ymax = n, crs = "EPSG:3156")
+  list(ground = terra::setValues(r, 102.5), chm = terra::setValues(r, 0))
+}
+cell_rgb <- function(rgb, x, y) unname(unlist(terra::extract(rgb, cbind(x, y))))
+ramp_rgb <- function(pal, t) as.vector(grDevices::col2rgb(pal(256)[round(t * 255) + 1]))
+
+test_that("flat open ground keeps its ramp colour; the ramp's ends hold outside its range", {
+  g <- relief_grids()
+  rgb <- pc_readme_relief(g$ground, g$chm, level = 100, relief = 5)
+  expect_equal(cell_rgb(rgb, 10.5, 10.5), ramp_rgb(GROUND_PAL, 0.5))
+  low <- pc_readme_relief(g$ground - 10, g$chm, level = 100)
+  high <- pc_readme_relief(g$ground + 10, g$chm, level = 100)
+  expect_equal(cell_rgb(low, 10.5, 10.5), ramp_rgb(GROUND_PAL, 0))
+  expect_equal(cell_rgb(high, 10.5, 10.5), ramp_rgb(GROUND_PAL, 1))
+})
+
+test_that("a slope facing away from the sun is darker than flat ground", {
+  g <- relief_grids()
+  xy <- terra::xyFromCell(g$ground, seq_len(terra::ncell(g$ground)))
+  # Rising to the north-west, where the sun is (315 degrees), the ground faces south-east: away.
+  away <- terra::setValues(g$ground, 102.5 + 0.2 * (xy[, 2] - xy[, 1]))
+  dark <- pc_readme_relief(away, g$chm, level = 100, relief = 1e6)
+  ref <- pc_readme_relief(away, g$chm, level = 100, relief = 1e6, exaggeration = 0)
+  expect_lt(sum(cell_rgb(dark, 10.5, 10.5)), 0.5 * sum(cell_rgb(ref, 10.5, 10.5)))
+  # Facing the sun is lighter than flat, within the cap.
+  lit <- terra::setValues(g$ground, 102.5 + 0.2 * (xy[, 1] - xy[, 2]))
+  bright <- pc_readme_relief(lit, g$chm, level = 100, relief = 1e6)
+  expect_gt(sum(cell_rgb(bright, 10.5, 10.5)), sum(cell_rgb(ref, 10.5, 10.5)))
+})
+
+test_that("water wins, shrubs tint, trees cover, and a bank is not darkened by its water", {
+  g <- relief_grids()
+  chm <- g$chm
+  chm[terra::cellFromXY(chm, cbind(15.5, 10.5))] <- NA    # water
+  chm[terra::cellFromXY(chm, cbind(5.5, 5.5))] <- 1.9     # under the canopy threshold
+  chm[terra::cellFromXY(chm, cbind(5.5, 10.5))] <- 3      # shrub
+  chm[terra::cellFromXY(chm, cbind(5.5, 15.5))] <- 30     # tall tree
+  rgb <- pc_readme_relief(g$ground, chm, level = 100, relief = 5)
+  open <- ramp_rgb(GROUND_PAL, 0.5)
+  expect_equal(cell_rgb(rgb, 15.5, 10.5), as.vector(grDevices::col2rgb(WATER_COL)))
+  expect_equal(cell_rgb(rgb, 5.5, 5.5), open)
+  expect_equal(cell_rgb(rgb, 14.5, 10.5), open)  # the bank beside the water
+  green <- function(v) v[2] - mean(v[c(1, 3)])
+  shrub <- cell_rgb(rgb, 5.5, 10.5)
+  tree <- cell_rgb(rgb, 5.5, 15.5)
+  expect_gt(green(shrub), green(open))
+  expect_gt(green(tree), green(shrub))
+  # A shrub is a tint: it stays nearer the ground's colour than its own canopy colour is.
+  dist <- function(a, b) sqrt(sum((a - b)^2))
+  expect_lt(dist(shrub, open), 0.5 * dist(ramp_rgb(CANOPY_PAL, 1 / 28), open))
+  expect_error(pc_readme_relief(g$ground, terra::aggregate(chm, 2), level = 100), "one grid")
+})
+
+test_that("the figure is drawn one cell to one pixel, with room for its scales", {
+  g <- relief_grids(120)  # taller than the scale bar's box, so row 5 is all map
+  # Water in every other column: thinning or smoothing the raster would break the stripes.
+  chm <- g$chm
+  xy <- terra::xyFromCell(chm, seq_len(terra::ncell(chm)))
+  chm[xy[, 1] %% 2 < 1] <- NA
+  rgb <- pc_readme_relief(g$ground, chm, level = 100)
+  path <- withr::local_tempfile(fileext = ".png")
+  pc_readme_relief_png(rgb, path, scale = 1, bar_m = 10,
+                       legend = list(relief = 5, tree = 2, top = 30))
+  img <- png::readPNG(path)
+  expect_identical(dim(img)[1:2], c(120L, 120L + 330L))
+  row <- round(img[5, 1:120, 1:3] * 255)
+  water <- as.vector(grDevices::col2rgb(WATER_COL))
+  expect_true(all(t(row[c(TRUE, FALSE), ]) == water))
+  expect_true(all(t(row[c(FALSE, TRUE), ]) == ramp_rgb(GROUND_PAL, 0.5)))
+})
+
+test_that("every code excerpt README.Rmd shows resolves to one marked span", {
+  root <- file.path(testthat::test_path(".."))
+  rmd <- readLines(file.path(root, "README.Rmd"))
+  calls <- regmatches(rmd, regexpr('pc_readme_lines\\("[^"]+", "[^"]+"\\)', rmd))
+  expect_gte(length(calls), 4L)
+  for (cl in calls) {
+    args <- regmatches(cl, gregexpr('"[^"]+"', cl))[[1]]
+    args <- gsub('"', "", args)
+    expect_gt(length(pc_readme_lines(file.path(root, args[1]), args[2])), 0L, label = cl)
+  }
+})
+
 test_that("a laz asset is downloaded once, and a cached file of the wrong size is refused", {
   dir <- withr::local_tempdir()
   href <- "https://example.invalid/gdwuts/093/093l/2019/pointcloud/a.laz"

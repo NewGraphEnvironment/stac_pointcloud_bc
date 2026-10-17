@@ -251,6 +251,126 @@ pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5), ground_gap 
 # --- the CHM, shown on the landing page: end
 
 
+# ---- the ground under the canopy (scripts/readme_chm.R, #30) ------------------------------
+
+#' The bare ground over `box`: a TIN of the ground returns, on the CHM's grid
+#'
+#' The same grid as `pc_readme_chm(las, box, res)`, so the two overlay cell for cell. The TIN
+#' runs across water too, where it has no ground to stand on; the figure paints water over it.
+# --- the ground, shown on the landing page: begin
+pc_readme_ground <- function(las, box, res = 0.5) {
+  keep <- las$Classification %in% c(2L, 9L)
+  if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag
+  g <- lidR::filter_poi(las, keep)
+  b <- box + 2 * res * c(-1, -1, 1, 1)
+  grid <- terra::rast(terra::ext(b[1], b[3], b[2], b[4]), resolution = res,
+                      crs = lidR::st_crs(las)$wkt)
+  dem <- lidR::rasterize_terrain(g, grid, lidR::tin())
+  terra::crop(dem, terra::ext(box[1], box[3], box[2], box[4]))
+}
+
+#' The water's surface: the median height of the returns in the cells the CHM calls water
+#'
+#' Those cells have no ground return near them (`pc_readme_chm()`), so their unclassified
+#' returns are the water's surface, with the odd crown overhanging the shore, which the median
+#' ignores. NA when the window holds no water.
+pc_readme_water_level <- function(las, chm) {
+  keep <- !las$Classification %in% c(2L, 9L, NOISE_CLASSES)
+  if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag
+  cell <- terra::cellFromXY(chm, cbind(las$X[keep], las$Y[keep]))
+  wet <- !is.na(cell) & is.na(terra::values(chm, mat = FALSE)[cell])
+  if (!any(wet)) return(NA_real_)
+  stats::median(las$Z[keep][wet])
+}
+# --- the ground, shown on the landing page: end
+
+# The figure's colours. The ground ramp has no green, so it cannot be read as canopy.
+GROUND_PAL <- function(n) grDevices::hcl.colors(n, "Plasma")
+CANOPY_PAL <- function(n) grDevices::hcl.colors(n, "Greens 3", rev = TRUE)[ceiling(seq(n / 4, n, length.out = n))]
+WATER_COL <- "#C7DBF0"
+
+#' Canopy height over the ground, as an RGB raster (0-255)
+#'
+#' Ground is coloured by its height above the water's surface `level`, from 0 to `relief` m
+#' (below and above that, the ramp's ends). Canopy of `tree` m and up is drawn in greens by its
+#' height up to `top` m, more opaque as it rises: a light tint at `tree` m, `opacity[2]` from
+#' `full` m. Both are multiplied by a hillshade of the ground, normalised so flat ground keeps
+#' its colour, so the ground's shape shows through the canopy. Water (NA in `chm`) is
+#' `WATER_COL`. `ground` and `chm` must share one grid.
+pc_readme_relief <- function(ground, chm, level, relief = 5, tree = 2, full = 15, top = 30,
+                             opacity = c(0.15, 0.9), exaggeration = 4, sun = c(35, 315)) {
+  if (!terra::compareGeom(ground, chm, crs = FALSE, stopOnError = FALSE)) {
+    stop("the ground and the CHM are not on one grid", call. = FALSE)
+  }
+  ramp <- function(v, lo, hi, pal) {
+    i <- round(pmin(pmax((v - lo) / (hi - lo), 0), 1) * 255) + 1
+    t(grDevices::col2rgb(pal(256))[, i, drop = FALSE]) / 255
+  }
+  # The hillshade, divided by what flat ground gets, so flat ground is 1. Unknown (the grid's
+  # edge) counts as flat.
+  e <- ground * exaggeration
+  hs <- terra::shade(terra::terrain(e, "slope", unit = "radians"),
+                     terra::terrain(e, "aspect", unit = "radians"), sun[1], sun[2])
+  f <- terra::values(hs, mat = FALSE) / sin(sun[1] * pi / 180)
+  f[is.na(f)] <- 1
+  f <- pmin(pmax(f, 0), 1.25)
+  z <- terra::values(ground, mat = FALSE)
+  h <- terra::values(chm, mat = FALSE)
+  rgb <- ramp(z, level, level + relief, GROUND_PAL)
+  can <- which(!is.na(h) & h >= tree)
+  a <- opacity[1] + diff(opacity) * pmin((h[can] - tree) / (full - tree), 1)
+  rgb[can, ] <- rgb[can, ] * (1 - a) + ramp(h[can], tree, top, CANOPY_PAL) * a
+  rgb <- pmin(rgb * f, 1) * 255
+  wet <- which(is.na(h))
+  rgb[wet, ] <- matrix(grDevices::col2rgb(WATER_COL), length(wet), 3, byrow = TRUE)
+  rgb[is.na(z), ] <- NA
+  out <- terra::rast(ground, nlyrs = 3, names = c("red", "green", "blue"))
+  terra::values(out) <- rgb
+  out
+}
+
+#' Draw `rgb` (from pc_readme_relief()) to a PNG, one cell to one pixel, with its two scales
+#'
+#' Drawn with `rasterImage()`, not `terra::plot()`, whose `maxcell` would thin the raster
+#' and break thin channels. `scale` is the cell size of `rgb` in m; `legend` the numbers the
+#' scales are labelled with: `level`, `relief`, `tree`, `top`.
+pc_readme_relief_png <- function(rgb, path, scale, legend, bar_m = 500) {
+  nc <- terra::ncol(rgb)
+  nr <- terra::nrow(rgb)
+  key <- 330  # px for the scales, right of the map
+  grDevices::png(path, width = nc + key, height = nr, res = 150, type = "cairo")
+  on.exit(grDevices::dev.off())
+  graphics::par(mai = c(0, 0, 0, 0), xaxs = "i", yaxs = "i", family = "sans")
+  graphics::plot.new()
+  graphics::plot.window(c(0, nc + key), c(0, nr))
+  a <- terra::as.array(rgb)
+  a[is.na(a)] <- 255
+  graphics::rasterImage(grDevices::as.raster(a, max = 255), 0, 0, nc, nr, interpolate = FALSE)
+  # Scale bar, bottom left, on a white ground so it reads over the forest.
+  bx <- 40 + c(0, bar_m / scale)
+  graphics::rect(bx[1] - 14, 20, bx[2] + 14, 80, col = "white", border = NA)
+  graphics::segments(bx[1], 34, bx[2], 34, lwd = 3, lend = 1)
+  graphics::text(mean(bx), 34, paste(bar_m, "m"), pos = 3, cex = 0.9)
+  # Two colour scales, drawn from the same ramps and numbers as the map.
+  bar <- function(x, pal, lab, at, ticks) {
+    y <- nr * c(0.12, 0.88)
+    graphics::rasterImage(grDevices::as.raster(rev(pal(100))), x, y[1], x + 34, y[2])
+    graphics::rect(x, y[1], x + 34, y[2], lwd = 0.5)
+    yy <- y[1] + diff(y) * at
+    graphics::segments(x + 34, yy, x + 42, yy, lwd = 0.5)
+    graphics::text(x + 44, yy, ticks, adj = 0, cex = 0.8)
+    graphics::text(x, y[2] + 18, lab, adj = c(0, 0), cex = 0.8)
+  }
+  r <- legend$relief
+  bar(nc + 30, GROUND_PAL, "ground above\nthe lake (m)",
+      seq(0, 1, length.out = r + 1), c(0:(r - 1), paste0(r, "+")))
+  ct <- unique(c(legend$tree, seq(10, legend$top, by = 10)))
+  bar(nc + 190, CANOPY_PAL, "canopy\nheight (m)",
+      (ct - legend$tree) / (legend$top - legend$tree), c(ct[-length(ct)], paste0(ct[length(ct)], "+")))
+  invisible(path)
+}
+
+
 # ---- table helpers, copied from the sister repos (staticimports) -------------------------
 
 my_tab_caption_rmd <- function(

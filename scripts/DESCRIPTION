@@ -30,4 +30,5 @@ Imports:
     terra (>= 1.8-54),
     tibble (>= 3.2.0)
 Suggests:
+    png (>= 0.1-8),
     testthat (>= 3.0.0)
