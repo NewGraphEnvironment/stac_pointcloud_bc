@@ -269,10 +269,10 @@ DESCRIPTION = (
     "from every file. Each file a "
     "sample found to hold only ground, noise and water, or no ground at all, was read whole: "
     "its `laz` asset lists every class present, with its point count, in "
-    "`classification:classes`. A sample can miss a class but never add one, so a file whose "
-    "sample held ground and some other class has both, and its item carries no list. The "
-    f"exceptions are {len(CLASSES_UNREADABLE)} files the sampler cannot read, which carry no "
-    "list either "
+    "`classification:classes`. A sample can miss a class but never add one, so an item "
+    "without a list holds ground and at least one class besides ground, noise and water, "
+    f"except {len(CLASSES_UNREADABLE)} files the sampler cannot read, which carry no list "
+    "and were not sampled "
     "(research/laz_classes.md in "
     "github.com/NewGraphEnvironment/stac_pointcloud_bc). Most of the listed items hold no "
     "ground (class 2) at all, and so give no bare-earth surface. Vegetation in this "
@@ -967,8 +967,9 @@ def main() -> int:
         logger.info("recorded %d ids in %s (%d no longer needed, %s)", len(required),
                     CLASSES_REQUIRED_PATH, len(dropped), "dropped" if args.force else "kept")
     problems = classes_unreadable_check(ids, etags, samples, whole_build=not args.limit)
-    problems |= classes_check(to_sample, ids, current, samples, full, required,
-                              unrecorded=not args.limit, copc=copcs)
+    for u, e in classes_check(to_sample, ids, current, samples, full, required,
+                              unrecorded=not args.limit, copc=copcs).items():
+        problems[u] = "; ".join(filter(None, [problems.get(u), e]))
     if problems:
         for u, e in sorted(problems.items()):
             logger.error("class read: %s: %s", u, e)

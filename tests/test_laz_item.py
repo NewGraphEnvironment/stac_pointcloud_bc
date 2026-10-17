@@ -1212,6 +1212,10 @@ def test_the_build_lists_the_classes_of_a_file_read_whole(tmp_path, monkeypatch)
     assert "percentile" not in c["description"] and "lowest" not in c["description"]
     assert "random 5%" not in c["description"]
     assert "every file" in c["description"]
+    # Stated in the direction the flags make true (code-check #17 round 1): a first chunk of
+    # ground alone flags a file whose other chunks hold class 1, so it is the item WITHOUT a
+    # list that is known to hold ground and another class.
+    assert "an item without a list holds ground" in c["description"]
 
 
 def test_the_build_samples_then_reads_whole_what_the_sample_flags(tmp_path, monkeypatch):
@@ -1497,6 +1501,7 @@ def test_a_file_the_sampler_cannot_read_is_named_and_left_without_a_list(tmp_pat
     ({}, "a", "now samples"),  # mixed: the entry no longer applies
     ({PC: OSError("503")}, "a", "fails otherwise (OSError: 503)"),
     ({PC: CHUNKS}, "old", "re-delivered"),  # the fault was seen in another copy of the file
+    ({PC: {2: 1000}}, "a", "now samples"),  # reads and flags: the carve-out's advice must show
 ])
 def test_a_classes_unreadable_entry_that_no_longer_shows_its_fault_is_refused(
         tmp_path, monkeypatch, caplog, probe, etag, why):
