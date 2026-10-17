@@ -35,6 +35,8 @@ SPACING <- 10
 REACH <- 15
 ABOVE <- 1
 NEAR <- 150
+# The cap's maxima are taken on blocks of COARSE cells, so its reach is about NEAR m, not exactly.
+COARSE <- 10
 # Coloured from the bed to RELIEF m above it, which holds the valley floor.
 RELIEF <- 3
 EXAGGERATION <- 4
@@ -99,7 +101,7 @@ main <- function() {
     sf::st_transform(crs)
   streams <- streams[streams$STREAM_ORDER >= MIN_ORDER, ]
   bed <- pc_readme_stream_bed(dem, streams, water = water, spacing = SPACING, reach = REACH)
-  rem <- pc_readme_rem(dem, bed, above = ABOVE, near = NEAR)
+  rem <- pc_readme_rem(dem, bed, coarse = COARSE, above = ABOVE, near = NEAR)
   source_bed <- terra::crop(attr(rem, "bed_source"), win)
   # The figure is the window; the buffer only set the bed.
   dem <- terra::crop(dem, win)
@@ -131,6 +133,7 @@ main <- function() {
     buffer_m = BUFFER,
     above_m = ABOVE,
     near_m = NEAR,
+    cap_block_m = CELL * COARSE,
     # Where each of the window's cells has its bed from: the TIN, beyond its hull the three
     # nearest samples, or either one held to ABOVE m over the highest sample within NEAR m.
     share_bed_tin = round(mean(src == 1L), 3),

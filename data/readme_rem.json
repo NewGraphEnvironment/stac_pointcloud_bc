@@ -15,6 +15,7 @@
   "buffer_m": 500,
   "above_m": 1,
   "near_m": 150,
+  "cap_block_m": 40,
   "share_bed_tin": 0.927,
   "share_bed_nearest": 0.01,
   "share_bed_held": 0.063,

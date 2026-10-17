@@ -25,5 +25,5 @@ rebuilt so it has no blotches; and name in the delta caption what the straight l
 
 ## Validation
 - [x] Tests pass
-- [ ] `/code-check branch` clean
-- [ ] PWF checkboxes match landed work; archive
+- [x] `/code-check branch` clean
+- [x] PWF checkboxes match landed work; archive
