@@ -11,6 +11,7 @@ COLLECTION <- "stac-pointcloud-bc"
 CACHE <- "data/readme_cache.rds"
 DEM_JSON <- "data/readme_dem.json"
 CHM_JSON <- "data/readme_chm.json"
+REM_JSON <- "data/readme_rem.json"
 
 #' The lines of a file between `# --- <marker>: begin` and `# --- <marker>: end`
 #'
@@ -249,6 +250,225 @@ pc_readme_chm <- function(las, box, res = 0.5, max_edge = c(2, 1.5), ground_gap 
   terra::clamp(chm, lower = 0, values = TRUE)
 }
 # --- the CHM, shown on the landing page: end
+
+
+# ---- the ground under the canopy (scripts/readme_chm.R, #30) ------------------------------
+
+#' The bare ground over `box`: a TIN of the ground returns, on the CHM's grid
+#'
+#' The same grid as `pc_readme_chm(las, box, res)`, so the two overlay cell for cell. The TIN
+#' runs across water too, where it has no ground to stand on; the figure paints water over it.
+# --- the ground, shown on the landing page: begin
+pc_readme_ground <- function(las, box, res = 0.5) {
+  keep <- las$Classification %in% c(2L, 9L)
+  if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag
+  g <- lidR::filter_poi(las, keep)
+  b <- box + 2 * res * c(-1, -1, 1, 1)
+  grid <- terra::rast(terra::ext(b[1], b[3], b[2], b[4]), resolution = res,
+                      crs = lidR::st_crs(las)$wkt)
+  dem <- lidR::rasterize_terrain(g, grid, lidR::tin())
+  terra::crop(dem, terra::ext(box[1], box[3], box[2], box[4]))
+}
+
+#' The water's surface: the median height of the returns in the cells the CHM calls water
+#'
+#' Those cells have no ground return near them (`pc_readme_chm()`), so their other returns
+#' (noise left out) are the water's surface, with the odd crown overhanging the shore, which the
+#' median ignores. NA when the window holds no water.
+pc_readme_water_level <- function(las, chm) {
+  keep <- !las$Classification %in% c(2L, 9L, NOISE_CLASSES)
+  if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag
+  cell <- terra::cellFromXY(chm, cbind(las$X[keep], las$Y[keep]))
+  wet <- !is.na(cell) & is.na(terra::values(chm, mat = FALSE)[cell])
+  if (!any(wet)) return(NA_real_)
+  stats::median(las$Z[keep][wet])
+}
+# --- the ground, shown on the landing page: end
+
+# The figure's colours. The ground ramp is Plasma without its last tenth, which turns
+# yellow-green: what is left has no hue between yellow and blue, so it cannot be read as canopy.
+GROUND_PAL <- function(n) grDevices::hcl.colors(ceiling(n / 0.9), "Plasma")[seq_len(n)]
+CANOPY_PAL <- function(n) grDevices::hcl.colors(n, "Greens 3", rev = TRUE)[ceiling(seq(n / 4, n, length.out = n))]
+WATER_COL <- "#C7DBF0"
+
+#' Canopy height over the ground, as an RGB raster (0-255)
+#'
+#' Ground is coloured by its height above the water's surface `level`, from 0 to `relief` m
+#' (below and above that, the ramp's ends). Canopy of `tree` m and up is drawn in greens by its
+#' height up to `top` m, more opaque as it rises: a light tint at `tree` m, `opacity[2]` from
+#' `full` m. Both are multiplied by a hillshade of the ground, normalised so flat ground keeps
+#' its colour, so the ground's shape shows through the canopy. Water (NA in `chm`) is
+#' `WATER_COL`. `ground` and `chm` must share one grid. `shape` is the surface shaded, `ground`
+#' unless a height above something else is coloured: then the DEM, so the shading shows the
+#' ground and not the seams of whatever was subtracted.
+pc_readme_relief <- function(ground, chm, level, relief = 5, tree = 2, full = 15, top = 30,
+                             opacity = c(0.15, 0.9), exaggeration = 4, sun = c(35, 315),
+                             shape = ground) {
+  if (!terra::compareGeom(ground, chm, crs = FALSE, stopOnError = FALSE) ||
+      !terra::compareGeom(ground, shape, crs = FALSE, stopOnError = FALSE)) {
+    stop("the ground and the CHM are not on one grid", call. = FALSE)
+  }
+  ramp <- function(v, lo, hi, pal) {
+    i <- round(pmin(pmax((v - lo) / (hi - lo), 0), 1) * 255) + 1
+    t(grDevices::col2rgb(pal(256))[, i, drop = FALSE]) / 255
+  }
+  # The hillshade, divided by what flat ground gets, so flat ground is 1. Unknown (the grid's
+  # edge) counts as flat.
+  e <- shape * exaggeration
+  hs <- terra::shade(terra::terrain(e, "slope", unit = "radians"),
+                     terra::terrain(e, "aspect", unit = "radians"), sun[1], sun[2])
+  f <- terra::values(hs, mat = FALSE) / sin(sun[1] * pi / 180)
+  f[is.na(f)] <- 1
+  f <- pmin(pmax(f, 0), 1.25)
+  z <- terra::values(ground, mat = FALSE)
+  h <- terra::values(chm, mat = FALSE)
+  rgb <- ramp(z, level, level + relief, GROUND_PAL)
+  can <- which(!is.na(h) & h >= tree)
+  a <- opacity[1] + diff(opacity) * pmin((h[can] - tree) / (full - tree), 1)
+  rgb[can, ] <- rgb[can, ] * (1 - a) + ramp(h[can], tree, top, CANOPY_PAL) * a
+  rgb <- pmin(rgb * f, 1) * 255
+  # No ground under land is drawn blank; water is water whether or not the TIN reaches it.
+  rgb[is.na(z), ] <- NA
+  wet <- which(is.na(h))
+  rgb[wet, ] <- matrix(grDevices::col2rgb(WATER_COL), length(wet), 3, byrow = TRUE)
+  out <- terra::rast(ground, nlyrs = 3, names = c("red", "green", "blue"))
+  terra::values(out) <- rgb
+  out
+}
+
+#' Draw `rgb` (from pc_readme_relief()) to a PNG, one cell to one pixel, with its two scales
+#'
+#' Drawn with `rasterImage()`, not `terra::plot()`, whose `maxcell` would thin the raster
+#' and break thin channels. `scale` is the cell size of `rgb` in m; `legend` the numbers the
+#' scales are labelled with: `level`, `relief`, `tree`, `top`.
+pc_readme_relief_png <- function(rgb, path, scale, legend, bar_m = 500,
+                                 ground_label = "ground above\nthe lake (m)") {
+  nc <- terra::ncol(rgb)
+  nr <- terra::nrow(rgb)
+  # px for the scales, right of the map; one scale when there is no canopy (`legend$top` NULL).
+  key <- if (is.null(legend$top)) 180 else 330
+  grDevices::png(path, width = nc + key, height = nr, res = 150, type = "cairo")
+  on.exit(grDevices::dev.off())
+  graphics::par(mai = c(0, 0, 0, 0), xaxs = "i", yaxs = "i", family = "sans")
+  graphics::plot.new()
+  graphics::plot.window(c(0, nc + key), c(0, nr))
+  a <- terra::as.array(rgb)
+  a[is.na(a)] <- 255
+  graphics::rasterImage(grDevices::as.raster(a, max = 255), 0, 0, nc, nr, interpolate = FALSE)
+  # Scale bar, bottom left, on a white ground so it reads over the forest.
+  bx <- 40 + c(0, bar_m / scale)
+  graphics::rect(bx[1] - 14, 20, bx[2] + 14, 80, col = "white", border = NA)
+  graphics::segments(bx[1], 34, bx[2], 34, lwd = 3, lend = 1)
+  graphics::text(mean(bx), 34, paste(bar_m, "m"), pos = 3, cex = 0.9)
+  # Two colour scales, drawn from the same ramps and numbers as the map.
+  bar <- function(x, pal, lab, at, ticks) {
+    y <- nr * c(0.12, 0.88)
+    graphics::rasterImage(grDevices::as.raster(rev(pal(100))), x, y[1], x + 34, y[2])
+    graphics::rect(x, y[1], x + 34, y[2], lwd = 0.5)
+    yy <- y[1] + diff(y) * at
+    graphics::segments(x + 34, yy, x + 42, yy, lwd = 0.5)
+    graphics::text(x + 44, yy, ticks, adj = 0, cex = 0.8)
+    graphics::text(x, y[2] + 18, lab, adj = c(0, 0), cex = 0.8)
+  }
+  r <- legend$relief
+  bar(nc + 30, GROUND_PAL, ground_label,
+      seq(0, 1, length.out = r + 1), c(0:(r - 1), paste0(r, "+")))
+  if (is.null(legend$top)) return(invisible(path))
+  ct <- unique(c(legend$tree, seq(10, legend$top, by = 10)))
+  bar(nc + 190, CANOPY_PAL, "canopy\nheight (m)",
+      (ct - legend$tree) / (legend$top - legend$tree), c(ct[-length(ct)], paste0(ct[length(ct)], "+")))
+  invisible(path)
+}
+
+
+# ---- the valley floor (scripts/readme_rem.R, #30) -------------------------------------------
+
+#' Stream-bed heights: along each line, every `spacing` m, the lowest ground within `reach` m
+#'
+#' A mapped stream line is rarely on its channel's deepest point, so the lowest cell whose centre
+#' is within `reach` m stands in for the bed. Cells of `water` (a logical raster on the grid of
+#' `dem`), sampled every `spacing` cells, are added at their own level: a lake is its own stream
+#' bed.
+# --- the stream bed, shown on the landing page: begin
+pc_readme_stream_bed <- function(dem, lines, water = NULL, spacing = 10, reach = 15) {
+  geom <- sf::st_cast(sf::st_geometry(sf::st_zm(lines)), "LINESTRING")
+  pts <- sf::st_coordinates(sf::st_cast(sf::st_line_sample(geom, density = 1 / spacing), "POINT"))
+  # A circle of `reach` m: 1 inside, NA outside, so the minimum is taken over the circle only.
+  circle <- terra::focalMat(dem, reach, "circle")
+  circle[circle > 0] <- 1
+  circle[circle == 0] <- NA
+  low <- terra::focal(dem, w = circle, fun = "min", na.rm = TRUE)
+  bed <- data.frame(x = pts[, 1], y = pts[, 2],
+                    z = terra::extract(low, pts[, 1:2, drop = FALSE])[[1]])
+  if (!is.null(water)) {
+    k <- which(terra::values(water, mat = FALSE) %in% TRUE)
+    k <- k[(seq_along(k) - 1L) %% spacing == 0L]
+    xy <- terra::xyFromCell(dem, k)
+    bed <- rbind(bed, data.frame(x = xy[, 1], y = xy[, 2], z = terra::values(dem, mat = FALSE)[k]))
+  }
+  bed[!is.na(bed$z), ]
+}
+
+#' Open water in a hydro-flattened DEM: patches of exactly level ground of `min_area` m² or more
+#'
+#' A DEM made from lidar flattens each lake to one level, while no ground is level to the
+#' millimetre over a hectare. Returns a logical raster on the grid of `dem`.
+pc_readme_flat_water <- function(dem, min_area = 1e4) {
+  span <- terra::focal(dem, w = 3, fun = \(x) max(x) - min(x))
+  flat <- terra::classify(span == 0, cbind(0, NA))
+  p <- terra::patches(flat, directions = 8)
+  f <- terra::freq(p)
+  big <- f$value[f$count * prod(terra::res(dem)) >= min_area]
+  # On values: a SpatRaster's `%in%` does not dispatch unless terra is attached.
+  terra::setValues(dem, terra::values(p, mat = FALSE) %in% big)
+}
+
+#' Height above the stream bed: `dem` minus a TIN through the bed samples
+#'
+#' The TIN is linear between samples, so between two streams the bed surface runs as a plane
+#' rather than jumping at the line halfway between them. lidR leaves the cells beyond the
+#' samples' hull empty, so there the bed is the inverse-distance mean of the three nearest
+#' samples, on a grid `coarse` times the DEM's cell and interpolated back. Either surface can
+#' rise far above the streams beside a cell, where a stream on the high ground beyond a valley
+#' wall pulls it up over the valley floor; so a cell's bed is held to no more than `above` m over
+#' the highest sample within `near` m, where there is one. Returns the height above the bed, with
+#' an attribute `bed_source`: a raster on the grid of `dem`, 1 where the bed is the TIN, 2 the
+#' nearest samples' mean, 3 either one held down.
+pc_readme_rem <- function(dem, bed, coarse = 10, above = 1, near = 150) {
+  pts <- data.table::data.table(X = bed$x, Y = bed$y, Z = bed$z, Classification = 2L)
+  las <- suppressMessages(lidR::LAS(pts, crs = sf::st_crs(terra::crs(dem))))
+  base <- suppressWarnings(lidR::rasterize_terrain(las, dem, lidR::tin()))
+  g <- terra::rast(terra::ext(dem), resolution = coarse * terra::res(dem), crs = terra::crs(dem))
+  from_far <- is.na(terra::values(base, mat = FALSE))
+  if (any(from_far)) {
+    v <- terra::vect(cbind(bed$x, bed$y), crs = terra::crs(dem))
+    v$z <- bed$z
+    diag <- sqrt(diff(terra::ext(dem)[1:2])^2 + diff(terra::ext(dem)[3:4])^2)
+    far <- terra::interpIDW(g, v, "z", radius = diag, power = 1, maxPoints = 3)
+    base <- terra::cover(base, terra::resample(far, dem, method = "bilinear"))
+  }
+  # The highest sample within `near` m: samples' maximum on the coarse grid, then a circle,
+  # interpolated back smoothly so the cap has no steps.
+  highest <- terra::rasterize(cbind(bed$x, bed$y), g, values = bed$z, fun = max)
+  circle <- terra::focalMat(highest, near, "circle")
+  if (nrow(circle) >= 2 * min(dim(highest)[1:2])) {
+    # A window as wide as the grid (a small test grid): every cell takes the highest sample.
+    highest <- terra::setValues(highest, max(bed$z))
+  } else {
+    circle[circle > 0] <- 1
+    circle[circle == 0] <- NA
+    highest <- terra::focal(highest, w = circle, fun = "max", na.rm = TRUE)
+  }
+  highest <- terra::resample(highest, dem, method = "bilinear")
+  b <- terra::values(base, mat = FALSE)
+  cap <- terra::values(highest, mat = FALSE) + above
+  held <- !is.na(cap) & !is.na(b) & b > cap
+  b[held] <- cap[held]
+  rem <- dem - terra::setValues(dem, b)
+  attr(rem, "bed_source") <- terra::setValues(dem, ifelse(held, 3L, ifelse(from_far, 2L, 1L)))
+  rem
+}
+# --- the stream bed, shown on the landing page: end
 
 
 # ---- table helpers, copied from the sister repos (staticimports) -------------------------

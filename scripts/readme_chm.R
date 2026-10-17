@@ -1,8 +1,10 @@
-# readme_chm.R — from a STAC search to a canopy height model, for the landing page (#19).
+# readme_chm.R — from a STAC search to a canopy height model, for the landing page (#19, #30).
 #
 # Finds the items covering a window over the Maxan Creek delta at Bulkley Lake, downloads each
 # item's `laz` asset whole (these have no `copc` to read a window from), and builds a pit-free
-# canopy height model with noise and withheld points left out. Writes fig/maxan_chm.png and
+# canopy height model with noise and withheld points left out, and the bare ground under it from
+# the same returns. The figure draws the canopy over the ground's shape, so the old channels the
+# forest grows among show. Writes fig/maxan_chm.png and
 # data/readme_chm.json, which README.Rmd reads. Run by README.Rmd when it renders with
 # `update_query = TRUE`, from the repo root:
 #
@@ -27,6 +29,16 @@ NORTH <- 400
 CELL <- 0.5     # m
 MARGIN <- 30    # m read beyond the window, so the ground TIN has no edge inside it
 GROUND_GAP <- 5 # m. A cell with no ground return this near is water (pc_readme_chm())
+# The figure (pc_readme_relief(), #30): ground coloured from the water's surface to RELIEF m
+# above it, which holds the delta's land; canopy from TREE m, more opaque up to OPAQUE m, its
+# colour ramp topping out at TOP m; the ground shaded with its relief exaggerated EXAGGERATION
+# times. Drawn at FIG_CELL m, one cell to one pixel.
+RELIEF <- 5
+TREE <- 2
+OPAQUE <- 15
+TOP <- 30
+EXAGGERATION <- 4
+FIG_CELL <- 1
 # Refused before anything is downloaded: a window moved onto more tiles than this is a mistake.
 MAX_ITEMS <- 2L
 MAX_BYTES <- 600e6
@@ -93,7 +105,12 @@ main <- function() {
   las <- lidR::readLAS(laz, select = "xyzrc",
                        filter = paste("-drop_withheld -keep_xy", paste(read_box, collapse = " ")))
   chm <- pc_readme_chm(las, box, res = CELL, ground_gap = GROUND_GAP)
+  # The bare ground on the same grid, and the lake's surface from the returns over the water,
+  # so the ground can be coloured by its height above the lake.
+  ground <- pc_readme_ground(las, box, res = CELL)
+  level <- round(pc_readme_water_level(las, chm), 2)
   # --- shown on the landing page: end
+  if (is.na(level)) stop("the window holds no water to measure the ground from", call. = FALSE)
 
   # The returns inside the window (the margin left out), noise included.
   inside <- las$X >= box[1] & las$X < box[3] & las$Y >= box[2] & las$Y < box[4]
@@ -101,7 +118,7 @@ main <- function() {
   # Heights over the cells that have one; NA cells (open water) are left out.
   h <- terra::values(chm, mat = FALSE)
   h <- h[!is.na(h)]
-  plot_chm(chm, box)
+  plot_chm(ground, chm, level)
   out <- list(
     items_found = vapply(found$features, \(f) f$id, ""),
     delivery = DELIVERY,
@@ -112,6 +129,12 @@ main <- function() {
     cell_m = CELL,
     margin_m = MARGIN,
     ground_gap_m = GROUND_GAP,
+    water_level_m = level,
+    relief_m = RELIEF,
+    tree_m = TREE,
+    opaque_m = OPAQUE,
+    exaggeration = EXAGGERATION,
+    figure_cell_m = FIG_CELL,
     # The files as published, downloaded whole once: their `file:size` and `pc:count`.
     bytes_files = sum(size),
     points_files = sum(vapply(items, \(f) as.numeric(f$properties[["pc:count"]]), 0)),
@@ -130,17 +153,14 @@ main <- function() {
   jsonlite::write_json(out, CHM_JSON, auto_unbox = TRUE, pretty = TRUE, digits = NA)
 }
 
-plot_chm <- function(chm, box, path = CHM_PNG) {
-  # In metres from the window's corner, as the DEM figure is.
-  r <- terra::shift(chm, dx = -box[1], dy = -box[2])
-  top <- ceiling(terra::global(r, "max", na.rm = TRUE)[[1]] / 5) * 5
-  w <- 1350
-  png(path, width = w, height = round(w * (box[4] - box[2]) / (box[3] - box[1])), res = 150)
-  on.exit(grDevices::dev.off())
-  terra::plot(r, col = grDevices::hcl.colors(100, "YlGn", rev = TRUE), range = c(0, top),
-              colNA = "#C7DBF0", axes = FALSE, box = FALSE, mar = c(1, 1, 1, 5),
-              plg = list(title = "canopy\nheight (m)", cex = 0.9))
-  terra::sbar(500, xy = c(50, 60), type = "line", lwd = 2, label = "500 m", cex = 0.8)
+plot_chm <- function(ground, chm, level, path = CHM_PNG) {
+  rgb <- pc_readme_relief(ground, chm, level, relief = RELIEF, tree = TREE, full = OPAQUE,
+                          top = TOP, exaggeration = EXAGGERATION)
+  # Averaged to FIG_CELL m, so each pixel is the mean of the cells under it rather than one
+  # sampled cell, which would break the thinnest channels.
+  rgb <- terra::aggregate(rgb, FIG_CELL / CELL, mean, na.rm = TRUE)
+  pc_readme_relief_png(rgb, path, scale = FIG_CELL,
+                       legend = list(relief = RELIEF, tree = TREE, top = TOP))
 }
 
 if (sys.nframe() == 0L) main()

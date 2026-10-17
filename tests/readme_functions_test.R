@@ -139,6 +139,264 @@ test_that("withheld returns are dropped like noise", {
   expect_lt(max(terra::values(chm), na.rm = TRUE), 20.1)
 })
 
+# ---- the ground under the canopy (#30) ----------------------------------------------------
+
+test_that("the ground is the plane under the trees, on the CHM's grid, cell for cell", {
+  las <- synthetic_las()
+  box <- c(2.3, 2.1, 17.3, 17.1)  # an origin off the 0.5 m lattice, as the real window's is
+  ground <- pc_readme_ground(las, box, res = 0.5)
+  chm <- pc_readme_chm(las, box, res = 0.5)
+  expect_true(terra::compareGeom(ground, chm, crs = FALSE))
+  # At each cell centre, the plane Z = 100 + 0.5 X: a half-cell shift would be 0.125 m off.
+  xy <- terra::xyFromCell(ground, seq_len(terra::ncell(ground)))
+  expect_lt(max(abs(terra::values(ground, mat = FALSE) - (100 + 0.5 * xy[, 1]))), 0.01)
+  # Under the tree, the ground, not the crown.
+  expect_equal(terra::extract(ground, cbind(5.55, 15.55))[[1]], 100 + 0.5 * 5.55, tolerance = 0.01)
+})
+
+test_that("the water level is the median of the returns in the cells the CHM calls water", {
+  las <- synthetic_las()
+  d <- las@data
+  lake <- d$X > 8 & d$X < 17.9 & d$Y > 6 & d$Y < 13.9
+  d$Classification[lake & d$Classification == 2L] <- 1L
+  d$Z[lake] <- 104
+  # A few crowns over the water, which the median ignores.
+  crown <- which(lake)[1:20]
+  d$Z[crown] <- 125
+  las <- suppressMessages(lidR::LAS(d, crs = lidR::st_crs(las)))
+  chm <- pc_readme_chm(las, c(2, 2, 18, 18), res = 1, ground_gap = 3)
+  expect_equal(pc_readme_water_level(las, chm), 104)
+  # No water in the window: NA, not a number.
+  dry <- pc_readme_chm(synthetic_las(), c(2, 2, 18, 18), res = 1)
+  expect_true(is.na(pc_readme_water_level(synthetic_las(), dry)))
+})
+
+# Rasters for the drawing: a flat plane 2.5 m above a water level of 100 m.
+relief_grids <- function(n = 20) {
+  r <- terra::rast(ncols = n, nrows = n, xmin = 0, xmax = n, ymin = 0, ymax = n, crs = "EPSG:3156")
+  list(ground = terra::setValues(r, 102.5), chm = terra::setValues(r, 0))
+}
+cell_rgb <- function(rgb, x, y) unname(unlist(terra::extract(rgb, cbind(x, y))))
+ramp_rgb <- function(pal, t) as.vector(grDevices::col2rgb(pal(256)[round(t * 255) + 1]))
+
+test_that("the ground ramp has no green in it, so ground cannot be read as canopy", {
+  hue <- grDevices::rgb2hsv(grDevices::col2rgb(GROUND_PAL(256)))[1, ] * 360
+  expect_false(any(hue > 65 & hue < 180))
+})
+
+test_that("flat open ground keeps its ramp colour; the ramp's ends hold outside its range", {
+  g <- relief_grids()
+  rgb <- pc_readme_relief(g$ground, g$chm, level = 100, relief = 5)
+  expect_equal(cell_rgb(rgb, 10.5, 10.5), ramp_rgb(GROUND_PAL, 0.5))
+  low <- pc_readme_relief(g$ground - 10, g$chm, level = 100)
+  high <- pc_readme_relief(g$ground + 10, g$chm, level = 100)
+  expect_equal(cell_rgb(low, 10.5, 10.5), ramp_rgb(GROUND_PAL, 0))
+  expect_equal(cell_rgb(high, 10.5, 10.5), ramp_rgb(GROUND_PAL, 1))
+})
+
+test_that("a slope facing away from the sun is darker than flat ground", {
+  g <- relief_grids()
+  xy <- terra::xyFromCell(g$ground, seq_len(terra::ncell(g$ground)))
+  # Rising to the north-west, where the sun is (315 degrees), the ground faces south-east: away.
+  away <- terra::setValues(g$ground, 102.5 + 0.2 * (xy[, 2] - xy[, 1]))
+  dark <- pc_readme_relief(away, g$chm, level = 100, relief = 1e6)
+  ref <- pc_readme_relief(away, g$chm, level = 100, relief = 1e6, exaggeration = 0)
+  expect_lt(sum(cell_rgb(dark, 10.5, 10.5)), 0.5 * sum(cell_rgb(ref, 10.5, 10.5)))
+  # Facing the sun is lighter than flat, within the cap.
+  lit <- terra::setValues(g$ground, 102.5 + 0.2 * (xy[, 1] - xy[, 2]))
+  bright <- pc_readme_relief(lit, g$chm, level = 100, relief = 1e6)
+  expect_gt(sum(cell_rgb(bright, 10.5, 10.5)), sum(cell_rgb(ref, 10.5, 10.5)))
+})
+
+test_that("the shading comes from `shape` when it is given, the colour from `ground`", {
+  g <- relief_grids()
+  xy <- terra::xyFromCell(g$ground, seq_len(terra::ncell(g$ground)))
+  away <- terra::setValues(g$ground, 102.5 + 0.2 * (xy[, 2] - xy[, 1]))
+  # Flat colour, shaded by a slope facing away: darker than flat.
+  rgb <- pc_readme_relief(g$ground, g$chm, level = 100, shape = away)
+  expect_lt(sum(cell_rgb(rgb, 10.5, 10.5)), sum(ramp_rgb(GROUND_PAL, 0.5)))
+  expect_error(pc_readme_relief(g$ground, g$chm, level = 100, shape = terra::aggregate(away, 2)),
+               "one grid")
+})
+
+test_that("water wins, shrubs tint, trees cover, and a bank is not darkened by its water", {
+  g <- relief_grids()
+  chm <- g$chm
+  chm[terra::cellFromXY(chm, cbind(15.5, 10.5))] <- NA    # water
+  chm[terra::cellFromXY(chm, cbind(5.5, 5.5))] <- 1.9     # under the canopy threshold
+  chm[terra::cellFromXY(chm, cbind(5.5, 10.5))] <- 3      # shrub
+  chm[terra::cellFromXY(chm, cbind(5.5, 15.5))] <- 30     # tall tree
+  rgb <- pc_readme_relief(g$ground, chm, level = 100, relief = 5)
+  open <- ramp_rgb(GROUND_PAL, 0.5)
+  expect_equal(cell_rgb(rgb, 15.5, 10.5), as.vector(grDevices::col2rgb(WATER_COL)))
+  expect_equal(cell_rgb(rgb, 5.5, 5.5), open)
+  expect_equal(cell_rgb(rgb, 14.5, 10.5), open)  # the bank beside the water
+  green <- function(v) v[2] - mean(v[c(1, 3)])
+  shrub <- cell_rgb(rgb, 5.5, 10.5)
+  tree <- cell_rgb(rgb, 5.5, 15.5)
+  expect_gt(green(shrub), green(open))
+  expect_gt(green(tree), green(shrub))
+  # A shrub is a tint: it stays nearer the ground's colour than its own canopy colour is.
+  dist <- function(a, b) sqrt(sum((a - b)^2))
+  expect_lt(dist(shrub, open), 0.5 * dist(ramp_rgb(CANOPY_PAL, 1 / 28), open))
+  expect_error(pc_readme_relief(g$ground, terra::aggregate(chm, 2), level = 100), "one grid")
+  # Water the ground TIN does not reach is still water; land with no ground is blank.
+  ground <- g$ground
+  ground[terra::cellFromXY(ground, cbind(c(15.5, 10.5), c(10.5, 10.5)))] <- NA
+  rgb <- pc_readme_relief(ground, chm, level = 100, relief = 5)
+  expect_equal(cell_rgb(rgb, 15.5, 10.5), as.vector(grDevices::col2rgb(WATER_COL)))
+  expect_true(all(is.na(cell_rgb(rgb, 10.5, 10.5))))
+})
+
+test_that("the figure is drawn one cell to one pixel, with room for its scales", {
+  g <- relief_grids(120)  # taller than the scale bar's box, so row 5 is all map
+  # Water in every other column: thinning or smoothing the raster would break the stripes.
+  chm <- g$chm
+  xy <- terra::xyFromCell(chm, seq_len(terra::ncell(chm)))
+  chm[xy[, 1] %% 2 < 1] <- NA
+  rgb <- pc_readme_relief(g$ground, chm, level = 100)
+  path <- withr::local_tempfile(fileext = ".png")
+  pc_readme_relief_png(rgb, path, scale = 1, bar_m = 10,
+                       legend = list(relief = 5, tree = 2, top = 30))
+  img <- png::readPNG(path)
+  expect_identical(dim(img)[1:2], c(120L, 120L + 330L))
+  row <- round(img[5, 1:120, 1:3] * 255)
+  water <- as.vector(grDevices::col2rgb(WATER_COL))
+  expect_true(all(t(row[c(TRUE, FALSE), ]) == water))
+  expect_true(all(t(row[c(FALSE, TRUE), ]) == ramp_rgb(GROUND_PAL, 0.5)))
+})
+
+test_that("every code excerpt README.Rmd shows resolves to one marked span", {
+  root <- file.path(testthat::test_path(".."))
+  rmd <- readLines(file.path(root, "README.Rmd"))
+  calls <- unlist(regmatches(rmd, gregexpr('pc_readme_lines\\("[^"]+", "[^"]+"\\)', rmd)))
+  expect_gte(length(calls), 7L)
+  for (cl in calls) {
+    args <- regmatches(cl, gregexpr('"[^"]+"', cl))[[1]]
+    args <- gsub('"', "", args)
+    expect_gt(length(pc_readme_lines(file.path(root, args[1]), args[2])), 0L, label = cl)
+  }
+})
+
+# ---- the valley floor (#30) ---------------------------------------------------------------
+
+# A valley falling 1 m per 100 m east, 2 m deep channel along y = 50, floodplain 2 m above its
+# bed on either side; 1 m cells.
+synthetic_valley <- function() {
+  r <- terra::rast(ncols = 400, nrows = 100, xmin = 0, xmax = 400, ymin = 0, ymax = 100,
+                   crs = "EPSG:3156")
+  xy <- terra::xyFromCell(r, seq_len(terra::ncell(r)))
+  bed <- 110 - xy[, 1] / 100
+  z <- bed + ifelse(abs(xy[, 2] - 50) <= 2, 0, 2)
+  list(dem = terra::setValues(r, z),
+       stream = sf::st_sf(geometry = sf::st_sfc(sf::st_linestring(cbind(c(0, 400), c(52, 52))),
+                                                crs = 3156)))
+}
+
+test_that("the stream bed is the lowest ground near the line, even with the line off the channel", {
+  v <- synthetic_valley()
+  # The line is drawn 2 m off the channel's centre, as a mapped line often is.
+  bed <- pc_readme_stream_bed(v$dem, v$stream, spacing = 10, reach = 6)
+  expect_gt(nrow(bed), 30)
+  # The lowest cell within 6 m can lie up to 6.5 m downstream, 0.065 m lower on this slope.
+  expect_lt(max(abs(bed$z - (110 - bed$x / 100))), 0.07)
+})
+
+test_that("height above the stream bed takes the valley's fall out", {
+  v <- synthetic_valley()
+  # A second line, a tributary bed along the valley's edge, so the samples are not collinear.
+  edge <- sf::st_sf(geometry = sf::st_sfc(sf::st_linestring(cbind(c(0, 400), c(5, 5))), crs = 3156))
+  v$dem[terra::cellFromXY(v$dem, cbind(seq(0.5, 399.5), 5.5))] <-
+    110 - seq(0.5, 399.5) / 100
+  bed <- pc_readme_stream_bed(v$dem, rbind(v$stream, edge), spacing = 10, reach = 6)
+  rem <- pc_readme_rem(v$dem, bed)
+  at <- function(x, y) terra::extract(rem, cbind(x, y))[[1]]
+  # The channel reads 0 and the floodplain 2 m, at both ends of a valley that falls 4 m.
+  for (x in c(20.5, 380.5)) {
+    expect_lt(abs(at(x, 50.5)), 0.1)
+    expect_lt(abs(at(x, 30.5) - 2), 0.1)
+  }
+})
+
+test_that("height above the stream bed covers cells far outside the samples", {
+  v <- synthetic_valley()
+  # Samples only in the middle of the valley: the ends are beyond their hull.
+  bed <- data.frame(x = c(150, 250, 150, 250), y = c(50, 50, 30, 70), z = c(108.5, 107.5, 110, 109))
+  rem <- pc_readme_rem(v$dem, bed)
+  expect_false(anyNA(terra::values(rem, mat = FALSE)))
+})
+
+test_that("open water is ground exactly level over a hectare or more, nothing smaller", {
+  v <- synthetic_valley()
+  d <- v$dem
+  pond <- terra::cellFromRowColCombine(d, 10:69, 300:399)   # 60 x 100 m, 0.6 ha
+  lake <- terra::cellFromRowColCombine(d, 1:99, 1:120)      # 99 x 120 m, 1.19 ha
+  d[pond] <- 101
+  d[lake] <- 100
+  w <- pc_readme_flat_water(d, min_area = 1e4)
+  expect_true(terra::extract(w, cbind(60.5, 50.5))[[1]])
+  expect_false(terra::extract(w, cbind(350.5, 60.5))[[1]])
+  expect_false(terra::extract(w, cbind(200.5, 80.5))[[1]])  # sloping floodplain
+})
+
+test_that("a bed pulled up by a stream on high ground is held near the beds beside it", {
+  r <- terra::rast(ncols = 100, nrows = 450, xmin = 0, xmax = 100, ymin = 0, ymax = 450,
+                   crs = "EPSG:3156")
+  xy <- terra::xyFromCell(r, seq_len(terra::ncell(r)))
+  # A valley floor at 100.5 m beside a river at 100 m (y = 10), and a stream on a plateau at
+  # 130 m, 390 m away (y = 400): a plane through both stands 2.3 m over the floor at y = 40.
+  dem <- terra::setValues(r, ifelse(xy[, 2] > 380, 130, 100.5))
+  bed <- rbind(data.frame(x = seq(5, 95, 10), y = 10, z = 100),
+               data.frame(x = seq(5, 95, 10), y = 400, z = 130))
+  rem <- pc_readme_rem(dem, bed, above = 1, near = 50)
+  # Held to 1 m over the river, the highest bed within 50 m: the floor reads -0.5, not -1.8.
+  expect_equal(terra::extract(rem, cbind(50.5, 40.5))[[1]], -0.5, tolerance = 1e-6)
+  src <- attr(rem, "bed_source")
+  expect_identical(terra::extract(src, cbind(50.5, 40.5))[[1]], 3L)
+  # Beside the river the plane is under the cap and stays: 2.5 m up a plane rising 30 m in 390 m.
+  expect_lt(abs(terra::extract(rem, cbind(50.5, 12.5))[[1]] - (100.5 - (100 + 30 * 2.5 / 390))),
+            0.005)
+  expect_identical(terra::extract(src, cbind(50.5, 12.5))[[1]], 1L)
+})
+
+test_that("ground the DEM does not reach is not an error, and stays empty", {
+  v <- synthetic_valley()
+  v$dem[1:400] <- NA
+  bed <- pc_readme_stream_bed(v$dem, v$stream, spacing = 10, reach = 6)
+  bed <- rbind(bed, data.frame(x = c(5, 395), y = c(10, 10), z = c(108, 104)))
+  rem <- pc_readme_rem(v$dem, bed)
+  expect_true(all(is.na(terra::values(rem, mat = FALSE)[1:400])))
+  expect_false(anyNA(terra::values(rem, mat = FALSE)[-(1:400)]))
+})
+
+test_that("no water, or a sample every cell, is not an error", {
+  v <- synthetic_valley()
+  dry <- terra::setValues(v$dem, FALSE)
+  expect_gt(nrow(pc_readme_stream_bed(v$dem, v$stream, water = dry)), 0)
+  wet <- terra::setValues(v$dem, FALSE)
+  wet[1:3] <- TRUE
+  bed <- pc_readme_stream_bed(v$dem, v$stream, water = wet, spacing = 1)
+  expect_equal(sum(bed$y > 99), 3)
+})
+
+test_that("water cells count as stream bed at their own level", {
+  v <- synthetic_valley()
+  water <- terra::setValues(v$dem, FALSE)
+  water[terra::cellFromXY(water, cbind(390.5, 90.5))] <- TRUE
+  v$dem[terra::cellFromXY(v$dem, cbind(390.5, 90.5))] <- 100
+  bed <- pc_readme_stream_bed(v$dem, v$stream, water = water, spacing = 10, reach = 6)
+  expect_true(any(bed$z == 100 & bed$x == 390.5))
+})
+
+test_that("a figure with no canopy draws one scale, labelled as asked", {
+  g <- relief_grids(120)
+  rgb <- pc_readme_relief(g$ground, g$chm, level = 100)
+  path <- withr::local_tempfile(fileext = ".png")
+  pc_readme_relief_png(rgb, path, scale = 1, bar_m = 10, legend = list(relief = 3),
+                       ground_label = "above the\nstream (m)")
+  expect_identical(dim(png::readPNG(path))[1:2], c(120L, 120L + 180L))
+})
+
 test_that("a laz asset is downloaded once, and a cached file of the wrong size is refused", {
   dir <- withr::local_tempdir()
   href <- "https://example.invalid/gdwuts/093/093l/2019/pointcloud/a.laz"
