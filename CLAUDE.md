@@ -393,7 +393,7 @@ check is almost always to read the thing the prose describes.
   keeps finding them, list every quantified or inherited claim with a measured verdict
   (`code-check.md`, "A guard's scope, escape hatches, and remedies").
 
-*91 lines of evidence for this rule are in `conventions/agent-operations.md`.*
+*92 lines of evidence for this rule are in `conventions/agent-operations.md`.*
 
 ### "It can only be answered by testing" is a claim with an author
 
@@ -620,7 +620,7 @@ workaround", applied to a *broken* dependency.
 repro and the exact lines, report it, and carry on if it is not blocking. The rule is
 *do not hide it*, not *do not continue*.
 
-*5 lines of evidence for this rule are in `conventions/agent-operations.md`.*
+*10 lines of evidence for this rule are in `conventions/agent-operations.md`.*
 
 
 # CI Monitoring
