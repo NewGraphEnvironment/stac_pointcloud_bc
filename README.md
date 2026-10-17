@@ -232,11 +232,11 @@ The whole script, with the figure, is [`scripts/readme_chm.R`](https://github.co
 
 ## The valley floor: old channels upstream
 
-<img src="fig/maxan_rem.png" alt="The valley floors of Maxan Creek, Crow Creek and the Bulkley River around the west end of Bulkley Lake, from LidarBC's bare-earth elevation model, coloured by height above the nearest stream bed: dark blue at or just below the bed through purple and orange to yellow at 3 m and above, and shaded to show the ground's shape. Maxan Creek's wide floodplain at the bottom centre is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor on the left, and the Bulkley River runs along the top. Curving old channels cross the cleared field west of the delta. Hills and terraces are yellow; Bulkley Lake on the right and a smaller lake on the left are light blue." width="100%" />
+<img src="fig/maxan_rem.png" alt="The valley floors of Maxan Creek, Crow Creek and the Bulkley River around the west end of Bulkley Lake, from LidarBC's bare-earth elevation model, coloured by height above the nearest stream bed: dark blue at or just below the bed through purple and orange to yellow at 3 m and above, and shaded to show the ground's shape. Maxan Creek's wide floodplain at the bottom left is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor on the left, and the Bulkley River runs along the top. Curving old channels cross the cleared field west of the delta. Hills and terraces are yellow; Bulkley Lake on the right is light blue." width="100%" />
 
-The delta in the canopy figure is the right-hand quarter of this 4 × 2.3 km view, where Maxan Creek meets Bulkley Lake. Further up the valley the old channels are clearer: Maxan Creek’s floodplain (bottom centre) is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor (left), and the Bulkley River runs along the top. Curving old channels also cross the cleared field west of the delta. The colour is height above the nearest stream bed, from 0 to 3 m, so one scale shows a valley floor that rises upstream; 41% of the land here lies less than 3 m above a stream bed.
+The delta in the canopy figure is the right-hand part of this 3.1 × 2.3 km view, where Maxan Creek meets Bulkley Lake. Further up the valley the old channels are clearer: Maxan Creek’s floodplain (bottom left) is crossed by meander scars and cut-off loops, Crow Creek winds along a narrower valley floor (left), and the Bulkley River runs along the top. Curving old channels also cross the cleared field west of the delta. The colour is height above the nearest stream bed, from 0 to 3 m, so one scale shows a valley floor that rises upstream; 48% of the land here lies less than 3 m above a stream bed.
 
-**How it was made.** This view is wider than a demo should download point clouds for, so it reads the elevation model LidarBC made from the same 093/093l/2019 delivery, from the sister collection on the same API: the `stac-elevation-bc` item 093-093l-2019-dem-bc_093l040_xli1m_utm09_2019. Only the window’s rows were read, over HTTP, from the 638 MB file; its 1 m cells are averaged to 4 m. The streams are the Freshwater Atlas’s (Bulkley River, Crow Creek, Maxan Creek, Wiggins Creek and unnamed streams of Strahler order 2 and up). Every 10 m along each, the lowest ground within 15 m stands in for its bed, and open water, which the elevation model flattens to one level (found as level ground over 1 ha or more), counts as bed at its own level: 5,597 samples. A triangulated surface through them is the bed under 89% of the window; outside the samples, at its corners (10%), it is the inverse-distance mean of the three nearest samples. Where either stands more than 2 m above the ground, as on a slope between a tributary high in its own valley and the creek below it, the bed is the lowest sample within 1 km instead (0.5% of the window). The colour is each cell’s height above that bed; 4.9% of the land lies up to 2 m below it and is drawn with the bed. The shading is the elevation model’s own, with its relief exaggerated 4 times. The model sits half a metre west and half a metre south of the points (see [research/dem_alignment.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/dem_alignment.md)), which does not show at this scale and is not corrected here.
+**How it was made.** This view is wider than a demo should download point clouds for, so it reads the elevation model LidarBC made from the same 093/093l/2019 delivery, from the sister collection on the same API: the `stac-elevation-bc` item 093-093l-2019-dem-bc_093l040_xli1m_utm09_2019. Only the window’s rows were read, over HTTP, from the 638 MB file; its 1 m cells are averaged to 4 m. The streams are the Freshwater Atlas’s (Bulkley River, Crow Creek, Maxan Creek, Wiggins Creek and unnamed streams of Strahler order 2 and up). Every 10 m along each, the lowest ground within 15 m stands in for its bed, and open water, which the elevation model flattens to one level (found as level ground over 1 ha or more), counts as bed at its own level: 8,097 samples. A triangulated surface through them is the bed under 93% of the window; outside the samples, at its edges (1%), it is the inverse-distance mean of the three nearest samples. Both are built from 500 m beyond the window too, so the surface does not end at the window’s edge. Where either stands more than 1 m over the highest sample within 150 m, as where a stream on the high ground beyond a valley wall pulls it up over the valley floor, it is held there (6.3% of the window). The colour is each cell’s height above that bed; 5.3% of the land lies up to 2.6 m below it and is drawn with the bed. The shading is the elevation model’s own, with its relief exaggerated 4 times. The model sits half a metre west and half a metre south of the points (see [research/dem_alignment.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/dem_alignment.md)), which does not show at this scale and is not corrected here.
 
 <details>
 
@@ -268,17 +268,20 @@ bb <- unlist(item$properties[["proj:bbox"]])
 if (box[1] < bb[1] || box[2] < bb[2] || box[3] > bb[3] || box[4] > bb[4]) {
   stop(item$id, " does not cover the window", call. = FALSE)
 }
-# Only the window's rows are read from the file, over HTTP.
+# The window and a buffer around it, as far as the file reaches; only those rows are read
+# from the file, over HTTP.
+read <- c(max(box[1] - BUFFER, bb[1]), max(box[2] - BUFFER, bb[2]),
+          min(box[3] + BUFFER, bb[3]), min(box[4] + BUFFER, bb[4]))
 tif <- tempfile(fileext = ".tif")
 sf::gdal_utils("translate", paste0("/vsicurl/", item$assets$dem$href), tif,
-               c("-projwin", box[1], box[4], box[3], box[2]))
+               c("-projwin", read[1], read[4], read[3], read[2]))
 dem <- terra::rast(tif)
 
 dem <- terra::aggregate(dem, CELL, mean)
 water <- pc_readme_flat_water(dem, min_area = WATER_AREA)
 # The streams, from the Freshwater Atlas.
 # In BC Albers before the query: bcdata cannot translate a transform inside its filter.
-aoi <- sf::st_as_sfc(sf::st_bbox(setNames(box, c("xmin", "ymin", "xmax", "ymax")),
+aoi <- sf::st_as_sfc(sf::st_bbox(setNames(read, c("xmin", "ymin", "xmax", "ymax")),
                                  crs = sf::st_crs(crs))) |>
   sf::st_transform(3005)
 streams <- bcdata::bcdc_query_geodata("WHSE_BASEMAPPING.FWA_STREAM_NETWORKS_SP") |>
@@ -289,6 +292,11 @@ streams <- bcdata::bcdc_query_geodata("WHSE_BASEMAPPING.FWA_STREAM_NETWORKS_SP")
 streams <- streams[streams$STREAM_ORDER >= MIN_ORDER, ]
 bed <- pc_readme_stream_bed(dem, streams, water = water, spacing = SPACING, reach = REACH)
 rem <- pc_readme_rem(dem, bed, above = ABOVE, near = NEAR)
+source_bed <- terra::crop(attr(rem, "bed_source"), win)
+# The figure is the window; the buffer only set the bed.
+dem <- terra::crop(dem, win)
+rem <- terra::crop(rem, win)
+water <- terra::crop(water, win)
 ```
 
 `pc_readme_stream_bed()`, `pc_readme_flat_water()` and `pc_readme_rem()`, from [`scripts/readme_functions.R`](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/scripts/readme_functions.R):
@@ -332,48 +340,44 @@ pc_readme_flat_water <- function(dem, min_area = 1e4) {
 #' The TIN is linear between samples, so between two streams the bed surface runs as a plane
 #' rather than jumping at the line halfway between them. lidR leaves the cells beyond the
 #' samples' hull empty, so there the bed is the inverse-distance mean of the three nearest
-#' samples, on a grid `coarse` times the DEM's cell and interpolated back. Between two streams
-#' at different heights, as a tributary high in its own valley and the river below it, either
-#' surface can run above the hillside that separates them; where it stands more than `above` m
-#' over the ground, the bed is instead the lowest sample within `near` m, when that is lower.
-#' Returns the height above the bed, with an attribute `bed_from`: the share of cells whose bed
-#' came from the TIN, the nearest samples, and the lowest nearby sample.
-pc_readme_rem <- function(dem, bed, coarse = 10, above = 0.5, near = 300) {
+#' samples, on a grid `coarse` times the DEM's cell and interpolated back. Either surface can
+#' rise far above the streams beside a cell, where a stream on the high ground beyond a valley
+#' wall pulls it up over the valley floor; so a cell's bed is held to no more than `above` m over
+#' the highest sample within `near` m, where there is one. Returns the height above the bed, with
+#' an attribute `bed_source`: a raster on the grid of `dem`, 1 where the bed is the TIN, 2 the
+#' nearest samples' mean, 3 either one held down.
+pc_readme_rem <- function(dem, bed, coarse = 10, above = 1, near = 150) {
   pts <- data.table::data.table(X = bed$x, Y = bed$y, Z = bed$z, Classification = 2L)
   las <- suppressMessages(lidR::LAS(pts, crs = sf::st_crs(terra::crs(dem))))
   base <- suppressWarnings(lidR::rasterize_terrain(las, dem, lidR::tin()))
-  if (anyNA(terra::values(base, mat = FALSE))) {
-    g <- terra::rast(terra::ext(dem), resolution = coarse * terra::res(dem), crs = terra::crs(dem))
+  g <- terra::rast(terra::ext(dem), resolution = coarse * terra::res(dem), crs = terra::crs(dem))
+  from_far <- is.na(terra::values(base, mat = FALSE))
+  if (any(from_far)) {
     v <- terra::vect(cbind(bed$x, bed$y), crs = terra::crs(dem))
     v$z <- bed$z
     diag <- sqrt(diff(terra::ext(dem)[1:2])^2 + diff(terra::ext(dem)[3:4])^2)
     far <- terra::interpIDW(g, v, "z", radius = diag, power = 1, maxPoints = 3)
-    from_far <- is.na(terra::values(base, mat = FALSE))
     base <- terra::cover(base, terra::resample(far, dem, method = "bilinear"))
-  } else {
-    from_far <- rep(FALSE, terra::ncell(dem))
   }
-  # The lowest sample within `near` m: samples' minimum on the coarse grid, then a circle.
-  g <- terra::rast(terra::ext(dem), resolution = coarse * terra::res(dem), crs = terra::crs(dem))
-  lowest <- terra::rasterize(cbind(bed$x, bed$y), g, values = bed$z, fun = min)
-  circle <- terra::focalMat(lowest, near, "circle")
-  if (nrow(circle) >= 2 * min(dim(lowest)[1:2])) {
-    # A window as wide as the grid (a small test grid): every cell takes the lowest sample.
-    lowest <- terra::setValues(lowest, min(bed$z))
+  # The highest sample within `near` m: samples' maximum on the coarse grid, then a circle,
+  # interpolated back smoothly so the cap has no steps.
+  highest <- terra::rasterize(cbind(bed$x, bed$y), g, values = bed$z, fun = max)
+  circle <- terra::focalMat(highest, near, "circle")
+  if (nrow(circle) >= 2 * min(dim(highest)[1:2])) {
+    # A window as wide as the grid (a small test grid): every cell takes the highest sample.
+    highest <- terra::setValues(highest, max(bed$z))
   } else {
     circle[circle > 0] <- 1
     circle[circle == 0] <- NA
-    lowest <- terra::focal(lowest, w = circle, fun = "min", na.rm = TRUE)
+    highest <- terra::focal(highest, w = circle, fun = "max", na.rm = TRUE)
   }
-  lowest <- terra::resample(lowest, dem, method = "near")
-  z <- terra::values(dem, mat = FALSE)
+  highest <- terra::resample(highest, dem, method = "bilinear")
   b <- terra::values(base, mat = FALSE)
-  l <- terra::values(lowest, mat = FALSE)
-  over <- !is.na(l) & b - z > above & l < b
-  b[over] <- l[over]
+  cap <- terra::values(highest, mat = FALSE) + above
+  held <- !is.na(cap) & !is.na(b) & b > cap
+  b[held] <- cap[held]
   rem <- dem - terra::setValues(dem, b)
-  attr(rem, "bed_from") <- c(tin = mean(!from_far & !over), nearest = mean(from_far & !over),
-                             lowest = mean(over))
+  attr(rem, "bed_source") <- terra::setValues(dem, ifelse(held, 3L, ifelse(from_far, 2L, 1L)))
   rem
 }
 ```

@@ -339,20 +339,34 @@ test_that("open water is ground exactly level over a hectare or more, nothing sm
   expect_false(terra::extract(w, cbind(200.5, 80.5))[[1]])  # sloping floodplain
 })
 
-test_that("a bed surface standing above a hillside gives way to the lowest bed nearby", {
-  r <- terra::rast(ncols = 100, nrows = 100, xmin = 0, xmax = 100, ymin = 0, ymax = 100,
+test_that("a bed pulled up by a stream on high ground is held near the beds beside it", {
+  r <- terra::rast(ncols = 100, nrows = 450, xmin = 0, xmax = 100, ymin = 0, ymax = 450,
                    crs = "EPSG:3156")
   xy <- terra::xyFromCell(r, seq_len(terra::ncell(r)))
-  # A tributary's bed at 120 m along y = 90, the river's at 100 m along y = 10, and the ground
-  # between them at 105 m: a plane through the two beds stands 5 m above it at y = 50.
-  dem <- terra::setValues(r, ifelse(xy[, 2] > 85, 120, ifelse(xy[, 2] < 15, 100, 105)))
-  bed <- rbind(data.frame(x = seq(5, 95, 10), y = 90, z = 120),
-               data.frame(x = seq(5, 95, 10), y = 10, z = 100))
-  rem <- pc_readme_rem(dem, bed)
-  expect_equal(terra::extract(rem, cbind(50.5, 50.5))[[1]], 5, tolerance = 1e-6)
-  expect_gt(attr(rem, "bed_from")[["lowest"]], 0)
-  # Where the plane is not above the ground, it stays: the river's floodplain reads 0.
-  expect_equal(terra::extract(rem, cbind(50.5, 12.5))[[1]], 0, tolerance = 1e-6)
+  # A valley floor at 100.5 m beside a river at 100 m (y = 10), and a stream on a plateau at
+  # 130 m, 390 m away (y = 400): a plane through both stands 2.3 m over the floor at y = 40.
+  dem <- terra::setValues(r, ifelse(xy[, 2] > 380, 130, 100.5))
+  bed <- rbind(data.frame(x = seq(5, 95, 10), y = 10, z = 100),
+               data.frame(x = seq(5, 95, 10), y = 400, z = 130))
+  rem <- pc_readme_rem(dem, bed, above = 1, near = 50)
+  # Held to 1 m over the river, the highest bed within 50 m: the floor reads -0.5, not -1.8.
+  expect_equal(terra::extract(rem, cbind(50.5, 40.5))[[1]], -0.5, tolerance = 1e-6)
+  src <- attr(rem, "bed_source")
+  expect_identical(terra::extract(src, cbind(50.5, 40.5))[[1]], 3L)
+  # Beside the river the plane is under the cap and stays: 2.5 m up a plane rising 30 m in 390 m.
+  expect_lt(abs(terra::extract(rem, cbind(50.5, 12.5))[[1]] - (100.5 - (100 + 30 * 2.5 / 390))),
+            0.005)
+  expect_identical(terra::extract(src, cbind(50.5, 12.5))[[1]], 1L)
+})
+
+test_that("ground the DEM does not reach is not an error, and stays empty", {
+  v <- synthetic_valley()
+  v$dem[1:400] <- NA
+  bed <- pc_readme_stream_bed(v$dem, v$stream, spacing = 10, reach = 6)
+  bed <- rbind(bed, data.frame(x = c(5, 395), y = c(10, 10), z = c(108, 104)))
+  rem <- pc_readme_rem(v$dem, bed)
+  expect_true(all(is.na(terra::values(rem, mat = FALSE)[1:400])))
+  expect_false(anyNA(terra::values(rem, mat = FALSE)[-(1:400)]))
 })
 
 test_that("no water, or a sample every cell, is not an error", {

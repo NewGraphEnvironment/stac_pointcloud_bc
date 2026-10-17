@@ -44,3 +44,27 @@ The TIN bed between Crow Creek's upstream end (745 m) and Maxan Creek (728 m) ra
 | ABOVE 0.5, NEAR 300 | 3.7% | -9.01 m | 1.7% (no sample within 300 m of the artifact) |
 | ABOVE 0.5, NEAR 1000 | 2.9% | -0.5 m | 2.3%, but real floodplain hollows jumped to the lake's level: yellow patches inside the valley floors |
 | **ABOVE 2, NEAR 1000** | 4.9% | -2.0 m | 0.5%; floors clean, the artifact corner yellow |
+
+## Round 2's findings, and what ended the iteration (2026-10-17)
+
+Round 2 (`review-p2-round2.md`) found round 1's rule (lowest sample within 1 km) overshot: about
+1 km downstream on a falling valley, a 7 m step across flat floodplain; and the opposite error at
+Wiggins Lake's level. Tried and dropped, each fixing one artifact and making another:
+range clamp to the 5 nearest samples (76% of cells held, Voronoi seams across the field); a 1 m
+slack on 10 nearest (30% held, the hillside artifact untouched); IDW of the nearest samples below
+the ground plus whole-shore sampling (bottom-edge seam 2-3 m, Wiggins flat unchanged); HAND by
+D8 flow after a Planchon-Darboux fill (90.7% of land reaches a stream, but floodplains read 3 m+,
+measured to where their flow meets the channel far downstream); a 500 m buffer with a lake fringe
+(the fringe grew to 512k samples). Patch of the window's west end causing both: Crow Creek's upper
+valley and Wiggins Lake. User chose (2026-10-17) to trim the window 900 m from the west.
+
+In the trimmed window (3.1 x 2.3 km), visible seams (adjacent cells whose height above the bed
+jumps > 1.5 m where the ground changes < 0.3 m, one side under 3 m), probe `p38_seam.R`:
+
+| bed | seams | deepest below bed |
+|---|---|---|
+| committed rule (lowest within 1 km) | 445 pairs | -2.0 m |
+| plain TIN, 500 m buffer | 0 | -5.3 m (1.2 ha on Crow Creek's floor, the TIN pulled up by a plateau stream 300 m west) |
+| **TIN, 500 m buffer, capped at 1 m over the highest sample within 150 m** | 3 | -3.3 m (scratch), -2.6 m as committed |
+
+Dropping samples on stream reaches steeper than 2 degrees removed 273 samples and changed nothing.

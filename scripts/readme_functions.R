@@ -428,48 +428,44 @@ pc_readme_flat_water <- function(dem, min_area = 1e4) {
 #' The TIN is linear between samples, so between two streams the bed surface runs as a plane
 #' rather than jumping at the line halfway between them. lidR leaves the cells beyond the
 #' samples' hull empty, so there the bed is the inverse-distance mean of the three nearest
-#' samples, on a grid `coarse` times the DEM's cell and interpolated back. Between two streams
-#' at different heights, as a tributary high in its own valley and the river below it, either
-#' surface can run above the hillside that separates them; where it stands more than `above` m
-#' over the ground, the bed is instead the lowest sample within `near` m, when that is lower.
-#' Returns the height above the bed, with an attribute `bed_from`: the share of cells whose bed
-#' came from the TIN, the nearest samples, and the lowest nearby sample.
-pc_readme_rem <- function(dem, bed, coarse = 10, above = 0.5, near = 300) {
+#' samples, on a grid `coarse` times the DEM's cell and interpolated back. Either surface can
+#' rise far above the streams beside a cell, where a stream on the high ground beyond a valley
+#' wall pulls it up over the valley floor; so a cell's bed is held to no more than `above` m over
+#' the highest sample within `near` m, where there is one. Returns the height above the bed, with
+#' an attribute `bed_source`: a raster on the grid of `dem`, 1 where the bed is the TIN, 2 the
+#' nearest samples' mean, 3 either one held down.
+pc_readme_rem <- function(dem, bed, coarse = 10, above = 1, near = 150) {
   pts <- data.table::data.table(X = bed$x, Y = bed$y, Z = bed$z, Classification = 2L)
   las <- suppressMessages(lidR::LAS(pts, crs = sf::st_crs(terra::crs(dem))))
   base <- suppressWarnings(lidR::rasterize_terrain(las, dem, lidR::tin()))
-  if (anyNA(terra::values(base, mat = FALSE))) {
-    g <- terra::rast(terra::ext(dem), resolution = coarse * terra::res(dem), crs = terra::crs(dem))
+  g <- terra::rast(terra::ext(dem), resolution = coarse * terra::res(dem), crs = terra::crs(dem))
+  from_far <- is.na(terra::values(base, mat = FALSE))
+  if (any(from_far)) {
     v <- terra::vect(cbind(bed$x, bed$y), crs = terra::crs(dem))
     v$z <- bed$z
     diag <- sqrt(diff(terra::ext(dem)[1:2])^2 + diff(terra::ext(dem)[3:4])^2)
     far <- terra::interpIDW(g, v, "z", radius = diag, power = 1, maxPoints = 3)
-    from_far <- is.na(terra::values(base, mat = FALSE))
     base <- terra::cover(base, terra::resample(far, dem, method = "bilinear"))
-  } else {
-    from_far <- rep(FALSE, terra::ncell(dem))
   }
-  # The lowest sample within `near` m: samples' minimum on the coarse grid, then a circle.
-  g <- terra::rast(terra::ext(dem), resolution = coarse * terra::res(dem), crs = terra::crs(dem))
-  lowest <- terra::rasterize(cbind(bed$x, bed$y), g, values = bed$z, fun = min)
-  circle <- terra::focalMat(lowest, near, "circle")
-  if (nrow(circle) >= 2 * min(dim(lowest)[1:2])) {
-    # A window as wide as the grid (a small test grid): every cell takes the lowest sample.
-    lowest <- terra::setValues(lowest, min(bed$z))
+  # The highest sample within `near` m: samples' maximum on the coarse grid, then a circle,
+  # interpolated back smoothly so the cap has no steps.
+  highest <- terra::rasterize(cbind(bed$x, bed$y), g, values = bed$z, fun = max)
+  circle <- terra::focalMat(highest, near, "circle")
+  if (nrow(circle) >= 2 * min(dim(highest)[1:2])) {
+    # A window as wide as the grid (a small test grid): every cell takes the highest sample.
+    highest <- terra::setValues(highest, max(bed$z))
   } else {
     circle[circle > 0] <- 1
     circle[circle == 0] <- NA
-    lowest <- terra::focal(lowest, w = circle, fun = "min", na.rm = TRUE)
+    highest <- terra::focal(highest, w = circle, fun = "max", na.rm = TRUE)
   }
-  lowest <- terra::resample(lowest, dem, method = "near")
-  z <- terra::values(dem, mat = FALSE)
+  highest <- terra::resample(highest, dem, method = "bilinear")
   b <- terra::values(base, mat = FALSE)
-  l <- terra::values(lowest, mat = FALSE)
-  over <- !is.na(l) & b - z > above & l < b
-  b[over] <- l[over]
+  cap <- terra::values(highest, mat = FALSE) + above
+  held <- !is.na(cap) & !is.na(b) & b > cap
+  b[held] <- cap[held]
   rem <- dem - terra::setValues(dem, b)
-  attr(rem, "bed_from") <- c(tin = mean(!from_far & !over), nearest = mean(from_far & !over),
-                             lowest = mean(over))
+  attr(rem, "bed_source") <- terra::setValues(dem, ifelse(held, 3L, ifelse(from_far, 2L, 1L)))
   rem
 }
 # --- the stream bed, shown on the landing page: end
