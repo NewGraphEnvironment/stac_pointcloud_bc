@@ -50,5 +50,5 @@ tile is one tile.
 ## What the canopy figure does with it
 
 The landing page's figure builds its ground from the point cloud (`pc_readme_ground()`), which
-is this DEM correctly placed, so it reads no DEM. A workflow that overlays LidarBC DEMs on
+above the lake's shore is this DEM correctly placed, so it reads no DEM. A workflow that overlays LidarBC DEMs on
 anything else should check the offset on its own tiles with the probe's method first.

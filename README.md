@@ -91,7 +91,7 @@ The Maxan Creek delta, where the creek enters Bulkley Lake. Along a stream, cano
 
 **How it was made.** A STAC search for a 1.2 × 1 km window, plus a 30 m margin, returned the 2 items covering it, both from the 093/093l/2019 delivery. None of them has a `copc` asset, so each `laz` was downloaded whole, once: 532 MB holding 107.8 million points, 23.4 million of them in the window. 33% of those are ground returns (class 2) and 67% are class 1, unclassified, which is where LidarBC leaves most of its vegetation. Only noise and withheld points are left out; nothing is chosen by vegetation class. With [lidR](https://r-lidar.github.io/lidRbook/), heights are measured above a triangulated surface of the ground returns, and the first returns are rasterised pit-free at 0.5 m. A cell with no ground return within 5 m, or no return at all, is left empty. The lake’s surface returns are class 1 and level with its shore, so without that test the lake would read 0 m like the meadow.
 
-**The ground under it** is the same triangulated surface of the ground returns, on the same 0.5 m grid. Its colour is its height above the lake’s surface, 712.72 m, which is the median height of the returns over the water: from 0 at the lake to 5 m, which holds the delta, while the slope to the south runs past it. It is shaded as if lit from the northwest, with its relief exaggerated 4 times. Canopy of 2 m and up is drawn over it in greens, more opaque the taller it stands, and the ground’s shading runs through the canopy too. Each pixel of the figure is the average of the 0.5 m cells in its 1 m square, so a thin channel is not lost to sampling. LidarBC publishes a DEM for this delivery, and it is the same surface, but read as published it sits half a metre west and half a metre south of the points (see [research/dem_alignment.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/dem_alignment.md)), so the ground here is built from the points.
+**The ground under it** is the same triangulated surface of the ground returns, on the same 0.5 m grid. Its colour is its height above the lake’s surface, 712.72 m, which is the median height of the returns over the water: from 0 at the lake to 5 m, which holds the delta, while the slope to the south runs past it. It is shaded as if lit from the northwest, with its relief exaggerated 4 times. Canopy of 2 m and up is drawn over it in greens, more opaque the taller it stands up to 15 m, and the ground’s shading runs through the canopy too. Each pixel of the figure is the average of the 0.5 m cells in its 1 m square, so a thin channel is not lost to sampling. LidarBC publishes a DEM for this delivery, and above the lake’s shore it is the same surface, but read as published it sits half a metre west and half a metre south of the points (see [research/dem_alignment.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/research/dem_alignment.md)), so the ground here is built from the points.
 
 <details>
 
@@ -213,9 +213,9 @@ pc_readme_ground <- function(las, box, res = 0.5) {
 
 #' The water's surface: the median height of the returns in the cells the CHM calls water
 #'
-#' Those cells have no ground return near them (`pc_readme_chm()`), so their unclassified
-#' returns are the water's surface, with the odd crown overhanging the shore, which the median
-#' ignores. NA when the window holds no water.
+#' Those cells have no ground return near them (`pc_readme_chm()`), so their other returns
+#' (noise left out) are the water's surface, with the odd crown overhanging the shore, which the
+#' median ignores. NA when the window holds no water.
 pc_readme_water_level <- function(las, chm) {
   keep <- !las$Classification %in% c(2L, 9L, NOISE_CLASSES)
   if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag

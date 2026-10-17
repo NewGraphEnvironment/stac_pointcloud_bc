@@ -271,9 +271,9 @@ pc_readme_ground <- function(las, box, res = 0.5) {
 
 #' The water's surface: the median height of the returns in the cells the CHM calls water
 #'
-#' Those cells have no ground return near them (`pc_readme_chm()`), so their unclassified
-#' returns are the water's surface, with the odd crown overhanging the shore, which the median
-#' ignores. NA when the window holds no water.
+#' Those cells have no ground return near them (`pc_readme_chm()`), so their other returns
+#' (noise left out) are the water's surface, with the odd crown overhanging the shore, which the
+#' median ignores. NA when the window holds no water.
 pc_readme_water_level <- function(las, chm) {
   keep <- !las$Classification %in% c(2L, 9L, NOISE_CLASSES)
   if (!is.null(las$Withheld_flag)) keep <- keep & !las$Withheld_flag

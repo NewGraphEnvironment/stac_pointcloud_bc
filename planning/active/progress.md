@@ -24,3 +24,6 @@
 - Filed stac_elevation_bc#69 (the DEM's half-cell offset); `research/dem_alignment.md` and its
   probe `scripts/dem_alignment_probe.R`.
 - Next: `/code-check branch`, archive, PR.
+- `/code-check branch`: three rounds, 11 findings fixed (direction of the DEM offset, water past
+  the TIN drawn white, claims wider than their producer, the ramp's green end); closed on round
+  3's 89-claim enumeration (`review-close.md`). Figure regenerated after rounds 1 and 3.

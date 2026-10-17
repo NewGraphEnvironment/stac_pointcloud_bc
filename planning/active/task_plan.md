@@ -60,7 +60,7 @@ A turbo-type ramp stretched over the floodplain's own range is known to bring th
 ## Validation
 - [x] `Rscript -e 'testthat::test_file("tests/readme_functions_test.R")'` and `uv run pytest` pass
 - [x] The figure plots twice to the same md5 from the same rasters (review A1)
-- [ ] `/code-check` clean (once over the branch)
-- [ ] PWF checkboxes match landed work
+- [x] `/code-check` clean (once over the branch)
+- [x] PWF checkboxes match landed work
 - [ ] `/planning-archive` on completion, then `/gh-pr-push`
 

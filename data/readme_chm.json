@@ -11,6 +11,7 @@
   "water_level_m": 712.72,
   "relief_m": 5,
   "tree_m": 2,
+  "opaque_m": 15,
   "exaggeration": 4,
   "figure_cell_m": 1,
   "bytes_files": 532357822,
