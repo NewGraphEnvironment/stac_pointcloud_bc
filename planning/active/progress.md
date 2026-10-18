@@ -37,3 +37,11 @@
   files was deferred by plan review B1; now being tried with the sequential decoders.
 - `git fetch`: nothing on origin/main since the branch point. Branch renamed to
   `17-sample-the-148-894-unscreened-files-and` (the issue slug).
+- Sweep ended 20:42 UTC (19 h 13 min, 148,896 files, 42 failed). Retry at 4 workers
+  (`logs/20261018_2045_laz_classes_sweep_retry.log`): 36 sampled (31 ConnectionError, 1 ReadTimeout,
+  4 "Failed to use readinto": all transient); 6 still fail "no chunks available in chunk table".
+- All 6 are zero-filled after part of their data (range-read probe; #32): the 2 known plus
+  082e050_3_2_1 (082e/2025), 092b082_2_3_3 (092b/2019, which has a CanElevation COPC copy),
+  093p045_3_3_3 (093p/2024), 094j046_2_4_2 (094j/2024). `CLASSES_UNREADABLE` now holds the 6,
+  each reason citing #32. Suite 337 passed.
+- Full build started 20:55 UTC, `logs/20261018_2055_catalogue_build_sweep.log`.

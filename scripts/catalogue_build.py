@@ -236,20 +236,45 @@ EXCLUDE_DELIVERIES = {
 # name with the reason and the listing ETag the fault was seen at. Each is sampled every build
 # and must fail with its recorded error: one that now samples, was re-delivered, or has left the
 # build stops it for review; another error is a failed sample, which a re-run retries (#17).
+# All six are damaged at source (#32): the point data stops part-way, and the rest of the file,
+# its LAZ chunk table included, is zero bytes, so no reader can recover the remaining points.
+_ZERO_FILLED = "Damaged at source (#32): LAS 1.4, {}; the chunk table reads 0 chunks. Found by {}."
 CLASSES_UNREADABLE = {
     "https://nrs.objectstore.gov.bc.ca/gdwuts/082/082e/2024/pointcloud/"
     "bc_082e075_1_4_3_xyes_8_utm11_20240727_20240727.laz": {
-        "reason": "lazrs finds no chunks in its chunk table, every time (LAS 1.4 format 6, "
-                  "166 M points, 1.08 GB). Found 2026-10-11 by the 5% audit (#2).",
+        "reason": _ZERO_FILLED.format("166 M points, zero from MiB 383 of 1,026", "the 5% audit (#2), 2026-10-11"),
         "error": "no chunks available in chunk table",
         "etag": "056c28d71c81ef97ee5a8add5325707b-9",
     },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/082/082e/2025/pointcloud/"
+    "bc_082e050_3_2_1_xyes_8_utm11_20250706_20250710.laz": {
+        "reason": _ZERO_FILLED.format("137 M points, zero from MiB 288 of 853", "the #17 sweep, 2026-10-18"),
+        "error": "no chunks available in chunk table",
+        "etag": "d3a1be5a79e611b11c65276316320657-7",
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/092/092b/2019/pointcloud/"
+    "bc_092b082_2_3_3_xyes_8_utm10_2019.laz": {
+        "reason": _ZERO_FILLED.format("102 M points, zero from MiB 354 of 499", "the #17 sweep, 2026-10-18"),
+        "error": "no chunks available in chunk table",
+        "etag": "0879f88654ce30c5ff5b339e63a74e72-4",
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/093/093p/2024/pointcloud/"
+    "bc_093p045_3_3_3_xyes_8_utm10_20240926_20240926.laz": {
+        "reason": _ZERO_FILLED.format("122 M points, zero from MiB 659 of 782", "the #17 sweep, 2026-10-18"),
+        "error": "no chunks available in chunk table",
+        "etag": "57d3aa85a46803d2ca71ddf8dcaab444-7",
+    },
     "https://nrs.objectstore.gov.bc.ca/gdwuts/094/094j/2024/pointcloud/"
     "bc_094j045_3_3_4_xyes_8_utm10_20240531_20240531.laz": {
-        "reason": "lazrs finds no chunks in its chunk table, every time (LAS 1.4 format 6, "
-                  "95 M points, 0.62 GB). Found 2026-10-11 by the 5% audit (#2).",
+        "reason": _ZERO_FILLED.format("95 M points, zero from MiB 203 of 596", "the 5% audit (#2), 2026-10-11"),
         "error": "no chunks available in chunk table",
         "etag": "542476484e6496d985ba11ffe7b49f1b-5",
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/094/094j/2024/pointcloud/"
+    "bc_094j046_2_4_2_xyes_8_utm10_20240708_20250509.laz": {
+        "reason": _ZERO_FILLED.format("62 M points, zero from MiB 129 of 385", "the #17 sweep, 2026-10-18"),
+        "error": "no chunks available in chunk table",
+        "etag": "500d2adba5ac6103d5913485afa7656b-4",
     },
 }
 
