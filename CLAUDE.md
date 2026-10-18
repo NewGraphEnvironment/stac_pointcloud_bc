@@ -76,8 +76,9 @@ treating the repo as a Python package (#9).
   (`classes_published`), so a local cache can never add a list. A sample can miss a class but
   never add one, so an item without a list holds ground and a class outside {2, 7, 9, 18}.
   Measured 2026-10-18: 629 lists, 12 ground-only (mostly near-empty or noise tiles), 312 with no
-  ground, 305 a sample's false alarm. 61 of the groundless lay outside the old 10th-percentile
-  density screen, 11 of them above its 90th, so no density screen finds them. **6 files are
+  ground, 305 a sample's false alarm. 61 files with no ground or only ground lay outside the old
+  10th-percentile density screen, 11 of them above its 90th, so no density screen short of nearly
+  every file finds them. **6 files are
   damaged at source** (#32: data stops part-way, the rest zero bytes) and are named in
   `CLASSES_UNREADABLE`, without a list. Vegetation here is mostly class 1; classes 3–5 are in
   8.6% of files, class 12 in 44%.

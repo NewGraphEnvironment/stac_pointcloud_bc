@@ -57,3 +57,10 @@
   are called damaged at source.
 - Mutation check (copy of the tree): the 10th-percentile screen restored fails 8 tests; the
   now-samples refusal removed fails its 2 cases. Suite 337 passed.
+- Final build 23:27-23:43 UTC (`logs/20261018_2335_catalogue_build_final.log`) with the corrected
+  description. `catalogue_compare.py` against a copy of the bucket
+  (`logs/20261018_2345_catalogue_compare.log`): exit 0; 174,282 both sides, 280 published items
+  given a list (629 - 349), 0 differing otherwise, collection description changed.
+- Code-check round 4 (diff 62f7394..HEAD, `review-round4.md`): no code defects, 5 wrong claims in
+  research/NEWS/CLAUDE.md and one comment, all reproduced and fixed; ended by enumeration of the
+  fixes' numbers. 092b082_2_3_3's COPC looks whole: added to #32.

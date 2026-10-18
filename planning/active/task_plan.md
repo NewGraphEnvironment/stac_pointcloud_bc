@@ -44,7 +44,7 @@ Decided at the plan gate (2026-10-17): the build samples every file, not a one-t
       misses now flagged; how many new lists the screen missed (against the ~38 estimate)
 - [x] `catalogue_compare.py` taught the expected #17 diff (new `classification:classes`, its
       `stac_extensions`, the description), with its tests (plan review B2)
-- [ ] `catalogue_compare.py` against the published catalogue: only class lists and the collection change
+- [x] `catalogue_compare.py` against the published catalogue: only class lists and the collection change
 - [ ] `cache_sync.sh push` (**before merge**: a monthly run on code that samples everything and a
       cache that lacks the sweep would try 148k samples and hit its 240-min limit)
 

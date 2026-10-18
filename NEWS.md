@@ -11,9 +11,9 @@ catalogue is in this state". Same convention as
 the 17,552 at or below the 10th density percentile of their mapsheet-year, and reads whole each one
 a sample calls ground-only or groundless. **629 items** carry `classification:classes` on the `laz`
 asset, up from 349: 12 ground-only (unchanged), 312 with no ground (up from 253) and 305 a sample's
-false alarm, which the whole read corrects. The sweep found **59 groundless files** outside the old
-screen beyond the audit's 2, against its estimate of 38 (5 to 137); 11 are denser than 90% of their
-mapsheet-year. Since a sample can miss a class but never add one, an item without a list now holds
+false alarm, which the whole read corrects. Outside the old screen the sweep found **59 more files
+with no ground** beyond the audit's 2 (one groundless, one ground-only), against its estimate of 38
+(5 to 137); 10 of the 59 are denser than 90% of their mapsheet-year. Since a sample can miss a class but never add one, an item without a list now holds
 ground and at least one class besides ground, noise and water, except 6 files damaged at source
 (#32), which carry no list. `data/classes_required.json` is empty: every list is derived from a
 sample. The collection description says so. No item is added or removed, and no other field

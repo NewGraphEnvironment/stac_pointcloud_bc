@@ -237,7 +237,8 @@ EXCLUDE_DELIVERIES = {
 # and must fail with its recorded error: one that now samples, was re-delivered, or has left the
 # build stops it for review; another error is a failed sample, which a re-run retries (#17).
 # All six are damaged at source (#32): the point data stops part-way, and the rest of the file,
-# its LAZ chunk table included, is zero bytes, so no reader can recover the remaining points.
+# its LAZ chunk table included, is zero bytes, so no reader can recover the remaining points
+# from the file. (092b082_2_3_3's COPC copy looks whole; #32 asks whether to read its classes there.)
 _ZERO_FILLED = "Damaged at source (#32): LAS 1.4, {}; the chunk table reads 0 chunks. Found by {}."
 CLASSES_UNREADABLE = {
     "https://nrs.objectstore.gov.bc.ca/gdwuts/082/082e/2024/pointcloud/"

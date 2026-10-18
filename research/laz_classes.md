@@ -28,8 +28,8 @@ or groundless.
 
 The build publishes a class list for exactly the files a current sample flags: **629 lists**, each
 every class present with its point count, in the `laz` asset's `classification:classes`. Every file
-has a sample, so a file whose whole read its sample does not flag can no longer occur, and
-`data/classes_required.json` is empty. A sample can only miss a class, so an item without a list
+has a sample, so no list needs recording: `data/classes_required.json` is empty, and no file in this
+build has a whole read its sample does not flag (one would be refused). A sample can only miss a class, so an item without a list
 holds ground and at least one class outside {2, 7, 9, 18}. The build refuses a file without a
 current sample, a flagged file without a current whole read, an empty sample, and a
 `CLASSES_UNREADABLE` entry that now samples, fails otherwise, was re-delivered or left the build. A
@@ -50,8 +50,8 @@ sample counts only if taken at the file's current ETag and with the item's curre
   `[1, 7, 9, 18]` 19, `[1]` 10, `[9]` 3, `[0]` 2, `[7, 9]` 1. They span 53 mapsheet-years; the
   largest counts are `082e/2018` 26, `092f/2020` 21, `082e/2017` 20, `082f/2017` 16. The two `[0]`
   files are the survey's never-classified `092h032` tiles.
-- **Nearly half the lists (305) are false alarms**, which the whole read corrects: a sample that
-  misses a file's ground flags it, and its list then shows the ground. All 59 new no-ground files
+- **Nearly half the lists (305) are false alarms**, which the whole read corrects. In 232 the
+  first 100,000 points were all ground though the file holds other classes; in 73 the laz samples held no ground and the whole read found some. All 59 new no-ground files
   were outside the 0.3.0 screen (below); none is ground-only.
 
 ## What the 0.3.0 screen missed (2026-10-18)
@@ -207,7 +207,9 @@ water as 9 is not established here.
 
 ## What this does not establish
 
-- The 6 files damaged at source (#32) have no sample at all, and no list.
+- The 6 files damaged at source (#32) have no sample and no list. One of them, `092b082_2_3_3`,
+  has a CanElevation COPC copy whose octree sums to the header's 102,305,189 points (2026-10-18), so
+  its classes could come from that copy; the build does not do so.
 - A sample reads the first chunk, three spread chunks and the COPC levels. A file whose chunk table
   is intact but whose data is damaged further in would pass it; the 6 were found because their
   tables are zeroed (#32).
