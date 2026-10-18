@@ -30,3 +30,12 @@ re-delivered files are sampled each month.
 |-------|------------|
 | `gh`: `net/http: TLS handshake timeout`; curl to github.com times out | GitHub unreachable from this host; planned from local record, body diffed before PR |
 | `cache_sync.sh pull`: gunzip can't stat headers.jsonl.gz; aws s3 cp left only a temp part | network: S3 delivered 0 B in 60 s; nothing merged, local caches intact |
+
+## Issue body against the plan (2026-10-18)
+
+Fetched once GitHub answered (body last edited 2026-10-11T15:30Z). Proposal steps 1-2 are the
+sweep; step 3 (`--classes-record` adds the ids) is superseded by the plan-gate choice to derive
+the published set from samples, so `--classes-record --force` should leave the file empty;
+step 4 is `catalogue_compare.py`. "Also": the two unreadable files are carved out by
+`CLASSES_UNREADABLE`, and a whole read with a sequential decoder is being tried; the screen is
+dropped; CLAUDE.md, research and the description are Phase 4 (description done).

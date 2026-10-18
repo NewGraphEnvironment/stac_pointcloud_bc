@@ -23,3 +23,17 @@
 - 00:35 UTC 2026-10-18: stood down on the user's word. DNS resolves GitHub, the objectstore and
   pypi.org, but no TCP connection to them completes; the user suspects this Mac's wifi. Waiters
   stopped. Resume from Phase 3 (cache pull, then the sweep at 10 workers) once the network works.
+
+## Session 2026-10-18
+
+- 01:28 UTC: network back (GitHub API, objectstore 1 MB in 0.7 s, S3). Earlier only HTTPS had
+  failed: git over SSH and `ssh -T git@github.com` worked while HTTPS to GitHub never connected.
+- Cache pull: no change (every cache merged to its own line count).
+- Sweep started 01:29 UTC, `laz_classes_probe.py --workers 10`, log
+  `logs/20261018_0130_laz_classes_sweep.log`: 148,896 to sample; 2.1 files/s after 10 min (~19 h).
+- Issue #17 body fetched (last edited 2026-10-11, before plan mode) and diffed against the plan:
+  nothing changes the phases. Its "decide whether the build keeps the screen" is the plan-gate
+  decision (sample every file). Its "find out whether a whole read works" for the two unreadable
+  files was deferred by plan review B1; now being tried with the sequential decoders.
+- `git fetch`: nothing on origin/main since the branch point. Branch renamed to
+  `17-sample-the-148-894-unscreened-files-and` (the issue slug).
