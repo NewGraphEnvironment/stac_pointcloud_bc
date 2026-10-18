@@ -53,5 +53,5 @@ the bytes are what the province stores:
 The chunk-table pointer lies inside the file, but the table there reads version 0, 0 chunks: it and
 everything after the data are zero bytes. No decoder can read past that (laszip is not installed
 here, and needs no test: the points are not in the file). So `CLASSES_UNREADABLE` stays, with its
-reason amended after the sweep ends (the running sweep imports catalogue_build). Reporting it to
-LidarBC is outside our repos and needs the user's word.
+reason amended after the sweep ends (the running sweep imports catalogue_build). Filed as #32
+(2026-10-18); the amended reason cites it.
