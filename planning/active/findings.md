@@ -39,3 +39,19 @@ the published set from samples, so `--classes-record --force` should leave the f
 step 4 is `catalogue_compare.py`. "Also": the two unreadable files are carved out by
 `CLASSES_UNREADABLE`, and a whole read with a sequential decoder is being tried; the screen is
 dropped; CLAUDE.md, research and the description are Phase 4 (description done).
+
+## The two unreadable files are damaged at source (2026-10-18)
+
+Both downloaded whole (scratchpad), each matching its objectstore ETag at a 128 MiB part size, so
+the bytes are what the province stores:
+
+| file | size | points (header) | data ends | all-zero after | sequential lazrs | parallel lazrs |
+|---|---|---|---|---|---|---|
+| `082e075_1_4_3` (`082e/2024`) | 1,075,329,161 | 165,982,257 | 383 MiB | 643 of 1,026 MiB | fails after 60-65M points, "failed to fill whole buffer" | "no chunks available in chunk table" |
+| `094j045_3_3_4` (`094j/2024`) | 624,779,555 | 95,430,699 | 203 MiB | 390 of 596 MiB | fails after 30-35M points, same | same |
+
+The chunk-table pointer lies inside the file, but the table there reads version 0, 0 chunks: it and
+everything after the data are zero bytes. No decoder can read past that (laszip is not installed
+here, and needs no test: the points are not in the file). So `CLASSES_UNREADABLE` stays, with its
+reason amended after the sweep ends (the running sweep imports catalogue_build). Reporting it to
+LidarBC is outside our repos and needs the user's word.
