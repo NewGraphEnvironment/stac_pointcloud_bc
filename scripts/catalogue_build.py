@@ -296,11 +296,11 @@ DESCRIPTION = (
     "its `laz` asset lists every class present, with its point count, in "
     "`classification:classes`. A sample can miss a class but never add one, so an item "
     "without a list holds ground and at least one class besides ground, noise and water, "
-    f"except {len(CLASSES_UNREADABLE)} files the sampler cannot read, which carry no list "
-    "and were not sampled "
+    f"except {len(CLASSES_UNREADABLE)} files damaged at source, which the sampler cannot read "
+    "and which carry no list "
     "(research/laz_classes.md in "
-    "github.com/NewGraphEnvironment/stac_pointcloud_bc). Most of the listed items hold no "
-    "ground (class 2) at all, and so give no bare-earth surface. Vegetation in this "
+    "github.com/NewGraphEnvironment/stac_pointcloud_bc). A listed item may hold no ground "
+    "(class 2) at all, and so give no bare-earth surface; its list says so. Vegetation in this "
     "collection is mostly unclassified (class 1); classes 3 to 5 are in a minority of files."
 )
 PROVIDERS = [

@@ -5,6 +5,21 @@ and the `stac-pointcloud-bc` collection at <https://images.a11s.one>. A tag mean
 catalogue is in this state". Same convention as
 [`stac_dem_bc`](https://github.com/NewGraphEnvironment/stac_dem_bc).
 
+## Unreleased
+
+**Every file's classes sampled (#17).** The build samples points from all 174,282 files, not only
+the 17,552 at or below the 10th density percentile of their mapsheet-year, and reads whole each one
+a sample calls ground-only or groundless. **629 items** carry `classification:classes` on the `laz`
+asset, up from 349: 12 ground-only (unchanged), 312 with no ground (up from 253) and 305 a sample's
+false alarm, which the whole read corrects. The sweep found **59 groundless files** outside the old
+screen beyond the audit's 2, against its estimate of 38 (5 to 137); 11 are denser than 90% of their
+mapsheet-year. Since a sample can miss a class but never add one, an item without a list now holds
+ground and at least one class besides ground, noise and water, except 6 files damaged at source
+(#32), which carry no list. `data/classes_required.json` is empty: every list is derived from a
+sample. The collection description says so. No item is added or removed, and no other field
+changes. The sweep was 148,896 files, 447 GB of range reads and 19 h 13 min at 10 workers; a month
+samples only its new or re-delivered files (`research/laz_classes.md`).
+
 ## 0.4.0
 
 Footprints rounded to 8 decimals (#4), so a build on linux and one on macOS write the same item

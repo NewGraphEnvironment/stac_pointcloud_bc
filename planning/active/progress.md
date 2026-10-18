@@ -45,3 +45,15 @@
   093p045_3_3_3 (093p/2024), 094j046_2_4_2 (094j/2024). `CLASSES_UNREADABLE` now holds the 6,
   each reason citing #32. Suite 337 passed.
 - Full build started 20:55 UTC, `logs/20261018_2055_catalogue_build_sweep.log`.
+- (Correction: the full build started 20:48 UTC, not 20:55; its log keeps the 2055 name.) It built
+  174,282 items in 2 h 17 min: 629 flagged, 629 read whole, 629 lists (12 ground-only, 312 no
+  ground, 305 mixed). `--classes-record --force` (`logs/20261018_2310_catalogue_build_classes_record.log`,
+  17 min warm): 0 ids recorded, 11 dropped; `data/classes_required.json` is `[]`.
+- Measured (scratch scripts over the caches and built items): 61 true lists outside the 0.3.0
+  screen (the audit's 2 + 59), percentile median 21.2, 11 above the 90th; class shares over every
+  sample; sweep 447 GB. research/laz_classes.md, its README row, NEWS (Unreleased) and the
+  CLAUDE.md classes bullet revised. Description: "Most of the listed items hold no ground" was
+  false (312 of 629), now "A listed item may hold no ground ... its list says so"; the 6 carve-outs
+  are called damaged at source.
+- Mutation check (copy of the tree): the 10th-percentile screen restored fails 8 tests; the
+  now-samples refusal removed fails its 2 cases. Suite 337 passed.
