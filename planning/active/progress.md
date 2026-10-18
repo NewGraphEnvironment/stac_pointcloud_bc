@@ -20,3 +20,6 @@
   GitHub and pypi.org also time out, while example.com and google.com answer and S3 answers in 15 s.
   New waiters, 8 h each, probing every 3 min: objectstore (to start the sweep) and GitHub (issue body,
   branch rename, PR). Phase 3 onward waits on them.
+- 00:35 UTC 2026-10-18: stood down on the user's word. DNS resolves GitHub, the objectstore and
+  pypi.org, but no TCP connection to them completes; the user suspects this Mac's wifi. Waiters
+  stopped. Resume from Phase 3 (cache pull, then the sweep at 10 workers) once the network works.
