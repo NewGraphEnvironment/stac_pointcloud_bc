@@ -45,7 +45,7 @@ Decided at the plan gate (2026-10-17): the build samples every file, not a one-t
 - [x] `catalogue_compare.py` taught the expected #17 diff (new `classification:classes`, its
       `stac_extensions`, the description), with its tests (plan review B2)
 - [x] `catalogue_compare.py` against the published catalogue: only class lists and the collection change
-- [ ] `cache_sync.sh push` (**before merge**: a monthly run on code that samples everything and a
+- [x] `cache_sync.sh push` (**before merge**: a monthly run on code that samples everything and a
       cache that lacks the sweep would try 148k samples and hit its 240-min limit)
 
 ## Phase 4: Record
@@ -55,12 +55,12 @@ Decided at the plan gate (2026-10-17): the build samples every file, not a one-t
 - [x] `README.Rmd` (renders README.md, index.html): the "build samples the least dense files"
       paragraph; `scripts/cache_sync.sh` cold-cost comment; maintaining.md cache size and the
       monthly ceiling of about 20k new files (plan review G1, CI cost)
-- [ ] Push the cache and merge back to back, with no monthly run between (plan review O1)
+- [x] Push the cache and merge back to back, with no monthly run between (plan review O1) (cache pushed 2026-10-18 23:46 UTC and read back byte-identical; with it holding every sample the order no longer matters: main's code reads a richer cache harmlessly)
 - [x] `NEWS.md` entry; `CLAUDE.md` source-facts bullet on classes (above the marker) with measured numbers
 - [x] `tests/test_laz_item.py` `ITEM_PATHS` unchanged (no new field), confirmed by the suite
 
 ## Validation
 - [x] Tests pass
 - [x] `/code-check` clean (each commit, or once over the branch with `/code-check branch`): 3 rounds over 3b8e543...2c28b34, ended by enumeration; the sweep's own changes get a further round
-- [ ] PWF checkboxes match landed work
-- [ ] `/planning-archive` on completion
+- [x] PWF checkboxes match landed work
+- [x] `/planning-archive` on completion (by hand: the skill is not in this session's list)
