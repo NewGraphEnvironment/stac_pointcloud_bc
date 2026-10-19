@@ -114,10 +114,11 @@ treating the repo as a Python package (#9).
   under a 40,000-item ceiling, and does not register. The role (`role_gha_stac_pointcloud_bc`)
   is main-only, cannot delete, and its session is one hour, so the workflow assumes it before
   each write.
-  **Its first dispatch (2026-10-14) failed at the first AWS step**: this repo signs GitHub's
-  immutable OIDC subject (`repo:NewGraphEnvironment@46538103/stac_pointcloud_bc@1409685846:…`) and
-  the role trusts the older `repo:NewGraphEnvironment/stac_pointcloud_bc:…` form. Until the role's
-  trust is fixed, every run fails there; #22 stays open until a dispatch plans 0 items.
+  This repo signs GitHub's immutable OIDC subject
+  (`repo:NewGraphEnvironment@46538103/stac_pointcloud_bc@1409685846:…`), so the role must trust
+  that form: the first dispatch (2026-10-14) failed at the first AWS step because it trusted only
+  `repo:NewGraphEnvironment/stac_pointcloud_bc:…`. With the trust fixed, the dry-run dispatch of
+  2026-10-17 (run 39019199617) built 174,282 items and planned 0 uploads (#22).
 - **Footprints are rounded to 8 decimals** (`LONLAT_DECIMALS`) because unrounded, 75% differed
   between macOS arm64 and linux/amd64 in their last bits, which would rewrite them every month.
   Anything else computed in floating point and written to an item has the same hazard.
