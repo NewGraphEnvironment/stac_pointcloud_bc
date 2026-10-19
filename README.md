@@ -418,7 +418,7 @@ The `.laz` files under `dsm/` are not indexed. In every tile compared, they were
 
 Each month the catalogue is rebuilt from the province’s listing and any new files are published; the API serves them once they are registered. [NEWS.md](https://github.com/NewGraphEnvironment/stac_pointcloud_bc/blob/main/NEWS.md) says what each release published.
 
-This page was rendered from catalogue version 0.4.0 on 2026-10-13.
+This page was rendered from catalogue version 0.5.0 on 2026-10-19.
 
 ## Query it
 
