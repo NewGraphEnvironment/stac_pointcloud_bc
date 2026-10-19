@@ -111,8 +111,8 @@ main <- function() {
 
   rgb <- pc_readme_relief(rem, terra::ifel(water, NA, 0), level = 0, relief = RELIEF,
                           exaggeration = EXAGGERATION, shape = dem)
-  pc_readme_relief_png(rgb, REM_PNG, scale = CELL, legend = list(relief = RELIEF), bar_m = 1000,
-                       ground_label = "above the\nstream bed (m)")
+  pc_readme_relief_png(rgb, REM_PNG, scale = CELL, legend = list(relief = RELIEF), bar_m = 500,
+                       ground_label = "above the\nstream bed (m)", bar_at = "margin")
   src <- terra::values(source_bed, mat = FALSE)
   r <- terra::values(rem, mat = FALSE)[!terra::values(water, mat = FALSE)]
   if (anyNA(r)) stop("height above the stream bed is missing for ", sum(is.na(r)), " cells", call. = FALSE)

@@ -342,7 +342,7 @@ pc_readme_relief <- function(ground, chm, level, relief = 5, tree = 2, full = 15
 #' and break thin channels. `scale` is the cell size of `rgb` in m; `legend` the numbers the
 #' scales are labelled with: `level`, `relief`, `tree`, `top`.
 pc_readme_relief_png <- function(rgb, path, scale, legend, bar_m = 500,
-                                 ground_label = "ground above\nthe lake (m)") {
+                                 ground_label = "ground above\nthe lake (m)", bar_at = "map") {
   nc <- terra::ncol(rgb)
   nr <- terra::nrow(rgb)
   # px for the scales, right of the map; one scale when there is no canopy (`legend$top` NULL).
@@ -355,11 +355,19 @@ pc_readme_relief_png <- function(rgb, path, scale, legend, bar_m = 500,
   a <- terra::as.array(rgb)
   a[is.na(a)] <- 255
   graphics::rasterImage(grDevices::as.raster(a, max = 255), 0, 0, nc, nr, interpolate = FALSE)
-  # Scale bar, bottom left, on a white ground so it reads over the forest.
-  bx <- 40 + c(0, bar_m / scale)
-  graphics::rect(bx[1] - 14, 20, bx[2] + 14, 80, col = "white", border = NA)
-  graphics::segments(bx[1], 34, bx[2], 34, lwd = 3, lend = 1)
-  graphics::text(mean(bx), 34, paste(bar_m, "m"), pos = 3, cex = 0.9)
+  # Scale bar: bottom left of the map on a white ground so it reads over the forest, or
+  # (`bar_at = "margin"`) small, under the colour scale, where it covers none of the map.
+  if (bar_at == "margin") {
+    bx <- nc + 30 + c(0, bar_m / scale)
+    if (bx[2] > nc + key - 10) stop("a ", bar_m, " m bar is wider than the margin", call. = FALSE)
+    graphics::segments(bx[1], 12, bx[2], 12, lwd = 2, lend = 1)
+    graphics::text(mean(bx), 12, paste(bar_m, "m"), pos = 3, cex = 0.7)
+  } else {
+    bx <- 40 + c(0, bar_m / scale)
+    graphics::rect(bx[1] - 14, 20, bx[2] + 14, 80, col = "white", border = NA)
+    graphics::segments(bx[1], 34, bx[2], 34, lwd = 3, lend = 1)
+    graphics::text(mean(bx), 34, paste(bar_m, "m"), pos = 3, cex = 0.9)
+  }
   # Two colour scales, drawn from the same ramps and numbers as the map.
   bar <- function(x, pal, lab, at, ticks) {
     y <- nr * c(0.12, 0.88)
