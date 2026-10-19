@@ -62,6 +62,13 @@ def no_recorded_groups(monkeypatch):
     monkeypatch.setattr(catalogue_build, "groups_load", lambda path=None: {})
 
 
+@pytest.fixture(autouse=True)
+def no_unreadable_files(monkeypatch):
+    """main() refuses a CLASSES_UNREADABLE entry whose file is not in a full build. These
+    builds list a handful of files, so name none; the tests of that check name their own."""
+    monkeypatch.setattr(catalogue_build, "CLASSES_UNREADABLE", {})
+
+
 def _targets_etag(item_id):
     """The ETag the build listed for an item, from the targets file it writes before its class
     step: what a real sample would read back from the file."""
@@ -90,7 +97,7 @@ def _sample(classes):
 
 @pytest.fixture(autouse=True)
 def point_reads(monkeypatch):
-    """main() samples the points of every screened file and reads whole what a sample flags.
+    """main() samples the points of every file and reads whole what a sample flags.
     These builds sample a mixed tile, which flags nothing; a whole read is a test failure. The
     tests of that wiring set their own."""
     monkeypatch.setattr(catalogue_build, "item_probe", _sample({1: 400, 2: 600}))
@@ -1201,6 +1208,14 @@ def test_the_build_lists_the_classes_of_a_file_read_whole(tmp_path, monkeypatch)
         {"value": 2, "name": "ground", "count": 1000}]
     c = json.loads((tmp_path / "data/build/collection.json").read_text())
     assert "classification:classes" in c["description"]
+    # Every file is sampled (#17): the description names no screen and no one-off audit.
+    assert "percentile" not in c["description"] and "lowest" not in c["description"]
+    assert "random 5%" not in c["description"]
+    assert "every file" in c["description"]
+    # Stated in the direction the flags make true (code-check #17 round 1): a first chunk of
+    # ground alone flags a file whose other chunks hold class 1, so it is the item WITHOUT a
+    # list that is known to hold ground and another class.
+    assert "an item without a list holds ground" in c["description"]
 
 
 def test_the_build_samples_then_reads_whole_what_the_sample_flags(tmp_path, monkeypatch):
@@ -1226,7 +1241,7 @@ def test_a_flagged_file_whose_whole_read_fails_is_refused(tmp_path, monkeypatch,
     assert not (tmp_path / "data/build/items").exists()
 
 
-def test_a_screened_file_whose_sample_fails_is_refused(tmp_path, monkeypatch, caplog):
+def test_a_file_whose_sample_fails_is_refused(tmp_path, monkeypatch, caplog):
     assert _main_with_classes(tmp_path, monkeypatch, [], sampled={1: 5, 2: 5}) == 0
     monkeypatch.setattr(catalogue_build, "item_probe", _fails)
     (tmp_path / "data/build" / catalogue_build.CLASSES_SAMPLE).unlink()
@@ -1248,13 +1263,13 @@ def test_a_stale_whole_read_that_cannot_be_redone_is_refused(tmp_path, monkeypat
     assert not (tmp_path / "data/build/items").exists()
 
 
-def test_a_screened_read_its_current_sample_does_not_flag_is_refused_until_recorded(
+def test_a_read_its_current_sample_does_not_flag_is_refused_until_recorded(
         tmp_path, monkeypatch, caplog):
-    """A good whole read of a screened file whose sample no longer flags it (from a research
-    --confirm, say): an empty data/build would not publish its list, so it must be recorded."""
+    """A good whole read of a file whose sample no longer flags it (from a research --confirm,
+    say): an empty data/build would not publish its list, so it must be recorded."""
     read = {"id": url_to_item_id(PC), "laz": PC, "full": _full({1: 600, 2: 400})}
     assert _main_with_classes(tmp_path, monkeypatch, [read], sampled={1: 5, 2: 5}) == 1
-    assert "neither screened and flagged nor recorded" in caplog.text
+    assert "its sample does not flag it, and it is not recorded" in caplog.text
 
 
 def test_a_stale_read_of_a_file_its_new_sample_does_not_flag_is_neither_read_nor_applied(
@@ -1350,18 +1365,31 @@ def test_classes_check_requires_a_whole_read_of_every_required_file():
     assert catalogue_build.classes_check({a}, ids, cur, samples, full, ["B"]) == {}
 
 
-def test_classes_check_requires_every_whole_read_outside_the_screen_to_be_recorded():
-    """A whole read the build publishes, outside the screen, with no current sample flagging it
+def test_classes_check_requires_every_whole_read_its_sample_does_not_flag_to_be_recorded():
+    """A whole read the build publishes with no current sample flagging it
     (the #10 survey's samples carry no ETag): unrecorded, its list would live only in the cache.
-    Not checked under --limit, whose screen is that of partial groups."""
+    Not checked under --limit, a slice of the build."""
     a, b = PC, PC.replace("019_1_4_1", "019_1_4_2")
     ids, cur = {a: "A", b: "B"}, {"A": "a", "B": "a"}
     samples = {"A": _rec("A", {"1": 5, "2": 5})}
     full = {"B": {"id": "B", "full": _full({1: 5, 2: 5})}}
     p = catalogue_build.classes_check({a}, ids, cur, samples, full, [])
-    assert list(p) == [b] and "read whole, but neither screened and flagged" in p[b]
+    assert list(p) == [b] and "its sample does not flag it, and it is not recorded" in p[b]
     assert catalogue_build.classes_check({a}, ids, cur, samples, full, ["B"]) == {}
     assert catalogue_build.classes_check({a}, ids, cur, samples, full, [], unrecorded=False) == {}
+
+
+def test_classes_check_keeps_every_cause_of_one_file():
+    """Two loops refusing one file each keep their message (code-check #17 round 3): a
+    required file whose sample and whole read both failed, and an empty laz sample whose COPC
+    flags the file and whose whole read is missing."""
+    p = catalogue_build.classes_check({PC}, {PC: "A"}, {"A": "a"},
+                                      {"A": {"id": "A", "error": "OSError: x"}}, {}, ["A"])
+    assert "no point sample" in p[PC] and "classes_required.json" in p[PC]
+    empty = _rec("A", {})
+    empty["copc_sample"] = {"classes": {"1": 5}}  # no ground: flags
+    p = catalogue_build.classes_check({PC}, {PC: "A"}, {"A": "a"}, {"A": empty}, {}, [])
+    assert "holds no points" in p[PC] and "flagged by its sample" in p[PC]
 
 
 @pytest.mark.parametrize("sample, why", [
@@ -1373,16 +1401,17 @@ def test_classes_check_requires_a_current_sample_of_every_screened_file(sample, 
     assert why in p[PC]
 
 
-# Eleven files of one delivery, PC the densest: only the two least dense are screened.
+# Eleven files of one delivery, PC the densest: the two least dense are in the research screen
+# (density_screen), and the build samples all eleven (#17).
 GROUP11 = [PC] + [PC.replace("019_1_4_1", f"019_{a}_{b}_1") for a, b in
                   ((1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3), (4, 4))]
 
 
 def _main_with_required(tmp_path, monkeypatch, required, cached_samples=(), argv=(),
-                        cached_full=(), build="data/build", full_probe=None):
+                        cached_full=(), build="data/build", full_probe=None, item_probe=None):
     """main() over GROUP11 with `required` as data/classes_required.json and only
-    `cached_samples` in the sample cache; every sample is mixed, every whole read of PC is
-    ground and vegetation."""
+    `cached_samples` in the sample cache; every sample is mixed (unless `item_probe`), every
+    whole read of PC is ground and vegetation. PC is the group's densest file."""
     objs = [{"url": u, "etag": "a", "size": 1} for u in GROUP11]
     monkeypatch.chdir(tmp_path)
     req = tmp_path / "classes_required.json"
@@ -1393,7 +1422,7 @@ def _main_with_required(tmp_path, monkeypatch, required, cached_samples=(), argv
     monkeypatch.setattr(catalogue_build, "listing", lambda: objs)
     monkeypatch.setattr(catalogue_build, "copc_listing", lambda: [])
     monkeypatch.setattr(catalogue_build, "COPC_PAIRS", {})
-    monkeypatch.setattr(catalogue_build, "item_probe", _sample({1: 5, 2: 5}))
+    monkeypatch.setattr(catalogue_build, "item_probe", item_probe or _sample({1: 5, 2: 5}))
     monkeypatch.setattr(catalogue_build, "full_probe", full_probe or _whole({1: 600, 2: 400}))
 
     def header(u, session=None):
@@ -1420,31 +1449,116 @@ def test_a_required_file_outside_the_screen_is_read_whole_from_a_fresh_cache(tmp
     assert [c["value"] for c in d["assets"][ASSET_LAZ]["classification:classes"]] == [1, 2]
 
 
-def test_a_flag_outside_the_screen_must_be_recorded_and_classes_record_records_it(
-        tmp_path, monkeypatch, caplog):
-    flag = _rec(url_to_item_id(PC), {"2": 1000})  # ground only: flags
-    rc, req = _main_with_required(tmp_path, monkeypatch, [], [flag])
-    assert rc == 1 and "record it with --classes-record" in caplog.text
-    rc, req = _main_with_required(tmp_path, monkeypatch, [], [flag], ["--classes-record"])
-    assert rc == 0 and json.loads(req.read_text()) == [url_to_item_id(PC)]
+def _sample_except(special, default=None):
+    """A point-sample probe: `special` (laz url -> classes, or an exception to raise) for the
+    files it names, `default` (mixed) for the rest."""
+    def probe(item, session=None):
+        u = urllib.parse.unquote(item["assets"]["laz"]["href"])
+        got = special.get(u, default or {1: 5, 2: 5})
+        if isinstance(got, Exception):
+            raise got
+        return _sample(got)(item, session)
+    return probe
 
 
-def test_a_whole_read_outside_the_screen_must_be_recorded_and_classes_record_records_it(
+def test_the_build_samples_every_file_whatever_its_density(tmp_path, monkeypatch):
+    """PC is the densest of its group, far outside the research screen; its sample has no
+    ground, so it is read whole and listed, with nothing to record (#17)."""
+    rc, req = _main_with_required(tmp_path, monkeypatch, [],
+                                  item_probe=_sample_except({PC: {1: 1000}}),
+                                  full_probe=_whole({1: 1000}))
+    assert rc == 0 and json.loads(req.read_text()) == []
+    d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
+    assert [c["value"] for c in d["assets"][ASSET_LAZ]["classification:classes"]] == [1]
+    import laz_classes_probe as lcp
+    sampled = lcp.records_load(str(tmp_path / "data/build" / catalogue_build.CLASSES_SAMPLE))
+    assert set(sampled) == {url_to_item_id(u) for u in GROUP11}
+
+
+def test_a_dense_file_with_no_sample_is_refused(tmp_path, monkeypatch, caplog):
+    rc, _ = _main_with_required(tmp_path, monkeypatch, [],
+                                item_probe=_sample_except({PC: OSError("503")}))
+    assert rc == 1 and "no point sample at the current ETag and COPC (OSError: 503)" in caplog.text
+    assert not (tmp_path / "data/build/items").exists()
+
+
+def test_a_flag_once_outside_the_screen_is_derived_and_classes_record_drops_it_forced(
+        tmp_path, monkeypatch):
+    """The 5% audit's flags were recorded because the screen could not derive them. Every file
+    sampled, they are derived, and --force drops them from the committed list."""
+    pc = url_to_item_id(PC)
+    probe = _sample_except({PC: {2: 1000}})  # ground only: flags
+    rc, req = _main_with_required(tmp_path, monkeypatch, [pc], item_probe=probe,
+                                  argv=["--classes-record", "--force"])
+    assert rc == 0 and json.loads(req.read_text()) == []
+    rc, req = _main_with_required(tmp_path, monkeypatch, [], item_probe=probe)
+    assert rc == 0
+
+
+UNREADABLE = {PC: {"reason": "lazrs cannot read its chunk table. Found 2026-10-11 (#2).",
+                   "error": "no chunks available in chunk table", "etag": "a"}}
+CHUNKS = OSError("LazrsError: IoError: no chunks available in chunk table")
+
+
+def test_a_file_the_sampler_cannot_read_is_named_and_left_without_a_list(tmp_path, monkeypatch,
+                                                                         caplog):
+    monkeypatch.setattr(catalogue_build, "CLASSES_UNREADABLE", UNREADABLE)
+    rc, _ = _main_with_required(tmp_path, monkeypatch, [],
+                                item_probe=_sample_except({PC: CHUNKS}))
+    assert rc == 0 and "not sampled, by CLASSES_UNREADABLE" in caplog.text
+    d = json.loads((tmp_path / "data/build/items" / f"{url_to_item_id(PC)}.json").read_text())
+    assert "classification:classes" not in d["assets"][ASSET_LAZ]
+
+
+@pytest.mark.parametrize("probe, etag, why", [
+    ({}, "a", "now samples"),  # mixed: the entry no longer applies
+    ({PC: OSError("503")}, "a", "fails otherwise (OSError: 503)"),
+    ({PC: CHUNKS}, "old", "re-delivered"),  # the fault was seen in another copy of the file
+    ({PC: {2: 1000}}, "a", "now samples"),  # reads and flags: the carve-out's advice must show
+])
+def test_a_classes_unreadable_entry_that_no_longer_shows_its_fault_is_refused(
+        tmp_path, monkeypatch, caplog, probe, etag, why):
+    monkeypatch.setattr(catalogue_build, "CLASSES_UNREADABLE", {PC: {**UNREADABLE[PC],
+                                                                     "etag": etag}})
+    rc, _ = _main_with_required(tmp_path, monkeypatch, [], item_probe=_sample_except(probe))
+    assert rc == 1 and why in caplog.text
+    assert not (tmp_path / "data/build/items").exists()
+
+
+def test_an_empty_point_sample_is_refused_not_passed(tmp_path, monkeypatch, caplog):
+    """No points says nothing about classes: an item without a list would claim ground and
+    another class it was never seen to hold."""
+    rc, _ = _main_with_required(tmp_path, monkeypatch, [], item_probe=_sample_except({PC: {}}))
+    assert rc == 1 and "its point sample holds no points" in caplog.text
+
+
+def test_a_classes_unreadable_entry_for_a_file_not_in_the_build_is_refused(tmp_path,
+                                                                          monkeypatch, caplog):
+    gone = PC.replace("019_1_4_1", "019_4_4_4")
+    monkeypatch.setattr(catalogue_build, "CLASSES_UNREADABLE", {gone: UNREADABLE[PC]})
+    rc, _ = _main_with_required(tmp_path, monkeypatch, [])
+    assert rc == 1 and "names a file not in this build" in caplog.text
+    rc, _ = _main_with_required(tmp_path, monkeypatch, [], argv=["--limit", "11"],
+                                build="data/build-limit")
+    assert rc == 0  # a slice leaves most files out
+
+
+def test_a_whole_read_its_sample_does_not_flag_must_be_recorded_and_classes_record_records_it(
         tmp_path, monkeypatch, caplog):
     read = {"id": url_to_item_id(PC), "laz": PC, "full": _full({1: 600, 2: 400})}
     rc, req = _main_with_required(tmp_path, monkeypatch, [], cached_full=[read])
-    assert rc == 1 and "read whole, but neither screened and flagged" in caplog.text
+    assert rc == 1 and "its sample does not flag it, and it is not recorded" in caplog.text
     rc, req = _main_with_required(tmp_path, monkeypatch, [], argv=["--classes-record"],
                                   cached_full=[read])
     assert rc == 0 and json.loads(req.read_text()) == [url_to_item_id(PC)]
 
 
-def test_classes_record_records_a_screened_read_its_sample_does_not_flag(tmp_path,
-                                                                         monkeypatch, caplog):
-    low = GROUP11[1]  # among the two least dense: screened, and its sample is mixed
+def test_classes_record_records_a_low_density_read_its_sample_does_not_flag(tmp_path,
+                                                                             monkeypatch, caplog):
+    low = GROUP11[1]  # among the two least dense, and its sample is mixed
     read = {"id": url_to_item_id(low), "laz": low, "full": _full({1: 6, 2: 5})}  # 11 points
     rc, req = _main_with_required(tmp_path, monkeypatch, [], cached_full=[read])
-    assert rc == 1 and "neither screened and flagged nor recorded" in caplog.text
+    assert rc == 1 and "its sample does not flag it, and it is not recorded" in caplog.text
     rc, req = _main_with_required(tmp_path, monkeypatch, [], argv=["--classes-record"],
                                   cached_full=[read])
     assert rc == 0 and json.loads(req.read_text()) == [url_to_item_id(low)]
@@ -1499,8 +1613,9 @@ def test_classes_record_refuses_a_limit(tmp_path, monkeypatch):
 
 
 def test_the_screen_is_the_research_percentile_within_each_group():
-    """Share of the group strictly less dense <= 10%: in a group of 10 the two least dense,
-    ties included; a group of one is always screened."""
+    """The research screen (the 5% audit draws outside it; the build no longer uses it, #17).
+    Share of the group strictly less dense <= 10%: in a group of 10 the two least dense, ties
+    included; a group of one is always screened."""
     g1 = [f"{PATH_S3}/092/092g/2016/pointcloud/f{i}_2016.laz" for i in range(10)]
     g2 = [f"{PATH_S3}/093/093a/2020/pointcloud/solo_2020.laz"]
     pts = {u: 100 * (i + 1) for i, u in enumerate(g1)}
@@ -1508,7 +1623,8 @@ def test_the_screen_is_the_research_percentile_within_each_group():
     pts[g2[0]] = 10 ** 9
     headers = {u: {"point_count": n, "mins": [0, 0, 0], "maxs": [10, 10, 1]}
                for u, n in pts.items()}
-    assert catalogue_build.density_screen(g1 + g2, headers) == {g1[0], g1[1], g1[2], g2[0]}
+    import laz_classes_probe as lcp
+    assert lcp.density_screen(g1 + g2, headers) == {g1[0], g1[1], g1[2], g2[0]}
 
 
 def test_a_class_record_naming_no_file_is_refused_with_its_line(tmp_path):

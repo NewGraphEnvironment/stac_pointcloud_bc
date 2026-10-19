@@ -71,14 +71,17 @@ treating the repo as a Python package (#9).
   recorded in `data/copc_not_copies.json` and left unlinked, and the build refuses if either
   count changes. 13,970 items carry a `copc` asset (measured 2026-10-11).
 - **A header cannot say which classes a file holds**, and some files lack what a user would
-  assume (#10, #2; `research/laz_classes.md`). The build samples every file at or below the
-  10th density percentile of its mapsheet-year (17,552 in 0.3.0), reads whole what a sample
-  calls ground-only or groundless, and publishes the classes of exactly those files plus the
-  ids in the committed `data/classes_required.json` (`classes_published`), so a local cache
-  can never add a list. 0.3.0: 349 lists, 12 ground-only (mostly near-empty or noise tiles) and
-  253 with no ground. **The screen misses some**: a random 5% of the rest found 2 in 7,834,
-  one at the 96th density percentile, so about 38 unsampled files hold no ground or only
-  ground and carry no list. Vegetation here is mostly class 1; classes 3–5 are in about 9% of files.
+  assume (#10, #2, #17; `research/laz_classes.md`). The build samples every file, reads whole what
+  a sample calls ground-only or groundless, and publishes the classes of exactly those files
+  (`classes_published`), so a local cache can never add a list. A sample can miss a class but
+  never add one, so an item without a list holds ground and a class outside {2, 7, 9, 18}.
+  Measured 2026-10-18: 629 lists, 12 ground-only (mostly near-empty or noise tiles), 312 with no
+  ground, 305 a sample's false alarm. 61 files with no ground or only ground lay outside the old
+  10th-percentile density screen, 11 of them above its 90th, so no density screen short of nearly
+  every file finds them. **6 files are
+  damaged at source** (#32: data stops part-way, the rest zero bytes) and are named in
+  `CLASSES_UNREADABLE`, without a list. Vegetation here is mostly class 1; classes 3–5 are in
+  8.6% of files, class 12 in 44%.
   **Water can be class 1 too**: Bulkley Lake's surface returns in `093l/2019` are class 1 at the
   height of its shore, so a canopy height model reads the lake as 0 m unless water is masked by
   its missing ground returns (#19, `research/laz_classes.md`).

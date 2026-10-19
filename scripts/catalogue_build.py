@@ -40,10 +40,9 @@ from laz_classes_probe import (
     CLASS_TARGETS,
     CLASSES_FULL,
     CLASSES_SAMPLE,
-    SCREEN_PERCENTILE,
     cache_tail_repair,
     confirm_ids,
-    density_screen,
+    counts_merge,
     full_probe,
     item_probe,
     probe_all,
@@ -124,10 +123,11 @@ with open(COPC_PAIRS_PATH) as _fh:
 COPC_NOT_COPIES_PATH = os.path.join(ROOT, "data", "copc_not_copies.json")
 with open(COPC_NOT_COPIES_PATH) as _fh:
     COPC_NOT_COPIES = json.load(_fh)
-# Item ids read whole that the screen and a current sample do not derive: flags outside the
-# screen (the 5% audit's), and whole reads made for another reason (the first increment's
-# survey of every file, a research --confirm). The build publishes class lists for exactly
-# these and the screened files a current sample flags (classes_published), and reads each
+# Item ids read whole that a current sample does not derive: whole reads made for another
+# reason (the first increment's survey of every file, a research --confirm). Until #17 it also
+# held the flags of the 5% audit outside the density screen; every file sampled, those are
+# derived. The build publishes class lists for exactly
+# these and the files a current sample flags (classes_published), and reads each
 # whole, so no list depends on a local cache (data/build is not committed). A flag or a good
 # whole read the list should hold and lacks stops the build. `--classes-record` adds them, and
 # drops none unless given --force.
@@ -232,6 +232,53 @@ EXCLUDE_DELIVERIES = {
     "103/103k/2017": {"reason": _NO_CRS},
 }
 
+# Files the point sampler cannot read, left without a sample and so without a class list, by
+# name with the reason and the listing ETag the fault was seen at. Each is sampled every build
+# and must fail with its recorded error: one that now samples, was re-delivered, or has left the
+# build stops it for review; another error is a failed sample, which a re-run retries (#17).
+# All six are damaged at source (#32): the point data stops part-way, and the rest of the file,
+# its LAZ chunk table included, is zero bytes, so no reader can recover the remaining points
+# from the file. (092b082_2_3_3's COPC copy looks whole; #32 asks whether to read its classes there.)
+_ZERO_FILLED = "Damaged at source (#32): LAS 1.4, {}; the chunk table reads 0 chunks. Found by {}."
+CLASSES_UNREADABLE = {
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/082/082e/2024/pointcloud/"
+    "bc_082e075_1_4_3_xyes_8_utm11_20240727_20240727.laz": {
+        "reason": _ZERO_FILLED.format("166 M points, zero from MiB 383 of 1,026", "the 5% audit (#2), 2026-10-11"),
+        "error": "no chunks available in chunk table",
+        "etag": "056c28d71c81ef97ee5a8add5325707b-9",
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/082/082e/2025/pointcloud/"
+    "bc_082e050_3_2_1_xyes_8_utm11_20250706_20250710.laz": {
+        "reason": _ZERO_FILLED.format("137 M points, zero from MiB 288 of 853", "the #17 sweep, 2026-10-18"),
+        "error": "no chunks available in chunk table",
+        "etag": "d3a1be5a79e611b11c65276316320657-7",
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/092/092b/2019/pointcloud/"
+    "bc_092b082_2_3_3_xyes_8_utm10_2019.laz": {
+        "reason": _ZERO_FILLED.format("102 M points, zero from MiB 354 of 499", "the #17 sweep, 2026-10-18"),
+        "error": "no chunks available in chunk table",
+        "etag": "0879f88654ce30c5ff5b339e63a74e72-4",
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/093/093p/2024/pointcloud/"
+    "bc_093p045_3_3_3_xyes_8_utm10_20240926_20240926.laz": {
+        "reason": _ZERO_FILLED.format("122 M points, zero from MiB 659 of 782", "the #17 sweep, 2026-10-18"),
+        "error": "no chunks available in chunk table",
+        "etag": "57d3aa85a46803d2ca71ddf8dcaab444-7",
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/094/094j/2024/pointcloud/"
+    "bc_094j045_3_3_4_xyes_8_utm10_20240531_20240531.laz": {
+        "reason": _ZERO_FILLED.format("95 M points, zero from MiB 203 of 596", "the 5% audit (#2), 2026-10-11"),
+        "error": "no chunks available in chunk table",
+        "etag": "542476484e6496d985ba11ffe7b49f1b-5",
+    },
+    "https://nrs.objectstore.gov.bc.ca/gdwuts/094/094j/2024/pointcloud/"
+    "bc_094j046_2_4_2_xyes_8_utm10_20240708_20250509.laz": {
+        "reason": _ZERO_FILLED.format("62 M points, zero from MiB 129 of 385", "the #17 sweep, 2026-10-18"),
+        "error": "no chunks available in chunk table",
+        "etag": "500d2adba5ac6103d5913485afa7656b-4",
+    },
+}
+
 TITLE = "Point clouds from British Columbia - stac-pointcloud-bc"
 DESCRIPTION = (
     "LidarBC point clouds (LAZ) from British Columbia, one item per file as published on "
@@ -244,17 +291,17 @@ DESCRIPTION = (
     "Where an item's file name is one of them, the item also carries that COPC as its `copc` "
     "asset, checked to have the same point count and horizontal CRS and a header box within "
     f"{COPC_BOX_TOLERANCE_M:g} m; the `laz` asset stays the source of record. "
-    "A LAS header does not say which classes a file holds. A sample of points was read from "
-    f"every file whose point density is in the lowest {SCREEN_PERCENTILE:g}% of its "
-    "mapsheet-year, where such files gather, and, once (October 2026), from a random 5% of "
-    "the rest. Each file a "
+    "A LAS header does not say which classes a file holds, so a sample of points was read "
+    "from every file. Each file a "
     "sample found to hold only ground, noise and water, or no ground at all, was read whole: "
     "its `laz` asset lists every class present, with its point count, in "
-    "`classification:classes`. An item without that list was not read whole, and a few of "
-    "them hold no ground either: the random sample found such files outside the low-density "
-    "tail, rarely (research/laz_classes.md in "
-    "github.com/NewGraphEnvironment/stac_pointcloud_bc). Most of the listed items hold no "
-    "ground (class 2) at all, and so give no bare-earth surface. Vegetation in this "
+    "`classification:classes`. A sample can miss a class but never add one, so an item "
+    "without a list holds ground and at least one class besides ground, noise and water, "
+    f"except {len(CLASSES_UNREADABLE)} files damaged at source, which the sampler cannot read "
+    "and which carry no list "
+    "(research/laz_classes.md in "
+    "github.com/NewGraphEnvironment/stac_pointcloud_bc). A listed item may hold no ground "
+    "(class 2) at all, and so give no bare-earth surface; its list says so. Vegetation in this "
     "collection is mostly unclassified (class 1); classes 3 to 5 are in a minority of files."
 )
 PROVIDERS = [
@@ -639,49 +686,94 @@ def class_target(item: pystac.Item) -> dict:
     return {"id": item.id, "assets": {k: {"href": a.href} for k, a in item.assets.items()}}
 
 
-def classes_check(screened: set[str], ids: dict[str, str], current: dict[str, str],
+def problem_add(problems: dict[str, str], u: str, message: str) -> None:
+    """Add a refusal for `u` beside any it already has, so one file's causes all show at once
+    (code-check #17: two writers to one map each overwrote the other)."""
+    problems[u] = "; ".join(filter(None, [problems.get(u), message]))
+
+
+def classes_unreadable_check(ids: dict[str, str], etags: dict[str, str],
+                             samples: dict[str, dict],
+                             whole_build: bool = True) -> dict[str, str]:
+    """What stops a build over its CLASSES_UNREADABLE entries, by laz url: an entry whose file
+    is listed at another ETag than the entry's, now samples, or fails with another error than
+    the one recorded (a transient one is read again by a re-run), or, unless `whole_build` is
+    False (--limit), is not in the build. `ids` is laz url -> item id, `etags` laz url -> the
+    listing's ETag."""
+    problems = {}
+    for u, e in sorted(CLASSES_UNREADABLE.items()):
+        if u not in ids:
+            if whole_build:
+                problems[u] = ("CLASSES_UNREADABLE names a file not in this build; remove its "
+                               "entry")
+            continue
+        r = samples.get(ids[u])
+        if etags.get(u) != e["etag"]:
+            problems[u] = (f"CLASSES_UNREADABLE entry at ETag {e['etag']}, but the file is "
+                           f"listed at {etags.get(u)}: re-delivered, so sample it again and "
+                           "remove or renew the entry")
+        elif r is None:
+            problems[u] = "CLASSES_UNREADABLE entry, but the file has no sample record"
+        elif "error" not in r:
+            problems[u] = ("CLASSES_UNREADABLE entry, but the file now samples; remove its "
+                           "entry and re-run the build")
+        elif e["error"] not in r["error"]:
+            problems[u] = (f"CLASSES_UNREADABLE entry, but the file fails otherwise "
+                           f"({r['error']}); re-run the build")
+        else:
+            logger.warning("not sampled, by CLASSES_UNREADABLE: %s: %s", u, e["reason"])
+    return problems
+
+
+def classes_check(to_sample: set[str], ids: dict[str, str], current: dict[str, str],
                   samples: dict[str, dict], full: dict[str, dict],
                   required: list[str], unrecorded: bool = True,
                   copc: dict[str, str | None] | None = None) -> dict[str, str]:
     """What stops a build publishing class lists it cannot stand behind, by laz url:
-    - a screened file with no good point sample (current ETag, current COPC: sample_good);
-    - a file any good sample flags (screened or not: audit samples count too), or one in
-      `required` (CLASSES_REQUIRED), with no good whole-file read at its current ETag;
-    - with `unrecorded`, a file a good sample flags outside the screen, or a good whole read
+    - a file in `to_sample` (every file but CLASSES_UNREADABLE's, #17) with no good point
+      sample (current ETag, current COPC: sample_good);
+    - a file any good sample flags, or one in `required` (CLASSES_REQUIRED), with no good
+      whole-file read at its current ETag;
+    - with `unrecorded`, a file a good sample flags outside `to_sample`, or a good whole read
       outside classes_published(), that `required` lacks: an empty data/build would not
-      reproduce its class list. Off under --limit, whose screen is that of partial groups.
-    Derived from the screen and the samples, so a cache that is missing, short or stale is
+      reproduce its class list. Off under --limit, a slice of the build.
+    Derived from the files and the samples, so a cache that is missing, short or stale is
     refused without a count to keep (#2). `samples` and `full` are keyed by item id."""
     problems = {}
-    for u in sorted(screened):
+    for u in sorted(to_sample):
         r = samples.get(ids[u])
         if r is None or not sample_good(r, current, copc):
-            problems[u] = ("no point sample at the current ETag and COPC"
-                           + (f" ({r['error']})" if r and "error" in r else ""))
+            problem_add(problems, u, "no point sample at the current ETag and COPC"
+                        + (f" ({r['error']})" if r and "error" in r else ""))
     by_id = {i: u for u, i in ids.items()}
-    inside = {ids[u] for u in screened}
+    inside = {ids[u] for u in to_sample}
     good = {k: r for k, r in samples.items() if k in by_id and sample_good(r, current, copc)}
+    # A sample with no points says nothing about the classes, and no file in the build has
+    # given one (0 of 35,035, 2026-10-17); one that does is a file to look at, not to pass.
+    for k in sorted(good):
+        if not any(counts_merge(*good[k]["laz_sample"]["samples"].values()).values()):
+            problem_add(problems, by_id[k], "its point sample holds no points")
     flagged = confirm_ids(good)
     for k in sorted(flagged | {k for k in required if k in by_id}):
         r = full.get(k)
         if r is None or not record_good(r, current):
             why = "flagged by its sample" if k in flagged else f"in {CLASSES_REQUIRED_PATH}"
-            problems[by_id[k]] = (f"{why}, with no whole-file read at the current ETag"
-                                  + (f" ({r['error']})" if r and "error" in r else ""))
+            problem_add(problems, by_id[k], f"{why}, with no whole-file read at the current ETag"
+                        + (f" ({r['error']})" if r and "error" in r else ""))
     published = classes_published(inside, flagged, required, by_id)
     read = {k for k, r in full.items() if k in by_id and record_good(r, current)}
     for k in sorted(((flagged - inside) | read) - published) if unrecorded else ():
-        how = ("flagged by a sample outside the screen" if k in flagged and k not in inside
-               else "read whole, but neither screened and flagged nor recorded")
-        problems[by_id[k]] = "; ".join(filter(None, [
-            problems.get(by_id[k]), f"{how}, and not in {CLASSES_REQUIRED_PATH}; record it "
-            f"with --classes-record"]))
+        how = ("flagged by a sample of a file the build need not sample"
+               if k in flagged and k not in inside
+               else "read whole, but its sample does not flag it, and it is not recorded")
+        problem_add(problems, by_id[k], f"{how}, and not in {CLASSES_REQUIRED_PATH}; record it "
+                    f"with --classes-record")
     return problems
 
 
 def classes_published(inside: set[str], flagged: set[str], required: list[str],
                       listed) -> set[str]:
-    """The item ids whose class lists a build publishes: the screened files a current sample
+    """The item ids whose class lists a build publishes: the sampled files a current sample
     flags, and the recorded ones still listed. What an empty data/build would publish, so the
     whole-read step, classes_check and classes_attach all take it from here and a local cache
     can speed a build up but never add a list (#2)."""
@@ -760,14 +852,14 @@ def main() -> int:
                     help="write the listing's per-group .laz and COPC pair counts to "
                          "data/pointcloud_groups.json and data/copc_pairs.json, and stop")
     ap.add_argument("--classes-record", action="store_true",
-                    help="add to data/classes_required.json every file outside the density "
-                         "screen that a cached sample flags or that has a cached whole read")
+                    help="add to data/classes_required.json every file with a cached whole read "
+                         "that its sample does not flag")
     ap.add_argument("--force", action="store_true",
                     help="with --groups-record, allow a recorded count to fall; with "
-                         "--classes-record, drop recorded ids no longer listed or now screened and "
-                         "flagged")
+                         "--classes-record, drop recorded ids no longer listed or now flagged by "
+                         "their sample")
     args = ap.parse_args()
-    if args.classes_record and args.limit:  # a slice's screen is that of partial groups
+    if args.classes_record and args.limit:  # a slice is not the committed set
         ap.error("--classes-record records the committed list, so it cannot run with --limit")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     # A local, not a reassigned module global: a second main() in one process (a test)
@@ -865,28 +957,27 @@ def main() -> int:
 
     etags = {o["url"]: o["etag"] for o in objs}
     class_targets_write(f"{out}/{CLASS_TARGETS}", kept, items, etags, pairs)
-    # Point classes (#10): sample the low-density tail, read whole what a sample flags, and list
-    # the classes of every file read whole. Each step reads only what its cache lacks at the
-    # file's current ETag, so a re-run retries failures and nothing else.
+    # Point classes (#10, #17): sample every file, read whole what a sample flags, and list the
+    # classes of every file read whole. Each step reads only what its cache lacks at the file's
+    # current ETag, so a re-run retries failures and nothing else. CLASSES_UNREADABLE's files
+    # are sampled too, each run, so one that starts to read is seen.
     ids = {u: i.id for u, i in zip(kept, items)}
     current = {i.id: etags[u] for u, i in zip(kept, items)}
-    screened = density_screen(kept, headers)
-    logger.info("%d of %d files screened (density at or below the %g percentile of their "
-                "mapsheet-year)", len(screened), len(kept), SCREEN_PERCENTILE)
+    to_sample = set(kept) - set(CLASSES_UNREADABLE)
     targets = {i.id: class_target(i) for i in items}
     sample_path, full_path = f"{out}/{CLASSES_SAMPLE}", f"{out}/{CLASSES_FULL}"
-    probe_all([targets[ids[u]] for u in sorted(screened)], sample_path, args.workers,
+    probe_all([targets[ids[u]] for u in sorted(kept)], sample_path, args.workers,
               probe=item_probe, current=current, match_copc=True)
     samples = {k: r for k, r in records_load(sample_path).items() if k in current}
     cache_tail_repair(full_path)
     copcs = {i.id: (i.assets[ASSET_COPC].href if ASSET_COPC in i.assets else None)
              for i in items}
-    inside = {ids[u] for u in screened}
+    inside = {ids[u] for u in to_sample}
     flagged = confirm_ids({k: r for k, r in samples.items() if sample_good(r, current, copcs)})
     prior = {k: r for k, r in records_load(full_path).items() if k in current}
     required = CLASSES_REQUIRED
-    # Read whole what the build publishes, and every flag outside the screen (refused below
-    # until recorded). A stale read of anything else is left stale and is not applied.
+    # Read whole what the build publishes, and every flag. A stale read of anything else is
+    # left stale and is not applied.
     want = {k for k in classes_published(inside, flagged, required, current) | flagged
             if not (k in prior and record_good(prior[k], current))}
     probe_all([targets[k] for k in sorted(want)], full_path, args.workers, probe=full_probe,
@@ -895,7 +986,7 @@ def main() -> int:
     if args.classes_record:  # after the reads, so a read made good in this run is recorded
         found = ((flagged - inside)
                  | {k for k, r in full.items() if record_good(r, current)} - (inside & flagged))
-        # --force drops only an id no longer listed or now derived (screened and flagged): a
+        # --force drops only an id no longer listed or now derived (sampled and flagged): a
         # listed one whose read failed in this run stays required, and is refused below.
         keep = {k for k in CLASSES_REQUIRED if k in current and k not in inside & flagged}
         required = sorted(found | (keep if args.force else set(CLASSES_REQUIRED)))
@@ -906,12 +997,14 @@ def main() -> int:
         os.replace(f"{CLASSES_REQUIRED_PATH}.new", CLASSES_REQUIRED_PATH)
         logger.info("recorded %d ids in %s (%d no longer needed, %s)", len(required),
                     CLASSES_REQUIRED_PATH, len(dropped), "dropped" if args.force else "kept")
-    problems = classes_check(screened, ids, current, samples, full, required,
-                             unrecorded=not args.limit, copc=copcs)
+    problems = classes_unreadable_check(ids, etags, samples, whole_build=not args.limit)
+    for u, e in classes_check(to_sample, ids, current, samples, full, required,
+                              unrecorded=not args.limit, copc=copcs).items():
+        problem_add(problems, u, e)
     if problems:
         for u, e in sorted(problems.items()):
             logger.error("class read: %s: %s", u, e)
-        logger.error("%d files lack the class reads the screen requires - not building; "
+        logger.error("%d files lack the class reads the build requires - not building; "
                      "re-run to retry them", len(problems))
         return 1
     records = classes_records_load(full_path)
@@ -930,8 +1023,8 @@ def main() -> int:
     read = collections.Counter(group_of(u) for u in records)
     for g, n in sorted(read.items()):
         logger.info("%s: %d items read whole for their classes", g, n)
-    logger.info("classes: %d screened, %d sampled, %d flagged by a sample, %d read whole",
-                len(screened), len(samples), len(flagged), len(records))
+    logger.info("classes: %d to sample, %d sampled, %d flagged by a sample, %d read whole",
+                len(to_sample), len(samples), len(flagged), len(records))
     bodies = []
     for i in items:
         if ASSET_LAZ not in i.assets:

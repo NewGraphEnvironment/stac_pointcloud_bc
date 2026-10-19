@@ -73,6 +73,44 @@ def test_any_other_difference_is_named(mutate, why):
     assert why in "; ".join(cc.item_expected_diff(p, b))
 
 
+def _with_classes(d, classes=({"value": 2, "name": "ground", "count": 1000},)):
+    d["assets"]["laz"][cc.CLASSES] = list(classes)
+    d["stac_extensions"].append(cc.CLASSIFICATION_EXT)
+    return d
+
+
+def test_a_class_list_the_published_item_lacked_passes():
+    b = _with_classes(_built())
+    assert cc.item_expected_diff(_published(_built()), b) == []
+    assert cc.classes_added(_published(_built()), b)
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda p, b: b["assets"]["laz"][cc.CLASSES][0].__setitem__("count", 999),  # list changed
+    lambda p, b: (b["assets"]["laz"].pop(cc.CLASSES),
+                  b["stac_extensions"].remove(cc.CLASSIFICATION_EXT)),  # list dropped
+    lambda p, b: b["stac_extensions"].remove(cc.CLASSIFICATION_EXT),  # list without its extension
+])
+def test_a_published_class_list_must_be_kept_as_it_is(mutate):
+    b = _with_classes(_built())
+    p = _published(b)
+    mutate(p, b)
+    assert cc.item_expected_diff(p, b)
+
+
+def test_a_class_list_added_without_its_extension_is_named():
+    b = _built()
+    b["assets"]["laz"][cc.CLASSES] = [{"value": 2, "name": "ground", "count": 1000}]
+    assert "assets" in "; ".join(cc.item_expected_diff(_published(_built()), b))
+
+
+def test_the_collection_description_may_change_and_is_reported():
+    built = _collection(["a", "b"])
+    built["description"] = "e"
+    problems, changes = cc.collection_diff(_collection(["a", "b"]), built, new=0)
+    assert problems == [] and "description changed" in changes
+
+
 def _collection(hrefs, bbox=(-125.0, 49.0, -120.0, 52.0)):
     return {"type": "Collection", "id": "c", "description": "d", "stac_extensions": ["s"],
             "extent": {"spatial": {"bbox": [list(bbox)]},
@@ -94,7 +132,7 @@ def test_the_collection_as_released_passes_its_unstamped_build():
     (lambda c: c["extent"]["spatial"]["bbox"][0].__setitem__(0, -126.0), 0, "beyond the rounding"),
     (lambda c: c["extent"]["temporal"]["interval"][0].__setitem__(1, "2026-01-01T00:00:00Z"), 0,
      "extent.temporal"),
-    (lambda c: c.__setitem__("description", "e"), 0, "description: changed"),
+    (lambda c: c.__setitem__("title", "e"), 0, "title: changed"),
     (lambda c: c["stac_extensions"].append("t"), 0, "stac_extensions"),
 ])
 def test_any_other_collection_difference_is_a_problem(mutate, new, why):
@@ -208,7 +246,7 @@ def test_main_fails_on_a_collection_problem_alone(tmp_path, monkeypatch):
     argv = _tree(tmp_path, {"x": _published(b)}, {"x": b})
     coll = tmp_path / "build" / "collection.json"
     c = json.loads(coll.read_text())
-    c["description"] = "changed"
+    c["title"] = "changed"  # the description may change (#17); the title may not
     coll.write_text(json.dumps(c))
     assert _main(monkeypatch, argv) == 1
 
