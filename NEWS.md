@@ -5,7 +5,7 @@ and the `stac-pointcloud-bc` collection at <https://images.a11s.one>. A tag mean
 catalogue is in this state". Same convention as
 [`stac_dem_bc`](https://github.com/NewGraphEnvironment/stac_dem_bc).
 
-## Unreleased
+## 0.5.0
 
 **Every file's classes sampled (#17).** The build samples points from all 174,282 files, not only
 the 17,552 at or below the 10th density percentile of their mapsheet-year, and reads whole each one
@@ -18,7 +18,11 @@ ground and at least one class besides ground, noise and water, except 6 files da
 (#32), which carry no list. `data/classes_required.json` is empty: every list is derived from a
 sample. The collection description says so. No item is added or removed, and no other field
 changes. The sweep was 148,896 files, 447 GB of range reads and 19 h 13 min at 10 workers; a month
-samples only its new or re-delivered files (`research/laz_classes.md`).
+samples only its new or re-delivered files (`research/laz_classes.md`). Published 2026-10-19 and
+verified `IN SYNC` (174,282 ids equal in both directions, every body digest-equal). The upload sent
+280 items and the collection, the items whose list is new; before registration,
+`stacs register --dryrun` found exactly that drift: 280 items changed, the collection changed,
+nothing missing or orphaned, the queryable unchanged.
 
 ## 0.4.0
 

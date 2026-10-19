@@ -103,7 +103,9 @@ treating the repo as a Python package (#9).
 - Concatenating many item JSONs uses `find -exec cat {} +`, never a glob (ARG_MAX).
 - **A full publish of 174k items is about four hours** (0.3.0, 2026-10-11): uploading every item
   95 min, each `stacs verify` 45 min (it fetches every item body), `stacs register --mode drift`
-  65 min. 0.4.0 (2026-10-14) took 36, 26 and 42 min for the same three steps. Run them with `PYTHONUNBUFFERED=1`, or their logs stay empty until the end.
+  65 min. 0.4.0 (2026-10-14) took 36, 26 and 42 min for the same three steps. A drift of 280
+  items (0.5.0, 2026-10-19) still took about an hour: upload 1 min, but `register --dryrun` 23 min,
+  `register --mode drift` 34 min and `stacs verify` 24 min, since each compares every body. Run them with `PYTHONUNBUFFERED=1`, or their logs stay empty until the end.
   `s3_sync.sh` now uploads only items whose MD5 the bucket's ETag lacks (#4): an unchanged
   build is 9 min to check and sends nothing.
 
