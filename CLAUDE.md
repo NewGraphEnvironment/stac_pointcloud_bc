@@ -23,11 +23,11 @@ treating the repo as a Python package (#9).
 
 - **Its own collection, one item per `.laz` file.** The `.laz` tiles have different,
   usually smaller footprints than the raster tiles, so as assets of a raster item they
-  would misstate their geometry (rtj#229).
+  would misstate their geometry.
 - **Its own repo and bucket.** Write authority is per bucket. `stac-dem-bc` holds the
   elevation catalogue at its root, and stac_dem_bc's registration requires a `dem` asset
   on every item there. The bucket (`stac-pointcloud-bc`, us-west-2, public read,
-  versioned) and the CI role (`stac_pointcloud_bc_update`) are IaC in rtj (rtj#362).
+  versioned) and the CI role (`stac_pointcloud_bc_update`) are IaC in the infrastructure repo.
 - **Custom fields are named for what they describe, never `nge:`** (#12): `lidarbc:` for
   LidarBC's paths and file names, `las:` for LAS-format facts. A standard extension's field
   beats either. `tests/test_laz_item.py` pins every key path the build writes
