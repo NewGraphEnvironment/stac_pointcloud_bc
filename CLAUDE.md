@@ -19,7 +19,7 @@ in `maintaining.md`. Its R
 packages are declared in `scripts/DESCRIPTION`, not at the root, so `/gh-pr-merge` keeps
 treating the repo as a Python package (#9).
 
-## Decisions this repo starts from (#35, decided 2026-09-30)
+## Decisions this repo starts from (#1, decided 2026-09-30)
 
 - **Its own collection, one item per `.laz` file.** The `.laz` tiles have different,
   usually smaller footprints than the raster tiles, so as assets of a raster item they
@@ -126,6 +126,15 @@ treating the repo as a Python package (#9).
   Anything else computed in floating point and written to an item has the same hazard.
 - Pull the caches before a local build and push them after; `push` refuses to replace reads
   the monthly run made since this tree last pulled.
+
+## Working conventions
+
+### A defect in the source data is an issue here
+
+When a LidarBC file turns out to be damaged or inconsistent, file it as an issue in this repo with
+the measurements that show it (#32 is the shape: each file, its ETag, what is wrong and how it was
+measured), and link it from the code and `research/` that depend on it. The issue is the record;
+contacting the data provider is not part of the work.
 
 <!-- BEGIN SOUL CONVENTIONS — DO NOT EDIT BELOW THIS LINE -->
 
