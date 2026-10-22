@@ -3,7 +3,7 @@
 ## What this repo is
 
 The STAC catalogue of LidarBC point clouds (`.laz`) as the `stac-pointcloud-bc`
-collection. Sibling of [stac_dem_bc](https://github.com/NewGraphEnvironment/stac_dem_bc),
+collection. Sibling of [stac_elevation_bc](https://github.com/NewGraphEnvironment/stac_elevation_bc),
 which indexes the raster products of the same deliveries (DEM, DSM) as
 `stac-elevation-bc`. The `.laz` stay on the province's objectstore; this repo publishes
 item JSON to `s3://stac-pointcloud-bc` and registers it with
@@ -25,7 +25,7 @@ treating the repo as a Python package (#9).
   usually smaller footprints than the raster tiles, so as assets of a raster item they
   would misstate their geometry.
 - **Its own repo and bucket.** Write authority is per bucket. `stac-dem-bc` holds the
-  elevation catalogue at its root, and stac_dem_bc's registration requires a `dem` asset
+  elevation catalogue at its root, and stac_elevation_bc's registration requires a `dem` asset
   on every item there. The bucket (`stac-pointcloud-bc`, us-west-2, public read,
   versioned) and the CI role (`stac_pointcloud_bc_update`) are IaC in the infrastructure repo.
 - **Custom fields are named for what they describe, never `nge:`** (#12): `lidarbc:` for
@@ -41,7 +41,7 @@ treating the repo as a Python package (#9).
 - 181,708 `.laz`: 175,317 under `<block>/<sheet>/<year>/pointcloud/` and 6,391 under
   `.../dsm/`. Four have `copc` in the name; the rest are plain LAZ.
 - 11 mapsheet-years have a `dsm/` directory holding only `.laz` (6,067 files); in
-  stac_dem_bc they leave 1,211 DEM tiles reported as `no_raster_dsm`. **Those `.laz`
+  stac_elevation_bc they leave 1,211 DEM tiles reported as `no_raster_dsm`. **Those `.laz`
   are not surface models.** In every sample compared, each was an RGB-colourised copy of
   the same-tile `pointcloud/*.laz` (`research/laz_header_read.md`, which says how far
   that was measured). The first increment indexed here was those groups'
@@ -92,9 +92,9 @@ treating the repo as a Python package (#9).
   corrected; its canopy figure builds its ground from the points.
 - **Source URLs are `https://`.** `ngr::ngr_s3_keys_get()` returned `https:/` before ngr
   0.0.3 (ngr#38). Anything that reads a URL list refuses the one-slash form; never
-  repair it silently (stac_dem_bc#51).
+  repair it silently (stac_elevation_bc#51).
 
-## Hazards inherited from stac_dem_bc
+## Hazards inherited from stac_elevation_bc
 
 - **Never verify a registration by a count.** Compare id sets in both directions, and
   bodies by digest (`stacs verify`).
