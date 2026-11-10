@@ -21,14 +21,14 @@ Point cloud is the **largest product in the bucket**, with more files than DEM.
 
 - **Its own collection, `stac-pointcloud-bc`, one item per `.laz` tile and year.** The
   `.laz` tiles have different, smaller footprints than the raster tiles, so as assets of
-  the raster item they would misstate their geometry (rtj#229). This rules out option 1
+  the raster item they would misstate their geometry. This rules out option 1
   below.
-- **Its own repo, `stac_pointcloud_bc`,** reversing rtj#229's "one repo". That argument
+- **Its own repo, `stac_pointcloud_bc`,** reversing an internal issue's "one repo". That argument
   rested on shared machinery that was never packaged. Once NewGraphEnvironment/stacs#1 packages registration and
   verification, the new repo holds only discovery and item creation, and each repo stays
   one collection, one CI role, one release history. **This issue transfers there once the
   repo exists.**
-- **Its own bucket, `stac-pointcloud-bc`** (rtj#362). Sharing `stac-dem-bc` would let two
+- **Its own bucket, `stac-pointcloud-bc`**. Sharing `stac-dem-bc` would let two
   repos' roles overwrite each other's catalogues, would put a co-tenant beside a catalogue
   that lives at the bucket root, and would be refused by NewGraphEnvironment/stac_dem_bc#42's registration test.
 - **Blocked on NewGraphEnvironment/stacs#1.** Without it the new repo starts life with a third copy of the
@@ -70,7 +70,7 @@ Options as originally costed:
 
 - **What an item's geometry and properties come from.** Filenames only, or a PDAL read of
   each `.laz` header (real extent, point count, density, CRS, classification presence).
-  rtj#229's pilot found DEM footprints are mapsheet-sized containers, not where the data
+  An internal issue's pilot found DEM footprints are mapsheet-sized containers, not where the data
   is (082f037: 13.8% and 2.2% valid), which argues for the header read. But reading
   175k files of ~600 MB over the network is the same bottleneck as the DEM build. Header
   reads are range requests, so measure the per-file cost on the first increment before
@@ -95,7 +95,7 @@ Options as originally costed:
   keeps a later `stactools-lidarbc` contribution a lift rather than a rewrite. Copy the
   pattern rather than depend on either package: both were last pushed 2023-09.
 
-Relates to NewGraphEnvironment/stac_dem_bc#29, NewGraphEnvironment/stac_dem_bc#31, NewGraphEnvironment/stacs#1, NewGraphEnvironment/stac_dem_bc#42, NewGraphEnvironment/stac_dem_bc#47, NewGraphEnvironment/rtj#229, NewGraphEnvironment/rtj#362
+Relates to NewGraphEnvironment/stac_dem_bc#29, NewGraphEnvironment/stac_dem_bc#31, NewGraphEnvironment/stacs#1, NewGraphEnvironment/stac_dem_bc#42, NewGraphEnvironment/stac_dem_bc#47, internal issues
 
 ## Exploration 2026-10-06/07
 

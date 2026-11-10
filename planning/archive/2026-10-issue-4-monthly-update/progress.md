@@ -1,4 +1,4 @@
-# Progress — Monthly update in GitHub Actions with the rtj#362 role (#4)
+# Progress — Monthly update in GitHub Actions with the internal issue role (#4)
 
 ## Session 2026-10-12
 

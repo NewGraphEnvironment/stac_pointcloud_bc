@@ -1,10 +1,10 @@
-# Findings — Monthly update in GitHub Actions with the rtj#362 role (#4)
+# Findings — Monthly update in GitHub Actions with the internal issue role (#4)
 
 ## Issue context
 
 **If we do it:** new LidarBC deliveries reach the collection without a local run, as stac_dem_bc's `update.yml` does for rasters. **If we never do:** the collection is as current as the last time someone built it by hand.
 
-The bucket and the OIDC role `stac_pointcloud_bc_update` exist (NewGraphEnvironment/rtj#362). The trust names this repo. Registration still needs the tailnet, as it does for stac_dem_bc.
+The bucket and the OIDC role `stac_pointcloud_bc_update` exist. The trust names this repo. Registration still needs the tailnet, as it does for stac_dem_bc.
 
 
 ## Exploration (2026-10-12)

@@ -7,7 +7,7 @@ Transferred from NewGraphEnvironment/stac_dem_bc#35. This branch is the **first 
 The objectstore holds 181,708 `.laz` that nothing indexes: 175,317 under `pointcloud/`
 and 6,391 under `dsm/` (live walk, 2026-10-06). #35 decided on its own collection
 (`stac-pointcloud-bc`), its own repo (`stac_pointcloud_bc`) and its own bucket. The
-bucket and the CI role exist (rtj#362, closed), and the role's trust already names the
+bucket and the CI role exist (an internal issue, closed), and the role's trust already names the
 repo. The registration layer is `stacs` v0.1.1 (stacs#1, closed). So #35 is unblocked;
 only the repo is missing.
 
@@ -72,7 +72,7 @@ Measured per group, `dsm/*.laz` (`pointcloud/*.laz` alongside, not in this incre
 - [x] README (what is indexed, what is not yet), NEWS `v0.1.0` entry, follow-up issues:
   - the rest of `pointcloud/*.laz` (175,317 − 9,650)
   - `dsm/*.laz` (6,391): RGB copies; index as a variant asset or not at all
-  - CI monthly update with the rtj#362 role
+  - CI monthly update with the internal issue role
   - elevation-item → point cloud link
 - [x] stac_dem_bc: does `dsm_pairing_report.md` gain a pointer to the new collection for the 1,211 tiles? File it there, don't change it here
 

@@ -71,7 +71,7 @@ with the code unchanged.
 | "Light blue is ... the lake and the creek's channel, where water returned few points" | U; no NA-is-water check | finding 1 now; finding 2 on a later render |
 | "25% ≥ 2 m", "8% ≥ 10 m", "tallest 1% exceed 25.5 m", "max 39.5 m" | C | no (denominator: finding 1) |
 | "LidarBC publishes its own CHMs for 2023 and 2024 only" | U, from stac_dem_bc#47 (bucket walk 2026-08-28: 264 tifs, all 2023–24) | not by the render; it goes stale when LidarBC publishes another year, and nothing re-checks it. Stated undated |
-| "DSM specifications differ between deliveries" | U, from stac_dem_bc#47 (rtj#229 pilot, 082f020) | no |
+| "DSM specifications differ between deliveries" | U, from stac_dem_bc#47 (an internal issue pilot, 082f020) | no |
 | "historic channels and the forest lost since 2017" | U, matches floodplains#121 (transition 2017–2023) | no |
 
 ### README.Rmd, fig.alt (line 141)

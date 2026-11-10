@@ -15,7 +15,7 @@ Every probe was a read: no repo file was edited, and the render ran in a scratch
 | 125 | "surface models for most tiles but not all" | stac_dem_bc README: 95,888 of 102,460 DEM items carry a `dsm` | TRUE |
 | 125 | "canopy height models for 2023 and 2024 only" | stac_dem_bc#47 and #29: 264 CHM tifs in 19 mapsheet-years, all 2023–24, about 1.1% of the DEM tiles in those deliveries (`093a/2024`: 398 DEM, 2 CHM). Live listing today: 19 of the 48 mapsheet-years from 2023–24 have a `chm/`, and none from 2025 | FALSE by omission: the years are right, but the sentence reads as CHMs covering 2023–24. Elsewhere this coverage is called "a sample, not a product" |
 | 125 | "Each comes at the resolution and by the method LidarBC chose" | - | TRUE (says little) |
-| 125 | "its surface models are made to specifications that differ between deliveries" | stac_dem_bc#47 cites rtj#229's pilot: one tile, `082f020`, CHM median 4.05 m in 2017 against 0.52 m in 2022 | UNVERIFIABLE beyond one tile pair. The old text cited #47; the citation is gone, so the claim now has no visible source |
+| 125 | "its surface models are made to specifications that differ between deliveries" | stac_dem_bc#47 cites an internal issue's pilot: one tile, `082f020`, CHM median 4.05 m in 2017 against 0.52 m in 2022 | UNVERIFIABLE beyond one tile pair. The old text cited #47; the citation is gone, so the claim now has no visible source |
 | 125 | "you can apply one method to every flight, so that years compare" | line 123 says flights differ in density and in classification; the CHM section says vegetation is mostly class 1 | Overstated: one method is necessary for comparison, not sufficient. The removed text said "comparing change over time needs exactly that", which was the necessary form |
 | 125 | "They also give products LidarBC does not publish, …" | - | TRUE |
 | 127 | "Every file is LidarBC's, on the province's objectstore." | every item's `laz` href is `nrs.objectstore.gov.bc.ca/gdwuts/…` (live item and samples) | TRUE |
@@ -69,7 +69,7 @@ Every probe was a read: no repo file was edited, and the render ran in a scratch
   (flights differ in density and classification). The removed text had the right form. Suggested:
   "which is what comparing years needs".
 - **[claim]** README.Rmd:125: "surface models are made to specifications that differ between
-  deliveries" rests on one tile pair (082f020, 2017 against 2022; rtj#229 via stac_dem_bc#47). With
+  deliveries" rests on one tile pair (082f020, 2017 against 2022; an internal issue via stac_dem_bc#47). With
   the #47 link removed, nothing on the page supports it. Either soften it ("can differ") or link
   the research.
 - **[claim, minor]** README.Rmd:296: the heading says "on the same endpoint", while line 129 now

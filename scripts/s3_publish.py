@@ -21,7 +21,7 @@ collection drops it, as stac_dem_bc's --clear-version does: the catalogue is no 
 release.
 
 Objects in the bucket that the build no longer makes are reported, never deleted (the CI role
-cannot delete, rtj#362), and `build-cache/` (scripts/cache_sync.sh) is not an item.
+cannot delete), and `build-cache/` (scripts/cache_sync.sh) is not an item.
 
 Writes the items to upload as hard links in a stage directory, the plan to
 `<build>/publish_plan.json`, and one line to stdout, `<upload> <unbuilt> <collection 0|1>`,
